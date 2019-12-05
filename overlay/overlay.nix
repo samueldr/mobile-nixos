@@ -18,7 +18,10 @@ in
     # Keep sorted.
     adbd = callPackage ./adbd { };
     android-headers = callPackage ./android-headers { };
+    drihybris = callPackage ./drihybris { };
+    drihybrisproto = callPackage ./drihybrisproto { };
     dtbTool = callPackage ./dtbtool { };
+    glamor-hybris = callPackage ./glamor-hybris { };
     hard-reboot = callPackage ./misc/hard-reboot.nix { };
     hard-shutdown = callPackage ./misc/hard-shutdown.nix { };
     libhybris = callPackage ./libhybris {
@@ -33,6 +36,36 @@ in
     msm-fb-refresher = callPackage ./msm-fb-refresher { };
     msm-fb-handle = callPackage ./msm-fb-handle { };
     ply-image = callPackage ./ply-image { };
+    pulseaudio-modules-droid = callPackage ./pulseaudio-modules-droid { };
+    xorg = super.xorg.overrideScope'(self: super: {
+      xf86videohwcomposer = callPackage ./xf86-video-hwcomposer { };
+    }) # See all-packages.nix for more about this messy composition :/
+    // { inherit (self) xlibsWrapper; };
+
+    plasma5 = super.plasma5.overrideScope'(pself: psuper: {
+      kwin = psuper.kwin.overrideAttrs(old: {
+        cmakeFlags = old.cmakeFlags ++ [
+          "-Dhybriseglplatform_INCLUDE_DIR=${self.libhybris}/include"
+          "-Dlibhardware_INCLUDE_DIR=${self.android-headers}/include"
+        ];
+        NIX_CFLAGS_COMPILE = "-I${self.android-headers}/include/android -I${self.libhybris}/include/hybris/eglplatformcommon";
+        buildInputs = old.buildInputs ++ [
+          self.xorg.libpthreadstubs  # TODO: Upstream
+          self.libhybris
+          self.qt5.qtwayland
+          self.android-headers
+        ];
+      });
+    });
+
+    qt512 = super.qt512.overrideScope'(qself: qsuper: {
+      qpa-hwcomposer-plugin = qself.callPackage ./qt5-qpa-hwcomposer-plugin { };
+      qtwayland = qsuper.qtwayland.overrideAttrs(old: {
+        buildInputs = old.buildInputs ++ [
+          self.libhybris
+        ];
+      });
+    });
 
     # Extra "libs"
     mkExtraUtils = import ./lib/extra-utils.nix {

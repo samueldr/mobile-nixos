@@ -1,0 +1,13 @@
+diff --git a/hwcomposer/qeglfsbackingstore.cpp b/hwcomposer/qeglfsbackingstore.cpp
+index 1a4e5b3..51f5762 100644
+--- a/hwcomposer/qeglfsbackingstore.cpp
++++ b/hwcomposer/qeglfsbackingstore.cpp
+@@ -46,6 +46,8 @@
+ #include <QtGui/QOpenGLPaintDevice>
+ #include <QtGui/QOpenGLShaderProgram>
+ 
++#include <GLES2/gl2.h>
++
+ #include <QtGui/QScreen>
+ 
+ QT_BEGIN_NAMESPACE

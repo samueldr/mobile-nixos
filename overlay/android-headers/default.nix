@@ -1,6 +1,6 @@
 {
 stdenvNoCC
-, fetchgit
+, fetchFromGitHub
 }:
 
 let
@@ -10,10 +10,11 @@ stdenvNoCC.mkDerivation {
   inherit version;
   name = "android-headers";
 
-  src = fetchgit {
-    url = https://git.launchpad.net/android-headers;
-    rev = "957ab6e28aea03d0cf6495f33ade9ddfff480ccc";
-    sha256 = "1ma872lq46qqpfvc3x9hlcs28w7vbaaf6k5p9v114h92qsza3cm0";
+  src = fetchFromGitHub {
+    owner = "ubports";
+    repo = "android-headers";
+    rev = "5baa625723a3ad77648012e4017f4de48374953a";
+    sha256 = "115ayzdrv17rjh5c8816wm3h9sjw7syh43y6g35rf5zgnrmw2x0i";
   };
 
   installPhase = ''
@@ -23,5 +24,10 @@ stdenvNoCC.mkDerivation {
     cd $out/include
     ln -s android android-${version}
     )
+
+    substituteInPlace debian/android-headers-${version}.pc \
+      --replace "prefix=/usr" "prefix=$out"
+    mkdir -p $out/lib/pkgconfig
+    cp debian/android-headers-${version}.pc $out/lib/pkgconfig/android-headers.pc
   '';
 }
