@@ -18,7 +18,10 @@ in
     # Keep sorted.
     adbd = callPackage ./adbd { };
     android-headers = callPackage ./android-headers { };
+    drihybris = callPackage ./drihybris { };
+    drihybrisproto = callPackage ./drihybrisproto { };
     dtbTool = callPackage ./dtbtool { };
+    glamor-hybris = callPackage ./glamor-hybris { };
     hard-reboot = callPackage ./misc/hard-reboot.nix { };
     hard-shutdown = callPackage ./misc/hard-shutdown.nix { };
     libhybris = callPackage ./libhybris {
@@ -33,6 +36,12 @@ in
     msm-fb-refresher = callPackage ./msm-fb-refresher { };
     msm-fb-handle = callPackage ./msm-fb-handle { };
     ply-image = callPackage ./ply-image { };
+    pulseaudio-modules-droid = callPackage ./pulseaudio-modules-droid { };
+    xorg = super.xorg.overrideScope'(self: super: {
+      xf86videohwcomposer = callPackage ./xf86-video-hwcomposer { };
+    }) # See all-packages.nix for more about this messy composition :/
+    // { inherit (self) xlibsWrapper; };
+    qt5-qpa-hwcomposer-plugin = self.qt5.callPackage ./qt5-qpa-hwcomposer-plugin { };
 
     # Extra "libs"
     mkExtraUtils = import ./lib/extra-utils.nix {
