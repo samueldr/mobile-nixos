@@ -31,6 +31,7 @@ pkgs.stdenv.mkDerivation {
 (
 PS4=" $ "
 set -x
+    mkdir -pv $out/nix-support
     mkbootimg \
       --kernel  ${kernel_file} \
       ${
@@ -47,7 +48,10 @@ set -x
       --ramdisk_offset ${device_info.flash_offset_ramdisk} \
       --tags_offset    ${device_info.flash_offset_tags   } \
       --pagesize       ${device_info.flash_pagesize      } \
-      -o $out
+      -o $out/nix-support/${device_name}_boot.img
+      cat <<EOF > $out/nix-support/hydra-build-products
+      file bootimage $out/nix-support/${device_name}_boot.imgo
+      EOF
 )
   '';
 }
