@@ -24,7 +24,8 @@ in
   config = {
     mobile.boot.stage-1.contents = [
       {
-        object = "${firmware}/lib/firmware";
+        suffix = "/lib/firmware";
+        object = firmware;
         symlink = "/lib/firmware";
       }
     ];
