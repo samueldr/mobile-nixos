@@ -1,0 +1,169 @@
+= Google Pixel 3
+
+== Device-specific notes
+
+- Pixel 3 is a "retro-fitted" device with dynamic partitions (vendor, system are dynamic; userdata/boot/btldr are not)
+- `kernel-als` (android-linux-stable) kernel is booting
+- `kernel-mainline` is building, but `mobile-nixos`'s kernel builder needs
+  plumbing to build/output the DTBO.img
+
+== Getting Started
+
+This assumes you copy my directory strucuture / flake.nix bits
+for my `bluephone` device, or are just willing to build/boot my config.
+
+- https://github.com/colemickens/nixcfg/blob/6abe9acc21439ac587eb427889a3d83a064f3df6/hosts/bluephone/configuration.nix[configuration.nix]
+- https://github.com/colemickens/nixcfg/blob/6abe9acc21439ac587eb427889a3d83a064f3df6/flake.nix#L39-L40[flake.nix inputs]
+- https://github.com/colemickens/nixcfg/blob/6abe9acc21439ac587eb427889a3d83a064f3df6/flake.nix#L185-L193[flake.nix outputs]
+
+Let's start:
+
+1. Install this build: https://dl.google.com/dl/android/aosp/blueline-qq3a.200805.001-factory-1ba5d2c2.zip[blueline-qq3a.200805.001].
++
+[source,bash]
+----
+mkdir BLUE; cd BLUE
+wget -O blueline.zip 'https://dl.google.com/dl/android/aosp/blueline-qq3a.200805.001-factory-1ba5d2c2.zip'
+unzip blueline.zip && rm blueline.zip
+./flash-all.sh
+----
+
+2. Acquire a flashable `NIXOS_SYSTEM`.
+  * Download this artifact from hydra: `mobile-nixos:unstable:examples-demo.aarch64-linux.rootfs`
+  * this should be a link to: https://hydra.nixos.org/job/mobile-nixos/unstable/examples-demo.aarch64-linux.rootfs/latest/download-by-type/file/rootfs-zstd[latest] (copy this link URL to clipboard)
+  * download and extract it:
++
+[source,bash]
+----
+wget -O NIXOS_SYSTEM.img.zstd 'https://hydra.nixos.org/job/mobile-nixos/unstable/examples-demo.aarch64-linux.rootfs/latest/download-by-type/file/rootfs-zstd'
+zstdcat NIXOS_SYSTEM.img.zstd > NIXOS_SYSTEM.img
+----
+
+3. Erase `userdata` partition and stick the `NIXOS_SYSTEM` partition there:
++
+[source,bash]
+----
+fastboot erase userdata
+fastboot flash userdata ./NIXOS_SYSTEM.img
+----
+
+4. Build and boot the `boot.img`:
++
+[source,bash]
+----
+$ nix build github:colemickens/nixcfg#hosts.bluephone.bootimg
+fastboot boot ./result
+----
+
+5. Once it's booted, you need to configure your local machine to get an IP
+   from the phone running RNDIS:
++
+[source,bash]
+----
+sudo ip link set usb0 up
+sudo ip addr add 172.16.42.2/24 dev usb0
+sudo ip addr add brd 172.16.42.255 dev usb0
+sudo ip route add 172.16.42.0/24 dev usb0
+----
+
+6. Add your sshkey because we like life to be easy: (the `root` password is `nixos`)
++
+[source,bash]
+----
+ssh-copy-id root@172.16.42.1
+----
+
+7. Build the toplevel config and push it to the phone and activate it:
++
+[source,bash]
+----
+remote="root@172.16.42.1"
+nix build github:colemickens/nixcfg#hosts.bluephone.toplevel
+toplevel="$(readlink result)"
+nix copy --to "ssh://${remote}" "${toplevel}"
+ssh "${remote}" "sudo bash -c \"\
+  nix-env --set --profile /nix/var/nix/profiles/system ${toplevel} \
+  && ${toplevel}/bin/switch-to-configuration switch\""
+----
+
+== Issues
+
+- probably missing firmware due to not having full vendor partition (see next section)
+
+- udev takes a long time to settle:
++
+.systemd-analyze blame
+----
+2min 19ms systemd-udev-settle.service
+   1.210s home-manager-cole.service
+    596ms resolvconf.service
+    578ms NetworkManager-dispatcher.service
+    578ms user@1000.service
+    517ms dev-disk-by\x2dlabel-NIXOS_SYSTEM.device
+    481ms systemd-udev-trigger.service
+    352ms NetworkManager-wait-online.service
+    310ms nscd.service
+    288ms systemd-journald.service
+    202ms systemd-logind.service
+    196ms audit.service
+    152ms systemd-tmpfiles-setup-dev.service
+    139ms systemd-random-seed.service
+    137ms systemd-remount-fs.service
+    131ms network-setup.service
+    122ms lvm2-activation.service
+    120ms sys-kernel-debug.mount
+    119ms tmp.mount
+    119ms lvm2-activation-early.service
+    114ms systemd-modules-load.service
+     96ms systemd-sysctl.service
+     89ms systemd-hostnamed.service
+     89ms systemd-update-utmp.service
+     88ms systemd-udevd.service
+     83ms systemd-journal-flush.service
+     77ms systemd-rfkill.service
+     76ms sshd.service
+     75ms systemd-user-sessions.service
+     62ms systemd-timesyncd.service
+     57ms NetworkManager.service
+     52ms systemd-backlight@backlight:panel0-backlight.service
+     39ms systemd-tmpfiles-setup.service
+     33ms alsa-store.service
+     27ms user-runtime-dir@1000.service
+     18ms network-local-commands.service
+     13ms sys-fs-fuse-connections.mount
+----
+
+
+== Firmware
+
+- dmesg logs
++
+[source]
+----
+[    0.000000] psci: PSCIv1.1 detected in firmware.
+[    2.450570] spss_utils [spss_probe]: Initialization completed ok, firmware_name [spss2p].
+[   62.773445] cs40l2x 3-0043: Failed to request firmware file
+[   69.600185] subsys-pil-tz aae0000.qcom,venus: venus: request_firmware:venus.mdt failed, retry: 0
+[  131.040223] subsys-pil-tz aae0000.qcom,venus: venus: request_firmware:venus.mdt failed, retry: 1
+[  190.294739] subsys-pil-tz aae0000.qcom,venus: venus: request_firmware:venus.mdt failed, retry: 2
+[  190.294897] msm_vidc:  err: Failed to download firmware
+[  190.303249] subsys-pil-tz aae0000.qcom,venus: venus: request_firmware:venus.mdt failed, retry: 0
+[  190.303391] subsys-pil-tz aae0000.qcom,venus: venus: request_firmware:venus.mdt failed, retry: 1
+[  190.303474] subsys-pil-tz aae0000.qcom,venus: venus: request_firmware:venus.mdt failed, retry: 2
+[  190.303564] msm_vidc:  err: Failed to download firmware
+----
+
+- venus? (I tried to add this to google-blueline/firmware too...)
+- cs4012x?
+- msm_vidc?
+
+
+== TODO
+
+- Investigate dynamic partitions
+- Determine what other firmware needs to be put in `firmware/`
+- Get WiFi working?
+
+- add a google-bluemainline variant
+- remove/replace hacky workarounds in generation selection
+- compare ALS and LineageOS kernel sources and options

@@ -46,6 +46,7 @@ in
     (mkIf cfg.enable {
       earlyInitScripts = ''
         (
+        set -x
         export LD_LIBRARY_PATH="${extraUtils}/lib"
         export PATH="${extraUtils}/bin"
         echo "Prepping to launch bootlog..."

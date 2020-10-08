@@ -1,0 +1,4 @@
+{
+  "kernel_version": "4.9.223-g5bded8e40b62-ab6647920",
+  "kernel_version_string": "Linux version 4.9.223-g5bded8e40b62-ab6647920 (android-build@abfarm-us-west1-c-0040) (Android (6443078 based on r383902) clang version 11.0.1 (https://android.googlesource.com/toolchain/llvm-project b397f81060ce6d701042b782172ed13bee898b79)) #0 SMP PREEMPT Thu Jul 2 03:22:48 UTC 2020\n"
+}

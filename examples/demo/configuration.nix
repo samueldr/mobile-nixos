@@ -23,8 +23,8 @@ in
   ];
 
   disabledModules = [
-    <nixpkgs/nixos/modules/installer/cd-dvd/iso-image.nix>
-    <nixpkgs/nixos/modules/installer/cd-dvd/installation-cd-base.nix>
+    "installer/cd-dvd/iso-image.nix"
+    "installer/cd-dvd/installation-cd-base.nix"
   ];
 
   config = lib.mkMerge [

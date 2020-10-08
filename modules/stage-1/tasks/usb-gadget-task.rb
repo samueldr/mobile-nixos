@@ -72,6 +72,8 @@ module System::ConfigFSUSB
 
       # Then activate features.
       features.each do |feature|
+        log("setting up feature")
+        log(feature)
         # We're using a "feature name -> function name" mapping to make a better
         # end-user UX. They don't care *how* rndis is enabled, only that rndis
         # has to be enabled.

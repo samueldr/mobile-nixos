@@ -82,7 +82,7 @@ class Tasks::SwitchRoot < SingletonTask
 
   # May pause the boot to allow the user to select a generation.
   def selected_generation()
-    if user_wants_selection()
+    if false
       generate_selection()
       # FIXME: In the future, boot GUIs will be launched async, before this
       # task is ran.
