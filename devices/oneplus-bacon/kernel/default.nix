@@ -7,7 +7,7 @@
 }:
 
 (mobile-nixos.kernel-builder-gcc6 {
-  configfile = ./lineageos_bacon_defconfig;
+  configfile = ./config.armv7l;
 
   version = "3.4.113";
 
