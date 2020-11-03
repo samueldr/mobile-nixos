@@ -15,6 +15,10 @@
     };
   };
 
+  mobile.boot.stage-1 = {
+    kernel.package = pkgs.callPackage ./kernel { };
+  };
+
   mobile.system.android.bootimg = {
     flash = {
       offset_base = "0x00000000";

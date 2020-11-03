@@ -180,7 +180,7 @@ stdenv.mkDerivation (inputArgs // {
     ++ optional  (lib.versionAtLeast version "5.8")  elfutils
     # Mobile NixOS inputs.
     # While some kernels might not need those, most will.
-    ++ [ dtc ] 
+    ++ [ dtc ]
     ++ optional isQcdt dtbTool
     ++ optional isExynosDT dtbTool-exynos
     ++ nativeBuildInputs
@@ -233,7 +233,7 @@ stdenv.mkDerivation (inputArgs // {
     # Makes the "logo" option show only one logo and not dependent on cores.
     # This should be "safer" than a patch on a greater range of kernel versions.
     # Also defaults to centering when possible.
-    
+
     echo ":: Patching for centered linux logo"
     if [ -e drivers/video/fbdev/core/fbmem.c ]; then
       # Force showing only one logo
@@ -327,7 +327,7 @@ stdenv.mkDerivation (inputArgs // {
       echo "Error: modDirVersion ${modDirVersion} specified in the Nix expression is wrong, it should be: $actualModDirVersion"
       exit 1
     fi
-  
+
     # We have to keep this around, even when Linux supports this in mainline, as kernel forks might
     # be older than the mainline fix.
     makeFlagsArray+=("KBUILD_BUILD_TIMESTAMP=$(date -u -d @$SOURCE_DATE_EPOCH)")
