@@ -1,0 +1,25 @@
+From 993ea0e57d3bfccbb30212fa1a2b2101fc9de5b8 Mon Sep 17 00:00:00 2001
+From: Samuel Dionne-Riel <samuel@dionne-riel.com>
+Date: Wed, 17 Feb 2021 21:08:11 -0500
+Subject: [PATCH] it7260_ts_i2c: Silence!
+
+---
+ drivers/input/touchscreen/it7260_ts_i2c.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/input/touchscreen/it7260_ts_i2c.c b/drivers/input/touchscreen/it7260_ts_i2c.c
+index b254e4d792206..04d7c47985619 100644
+--- a/drivers/input/touchscreen/it7260_ts_i2c.c
++++ b/drivers/input/touchscreen/it7260_ts_i2c.c
+@@ -232,7 +232,7 @@ static int ret = -1;
+ #define WAKELOCK_HOLD_MS		(HZ/2)
+ 
+ #define LOGE(...)	pr_err(DEVICE_NAME " TOUCH_ERR: " __VA_ARGS__)
+-#define LOGI(...)	printk(DEVICE_NAME ": " __VA_ARGS__)
++#define LOGI(...)
+ 
+ /* add workqueue for delay_work */
+ static struct workqueue_struct *IT7260_wq;
+-- 
+2.29.2
+
