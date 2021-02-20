@@ -47,4 +47,7 @@
   mobile.usb.idProduct = "7771";
 
   mobile.system.type = "android";
+
+  # 16 MiB boot partition, the kernel is a bit bloaty...
+  mobile.boot.stage-1.compression = lib.mkDefault "xz";
 }
