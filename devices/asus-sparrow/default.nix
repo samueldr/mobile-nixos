@@ -48,6 +48,41 @@
 
   mobile.system.type = "android";
 
+  #
+  # Unknown if specific to sparrow, its family (zenwatch 2), wear-specific tree
+  # for snapdragon 400, or all snapdragon 400 devices.
+  # Whenever the following sequence happens, the kernel gets in a *really bad
+  # state*, and userspace things start segfaulting, it may also corrupt the FS.
+  #             
+  # +----------------------+
+  # |msm-fb-refresher start|
+  # +----------------------+
+  #            |
+  #            |                  +--------------------------------+
+  #            |                  | software using /dev/fb0 starts |
+  #            |                  +--------------------------------+
+  #            |                                  |
+  #          [...]                              [...]
+  #            |                                  |
+  #            |                  +--------------------------------+
+  #            |                  | software using /dev/fb0 stops  |
+  #            |                  +--------------------------------+
+  #            |
+  #          [...]
+  #            |
+  #            |                  +--------------------------------+
+  #            |                  | software using /dev/fb0 starts |
+  #            |                  +--------------------------------+
+  #            |                                  |
+  #          [...]                              [...]
+  #            |                                  |
+  #
+  #              ___________________________
+  #             < things start breaking now >
+  #              ¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯¯
+  #
+  mobile.quirks.fb-refresher.enable = lib.mkForce false;
+
   # 16 MiB boot partition, the kernel is a bit bloaty...
   mobile.boot.stage-1.compression = lib.mkDefault "xz";
 }
