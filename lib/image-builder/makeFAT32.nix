@@ -78,7 +78,7 @@ makeFilesystem (args // {
     if (( size > 1024*1024*32 )); then
       fatSize=32
     fi
-    faketime -f "1970-01-01 00:00:00" mkfs.vfat \
+    faketime -f "1970-01-01 00:00:01" mkfs.vfat \
       -F $fatSize \
       -R ${toString reservedSectors} \
       -h ${toString hiddenSectors} \
@@ -92,7 +92,7 @@ makeFilesystem (args // {
   copyPhase = ''
     for f in ./* ./.*; do
       if [[ "$f" != "./." && "$f" != "./.." ]]; then
-        faketime -f "1970-01-01 00:00:00" \
+        faketime -f "1970-01-01 00:00:01" \
           mcopy -psv -i "$img" "$f" ::
       fi
     done

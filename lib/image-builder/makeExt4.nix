@@ -92,7 +92,7 @@ makeFilesystem (args // {
   '';
 
   copyPhase = ''
-    faketime -f "1970-01-01 00:00:00" \
+    faketime -f "1970-01-01 00:00:01" \
       make_ext4fs \
       -b $blockSize \
       -L $partName \
