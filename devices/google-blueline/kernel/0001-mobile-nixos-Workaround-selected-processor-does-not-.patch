@@ -1,0 +1,29 @@
+From 834fd7cb1eac09da44ac79d939c41eac54a4da93 Mon Sep 17 00:00:00 2001
+From: Samuel Dionne-Riel <samuel@dionne-riel.com>
+Date: Sun, 29 Sep 2019 14:42:50 -0400
+Subject: [PATCH] [mobile-nixos]: Workaround "selected processor does not
+ support"
+
+See:
+
+ * https://github.com/NixOS/nixpkgs/issues/64916
+---
+ arch/arm64/crypto/Makefile | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/crypto/Makefile b/arch/arm64/crypto/Makefile
+index 28a71246e0a3..3d5a44121565 100644
+--- a/arch/arm64/crypto/Makefile
++++ b/arch/arm64/crypto/Makefile
+@@ -42,7 +42,7 @@ CFLAGS_aes-glue-ce.o	:= -DUSE_V8_CRYPTO_EXTENSIONS
+ 
+ obj-$(CONFIG_CRYPTO_CRC32_ARM64) += crc32-arm64.o
+ 
+-CFLAGS_crc32-arm64.o	:= -mcpu=generic+crc
++CFLAGS_crc32-arm64.o	:= -march=armv8-a+crc
+ 
+ $(obj)/aes-glue-%.o: $(src)/aes-glue.c FORCE
+ 	$(call if_changed_rule,cc_o_c)
+-- 
+2.23.0
+
