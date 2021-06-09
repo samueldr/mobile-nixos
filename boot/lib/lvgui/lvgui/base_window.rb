@@ -19,6 +19,7 @@ module LVGUI
       # Preps a basic display
       @screen = Screen.new()
       @status_bar = StatusBar.new(@screen)
+      on_header_init()
       @toolbar = Toolbar.new(@screen)
       @container = Page.new(@screen)
 
@@ -67,7 +68,12 @@ module LVGUI
       on_present
     end
 
+    # Hooking point for custom behaviour on present
     def on_present()
+    end
+
+    # Hooking point to customize header building
+    def on_header_init()
     end
   end
 end
