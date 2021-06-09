@@ -7,9 +7,29 @@ module LVGUI
   # Boosting to 120 doesn't seem to have ill effects. It's simply refreshed more.
   REFRESH_RATE = 120
 
-  # UI constants
-  NIXOS_LIGHT_HUE = 205
-  NIXOS_DARK_HUE  = 220
+  module Colors
+    WHITE        = 0xFF_FFFFFF
+    BLACK        = 0xFF_000000
+    NOT_BLACK    = 0xFF_3A3A3A
+    BLUE_DARKER  = 0xFF_27385D
+    BLUE_DARK2   = 0xFF_405D99
+    BLUE_DARK    = 0xFF_5277C3
+    BLUE         = 0xFF_6586C8
+    BLUE_LIGHT   = 0xFF_7EBAE4
+    BLUE_LIGHTER = 0xFF_F2F8FD
+    GREEN        = 0xFF_6AD541
+    GRAY_DARK    = 0xFF_6A6A6A
+    GRAY_LIGHT   = 0xFF_D8D8D8
+    GRAY_LIGHTER = 0xFF_F4F4F4
+    YELLOW       = 0xFF_FFFECA
+    ORANGE_DARK  = 0xFF_FF8657
+    ORANGE       = 0xFF_FFAB0D
+    ORANGE_LIGHT = 0xFF_FFF5E1
+    RED          = 0xFF_FF0D0D
+
+    STATUS_BAR = 0xFF_1E2C48
+    HEADER_BAR = BLUE_DARKER
+  end
 
   # Sets things up; back box for some ugly hacks.
   def self.init()
