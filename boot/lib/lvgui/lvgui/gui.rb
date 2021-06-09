@@ -7,6 +7,27 @@ module LVGUI
   # Boosting to 120 doesn't seem to have ill effects. It's simply refreshed more.
   REFRESH_RATE = 120
 
+  def self.pixel_scale(x)
+    dpi = LVGL::Hacks.dpi()
+    (dpi * x/200).to_i
+  end
+
+  def self.col_padding()
+    pixel_scale(32)
+  end
+
+  def self.row_padding()
+    pixel_scale(32)
+  end
+
+  def self.horizontal_grid()
+    (pixel_scale(20.5*2)/2).to_i
+  end
+
+  def self.vertical_grid()
+    pixel_scale(32)
+  end
+
   module Colors
     WHITE        = 0xFF_FFFFFF
     BLACK        = 0xFF_000000
