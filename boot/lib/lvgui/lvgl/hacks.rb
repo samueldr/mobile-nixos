@@ -20,6 +20,8 @@ module LVGL::FFI
     global!("int", "monitor_height")
   end
 
+  global!("int", "mn_hal_default_dpi")
+
   extern "void lv_task_handler()"
 
   def handle_lv_task(lv_task_p)
@@ -60,6 +62,9 @@ module LVGL::Hacks
     if LVGL::Introspection.simulator?
       LVGL::FFI.monitor_width = v
     end
+  end
+  def self.dpi()
+      LVGL::FFI.mn_hal_default_dpi
   end
   def self.theme_night(hue)
     LVGL::FFI.lv_theme_set_current(
