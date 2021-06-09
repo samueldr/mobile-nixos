@@ -105,9 +105,25 @@ module LVGL::FFI
   ])
   typealias("lv_anim_enable_t", "LV_ANIM")
 
+  # Protect some attributes (max. 8 bit)
+  enum!(:LV_PROTECT, [
+    { :NONE      => 0x00 },
+    { :CHILD_CHG => 0x01 },   # < Disable the child change signal. Used by the library*/
+    { :PARENT    => 0x02 },   # < Prevent automatic parent change (e.g. in lv_page)*/
+    { :POS       => 0x04 },   # < Prevent automatic positioning (e.g. in lv_cont layout)*/
+    { :FOLLOW    => 0x08 },   # < Prevent the object be followed in automatic ordering (e.g. in
+                              # lv_cont PRETTY layout)*/
+    { :PRESS_LOST => 0x10 },  # < If the `indev` was pressing this object but swiped out while
+                              # pressing do not search other object.*/
+    { :CLICK_FOCUS => 0x20 }, # < Prevent focusing the object by clicking on it*/
+  ], type: :uint8_t)
+  typealias("lv_protect_t", "LV_PROTECT")
+
+
   extern "lv_obj_t * lv_obj_create(lv_obj_t *, const lv_obj_t *)"
   extern "const lv_style_t * lv_obj_get_style(const lv_obj_t *)"
   extern "void lv_obj_set_style(lv_obj_t *, const lv_style_t *)"
+  extern "void lv_obj_refresh_style(lv_obj_t *)"
   extern "lv_coord_t lv_obj_get_width(const lv_obj_t *)"
   extern "lv_coord_t lv_obj_get_height(const lv_obj_t *)"
   extern "lv_coord_t lv_obj_get_width_fit(const lv_obj_t *)"
@@ -123,6 +139,7 @@ module LVGL::FFI
   extern "const void *lv_event_get_data()"
   extern "void lv_obj_set_opa_scale(lv_obj_t *, lv_opa_t)"
   extern "lv_opa_t lv_obj_get_opa_scale(const lv_obj_t *)"
+  extern "void lv_obj_move_foreground(lv_obj_t *)"
   extern "void lv_obj_set_pos(lv_obj_t *, lv_coord_t, lv_coord_t)"
   extern "void lv_obj_set_x(lv_obj_t *, lv_coord_t)"
   extern "void lv_obj_set_y(lv_obj_t *, lv_coord_t)"
@@ -131,6 +148,7 @@ module LVGL::FFI
   extern "void lv_obj_set_click(lv_obj_t *, bool)"
   extern "void lv_obj_set_top(lv_obj_t *, bool)"
   extern "void lv_obj_set_opa_scale_enable(lv_obj_t *, bool)"
+  extern "void lv_obj_set_protect(lv_obj_t *, lv_protect_t)"
   extern "lv_opa_t lv_obj_get_opa_scale_enable(const lv_obj_t *)"
   extern "void lv_obj_clean(lv_obj_t *)"
   extern "lv_res_t lv_obj_del(lv_obj_t *)"
@@ -293,6 +311,7 @@ module LVGL::FFI
   extern "lv_obj_t * lv_page_get_scrl(const lv_obj_t *)"
   extern "void lv_page_set_scrl_layout(lv_obj_t *, lv_layout_t)"
   extern "void lv_page_glue_obj(lv_obj_t *, bool)"
+  extern "const lv_style_t * lv_page_get_style(const lv_obj_t *, lv_page_style_t)"
   extern "void lv_page_set_style(lv_obj_t *, lv_page_style_t, const lv_style_t *)"
   extern "void lv_page_focus(lv_obj_t *, const lv_obj_t *, lv_anim_enable_t)"
   extern "void lv_page_set_scrl_width(lv_obj_t *, lv_coord_t)"
