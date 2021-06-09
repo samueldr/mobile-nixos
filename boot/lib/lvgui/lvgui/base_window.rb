@@ -18,7 +18,7 @@ module LVGUI
 
       # Preps a basic display
       @screen = Screen.new()
-      @header = Header.new(@screen)
+      @status_bar = StatusBar.new(@screen)
       @toolbar = Toolbar.new(@screen)
       @container = Page.new(@screen)
 
