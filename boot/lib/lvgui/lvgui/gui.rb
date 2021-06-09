@@ -64,7 +64,7 @@ module LVGUI
     LVGL::FFI.lv_anim_core_init()
 
     # And switch to the desired theme
-    LVGL::Hacks.theme_night(NIXOS_LIGHT_HUE)
+    LVGL::Hacks.theme_nixos()
   end
 
   # Runs the app, black boxes LVGL things.

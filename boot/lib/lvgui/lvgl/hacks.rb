@@ -66,9 +66,9 @@ module LVGL::Hacks
   def self.dpi()
       LVGL::FFI.mn_hal_default_dpi
   end
-  def self.theme_night(hue)
+  def self.theme_nixos()
     LVGL::FFI.lv_theme_set_current(
-      LVGL::FFI.lv_theme_night_init(hue, 0)
+      LVGL::FFI.lv_theme_nixos_init(0)
     )
   end
 
