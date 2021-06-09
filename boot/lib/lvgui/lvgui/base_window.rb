@@ -33,6 +33,8 @@ module LVGUI
       self.class.class_variable_get(:@@_after_initialize_callback).each do |cb|
         instance_eval &cb
       end
+
+      on_initialization_finished()
     end
 
     # Adds an object to the focus group list, and add it to the
@@ -74,6 +76,10 @@ module LVGUI
 
     # Hooking point to customize header building
     def on_header_init()
+    end
+
+    # Hooking point to customize initialization
+    def on_initialization_finished()
     end
   end
 end
