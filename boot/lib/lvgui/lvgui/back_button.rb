@@ -8,10 +8,8 @@ class LVGUI::BackButton < LVGUI::Button
     @holder.set_fit2(LVGL::FIT::FILL, LVGL::FIT::TIGHT)
     @holder.set_style(LVGL::CONT_STYLE::MAIN, LVGL::LVStyle::STYLE_TRANSP.dup)
     style = @holder.get_style(LVGL::CONT_STYLE::MAIN)
-    style.body_padding_top = LVGUI.pixel_scale(32)
     style.body_padding_left = 0
     style.body_padding_right = 0
-    style.body_padding_bottom = style.body_padding_top
 
     super(@holder)
 
