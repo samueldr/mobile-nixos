@@ -138,17 +138,17 @@ module LVGUI
       @holder.set_fit2(LVGL::FIT::FILL, LVGL::FIT::TIGHT)
       @holder.set_style(LVGL::CONT_STYLE::MAIN, LVGL::LVStyle::STYLE_TRANSP.dup)
       style = @holder.get_style(LVGL::CONT_STYLE::MAIN)
-      style.body_padding_top = 0
+      style.body_padding_top = LVGUI.pixel_scale(32)
       style.body_padding_left = 0
       style.body_padding_right = 0
-      style.body_padding_bottom = 0
+      style.body_padding_bottom = style.body_padding_top
 
       super(@holder)
 
       @location = location
-      set_label("#{LVGL::Symbols::LEFT}  Back")
-      set_fit2(LVGL::FIT::NONE, LVGL::FIT::TIGHT)
-      set_width(@holder.get_width / 2)
+      # heh, using spaces to add mandatory padding
+      set_label("    #{LVGL::Symbols::LEFT}  Back    ")
+      set_fit2(LVGL::FIT::TIGHT, LVGL::FIT::TIGHT)
       set_x(0)
 
       self.event_handler = ->(event) do
