@@ -3,7 +3,7 @@
 module LVGUI
   # Helper methods to help creating a "button palette" kind of window.
   module ButtonPalette
-    def add_button(label)
+    def add_button(label, style: nil)
       Button.new(@container).tap do |btn|
         add_to_focus_group(btn)
         btn.glue_obj(true)
@@ -13,6 +13,9 @@ module LVGUI
           when LVGL::EVENT::CLICKED
             yield
           end
+        end
+        if style
+          Button::StyleMods.send(style, btn)
         end
       end
     end
