@@ -115,7 +115,6 @@ module LVGL
       end
       register_userdata
       unless parent or pointer
-        $stderr.puts("[HACK] Creating #{self.class.name} as screen. (Switching lv_disp_load_scr!)")
         LVGL::FFI.lv_disp_load_scr(@self_pointer)
       end
     end
