@@ -21,6 +21,7 @@ module LVGL::FFI
   end
 
   global!("int", "mn_hal_default_dpi")
+  global!("void *", "mn_hal_default_font")
 
   extern "void lv_task_handler()"
 
@@ -48,6 +49,8 @@ module LVGL::FFI
 end
 
 module LVGL::Hacks
+  FONTS = {}
+
   def self.init()
     LVGL::FFI.hal_init(assets_path(""))
     LVGL::FFI.lv_nanosvg_init()
@@ -66,6 +69,9 @@ module LVGL::Hacks
   def self.dpi()
       LVGL::FFI.mn_hal_default_dpi
   end
+  def self.default_font()
+      LVGL::FFI.mn_hal_default_font
+  end
   def self.theme_nixos()
     LVGL::FFI.lv_theme_set_current(
       LVGL::FFI.lv_theme_nixos_init(0)
@@ -74,6 +80,18 @@ module LVGL::Hacks
 
   def self.assets_path(asset_path)
     File.join(".", asset_path)
+  end
+
+  def self.get_font(file, size)
+    id = [file, size].join("@")
+
+    return (
+      if FONTS[id]
+        FONTS[id]
+      else
+        FONTS[id] = LVGL::FFI.lvgui_get_font(assets_path(file), size)
+      end
+    )
   end
 
   module LVTask

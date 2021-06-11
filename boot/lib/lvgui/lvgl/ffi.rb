@@ -496,4 +496,7 @@ module LVGL::FFI
     end
   end
   bound_method! :handle_lv_focus, "void handle_lv_focus_(_lv_group_t *)"
+
+  # Fonts
+  extern "lv_font_t * lvgui_get_font(char*, uint16_t)"
 end
