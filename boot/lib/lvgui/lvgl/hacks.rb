@@ -12,7 +12,7 @@ module LVGL::FFI
     [:uint8_t, :once],
   ] # }}}
 
-  extern "void hal_init()"
+  extern "void hal_init(const char*)"
 
   # TODO: begin/rescue DLError and assume failing is we're not in simulator.
   if lv_introspection_is_simulator
@@ -49,7 +49,7 @@ end
 
 module LVGL::Hacks
   def self.init()
-    LVGL::FFI.hal_init()
+    LVGL::FFI.hal_init(assets_path(""))
     LVGL::FFI.lv_nanosvg_init()
   end
 
@@ -70,6 +70,10 @@ module LVGL::Hacks
     LVGL::FFI.lv_theme_set_current(
       LVGL::FFI.lv_theme_nixos_init(0)
     )
+  end
+
+  def self.assets_path(asset_path)
+    File.join(".", asset_path)
   end
 
   module LVTask
