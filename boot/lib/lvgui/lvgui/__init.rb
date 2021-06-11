@@ -12,6 +12,11 @@ module LVGUI
     (dpi * x/200).to_i
   end
 
+  def self.point_scale(x)
+    dpi = LVGL::Hacks.dpi()
+    (dpi * x/200*4/3).to_i
+  end
+
   def self.col_padding()
     pixel_scale(32)
   end
