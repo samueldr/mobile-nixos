@@ -44,8 +44,6 @@ end
 module LVGL::FFI
   # lv_lib_nanosvg/lv_nanosvg.h
   extern "void lv_nanosvg_init()"
-  extern "void lv_nanosvg_resize_next_width(int)"
-  extern "void lv_nanosvg_resize_next_height(int)"
 end
 
 module LVGL::Hacks
@@ -117,17 +115,6 @@ module LVGL::Hacks
       #$stderr.puts "-> handle_tasks"
       LVGL::FFI.lv_task_handler()
       #$stderr.puts "<- handle_tasks"
-    end
-  end
-end
-
-module LVGL::Hacks
-  module LVNanoSVG
-    def self.resize_next_width(width)
-      LVGL::FFI.lv_nanosvg_resize_next_width(width)
-    end
-    def self.resize_next_height(height)
-      LVGL::FFI.lv_nanosvg_resize_next_height(height)
     end
   end
 end
