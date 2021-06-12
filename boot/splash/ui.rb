@@ -57,10 +57,10 @@ class UI
 
     if @page.get_height > @page.get_width
       # 80% of the width
-      LVGL::Hacks::LVNanoSVG.resize_next_width((@page.get_width * 0.8).to_i)
+      file = "#{file}?width=#{(@page.get_width * 0.8).to_i}"
     else
       # 15% of the height
-      LVGL::Hacks::LVNanoSVG.resize_next_height((@page.get_height * 0.15).to_i)
+      file = "#{file}?height=#{(@page.get_height * 0.15).to_i}"
     end
 
     @logo = LVGL::LVImage.new(@page)
