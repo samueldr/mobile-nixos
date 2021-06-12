@@ -113,9 +113,8 @@ class UI
     file = "sad.svg" if File.exist?("sad.svg")
     return unless file
 
-    LVGL::Hacks::LVNanoSVG.resize_next_height(@title_bar.get_height - 2 * padding)
     @sad_phone = LVGL::LVImage.new(@screen)
-    @sad_phone.set_src(file)
+    @sad_phone.set_src("#{file}?height=#{@title_bar.get_height - 2 * padding}")
     @sad_phone.set_pos(2 * padding, padding)
   end
 
