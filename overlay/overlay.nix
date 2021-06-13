@@ -145,6 +145,8 @@ in
 
       map-dtbs = callPackage ./mobile-nixos/map-dtbs {};
 
+      mkLVGUIApp = callPackage ./mobile-nixos/lvgui {};
+
       cross-canary-test = callPackage ./mobile-nixos/cross-canary/test.nix {};
       cross-canary-test-static = self.pkgsStatic.callPackage ./mobile-nixos/cross-canary/test.nix {};
     };
