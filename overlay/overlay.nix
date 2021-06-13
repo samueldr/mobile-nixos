@@ -135,7 +135,7 @@ in
       autoport = callPackage ./mobile-nixos/autoport {};
 
       boot-recovery-menu-simulator = callPackage ../boot/recovery-menu/simulator.nix {};
-      boot-splash-simulator = callPackage ../boot/splash/simulator.nix {};
+      boot-splash-simulator = self.mobile-nixos.stage-1.boot-splash.simulator;
 
       fdt-forward = callPackage ./mobile-nixos/fdt-forward {};
 

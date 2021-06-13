@@ -1,35 +1,19 @@
-{ runCommandNoCC
-, lib
-, mruby
-}:
+{ lib, runCommandNoCC, mobile-nixos }:
 
 let
-  inherit (lib) concatMapStringsSep;
-
-  # Select libs we need from the libs folder.
-  libs = concatMapStringsSep " " (name: "${../lib}/${name}") [
-    "lvgui/args.rb"
-    "lvgui/fiddlier.rb"
-    "lvgui/lvgl/*.rb"
-    "lvgui/lvgui/*.rb"
-    "lvgui/mobile_nixos/*.rb"
-    "lvgui/vtconsole.rb"
-  ];
+  assets = runCommandNoCC "boot-splash-assets" {} ''
+    mkdir -p $out
+    cp ${../../artwork/logo/logo.white.svg} $out/logo.svg
+  '';
 in
-
-# mkDerivation will append something like -aarch64-unknown-linux-gnu to the
-# derivation name with cross, which will break the mruby code loading.
-# Since we don't need anything from mkDerivation, really, let's use runCommandNoCC.
-runCommandNoCC "boot-splash.mrb" {
+mobile-nixos.mkLVGUIApp {
+  name = "boot-splash.mrb";
+  executablePath = "libexec/boot-splash.mrb";
   src = lib.cleanSource ./.;
-
-  nativeBuildInputs = [
-    mruby
+  rubyFiles = [
+    "ui.rb"
+    "main.rb"
   ];
-} ''
-  mrbc \
-    -o $out \
-    ${libs} \
-    $src/ui.rb \
-    $src/main.rb
-''
+  inherit assets;
+  assetsPath = "boot-splash/assets";
+}
