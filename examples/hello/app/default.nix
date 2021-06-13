@@ -1,4 +1,4 @@
-{ stdenv
+{ runCommandNoCC
 , lib
 , mruby
 }:
@@ -16,27 +16,23 @@ let
   ];
 in
 
-stdenv.mkDerivation {
-  name = "hello-gui.mrb";
-
+runCommandNoCC "hello-gui.mrb" {
   src = lib.cleanSource ./.;
 
   nativeBuildInputs = [
     mruby
   ];
+} ''
+  cp -prf $src src
+  cd src
 
-  buildPhase = ''
-    mrbc \
-      -o app.mrb \
-      ${libs} \
-      $(find ./windows -type f -name '*.rb' | sort) \
-      main.rb
-  '';
+  mkdir -p $out/libexec/
+  mrbc \
+    -o $out/libexec/app.mrb \
+    ${libs} \
+    $(find ./windows -type f -name '*.rb' | sort) \
+    main.rb
 
-  installPhase = ''
-    mkdir -p $out/libexec/
-    mv -v app.mrb $out/libexec/
-
-    mkdir -p $out/share/hello-gui
-  '';
-}
+  # TODO: add ressources here?
+  mkdir -p $out/share/hello-gui
+''
