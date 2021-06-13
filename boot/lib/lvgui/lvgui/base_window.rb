@@ -14,7 +14,7 @@ module LVGUI
     def initialize()
       super()
       # Initializes LVGUI things if required...
-      LVGUI.init
+      LVGUI.init(theme: :nixos)
 
       # Preps a basic display
       @screen = Screen.new()
