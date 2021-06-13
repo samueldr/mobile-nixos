@@ -16,7 +16,7 @@ class UI
   attr_reader :ask_identifier
 
   # As this is not using BaseWindow, LVGUI::init isn't handled for us.
-  LVGUI.init()
+  LVGUI.init(theme: :night)
 
   def initialize()
     add_screen
