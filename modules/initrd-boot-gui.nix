@@ -20,19 +20,15 @@ in
 {
   mobile.boot.stage-1.contents = with pkgs; [
     {
-      object = (builtins.path { path = ../artwork/logo/logo.white.svg; });
-      symlink = "/etc/logo.svg";
-    }
-    {
-      object = pkgs.mobile-nixos.stage-1.boot-error;
+      object = "${pkgs.mobile-nixos.stage-1.boot-error}/libexec/boot-error.mrb";
       symlink = "/applets/boot-error.mrb";
     }
     {
-      object = pkgs.mobile-nixos.stage-1.boot-splash;
+      object = "${pkgs.mobile-nixos.stage-1.boot-splash}/libexec/boot-splash.mrb";
       symlink = "/applets/boot-splash.mrb";
     }
     {
-      object = pkgs.mobile-nixos.stage-1.boot-recovery-menu;
+      object = "${pkgs.mobile-nixos.stage-1.boot-recovery-menu}/libexec/boot-recovery-menu.mrb";
       symlink = "/applets/boot-selection.mrb";
     }
     {
