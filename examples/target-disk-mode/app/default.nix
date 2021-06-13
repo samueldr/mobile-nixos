@@ -1,4 +1,4 @@
-{ stdenv
+{ runCommandNoCC
 , lib
 , mruby
 }:
@@ -12,31 +12,28 @@ let
     "lvgui/fiddlier.rb"
     "lvgui/lvgl/*.rb"
     "lvgui/lvgui/*.rb"
+    "lvgui/mobile_nixos/*.rb"
     "lvgui/vtconsole.rb"
   ];
 in
 
-stdenv.mkDerivation {
-  name = "tdm-gui.mrb";
-
+runCommandNoCC "tdm-gui.mrb" {
   src = lib.cleanSource ./.;
 
   nativeBuildInputs = [
     mruby
   ];
+} ''
+  cp -prf $src src
+  cd src
 
-  buildPhase = ''
-    mrbc \
-      -o app.mrb \
-      ${libs} \
-      $(find ./windows -type f -name '*.rb' | sort) \
-      main.rb
-  '';
+  mkdir -p $out/libexec/
+  mrbc \
+    -o $out/libexec/app.mrb \
+    ${libs} \
+    $(find ./windows -type f -name '*.rb' | sort) \
+    main.rb
 
-  installPhase = ''
-    mkdir -p $out/libexec/
-    mv -v app.mrb $out/libexec/
-
-    mkdir -p $out/share/tdm-gui
-  '';
-}
+  # TODO: add ressources here?
+  mkdir -p $out/share/tdm-gui
+''
