@@ -57,6 +57,18 @@ module LVGUI
     HEADER_BAR = BLUE_DARKER
   end
 
+  module Fonts
+    extend self
+
+    def primary(size = 24)
+      LVGL::Hacks.get_font("fonts/Roboto-Regular.ttf", size)
+    end
+
+    def secondary(size = 25)
+      LVGL::Hacks.get_font("fonts/overpass-bold.otf", size)
+    end
+  end
+
   # Sets things up; back box for some ugly hacks.
   def self.init(theme: :nixos)
     return if @initialized
