@@ -12,13 +12,16 @@ module GUI
     def initialize()
       super()
 
-      add_buttons([
-        ["Reboot", ->() { run("reboot") }],
-        ["Power off", ->() { run("poweroff") }],
-      ])
+      add_button("Reboot", style: :enticing) do
+        run("reboot")
+      end
+
+      add_button("Power off", style: :danger) do
+        run("poweroff")
+      end
 
       if LVGL::Introspection.simulator?
-        add_button("Quit") { exit(0) }
+        add_button("Quit", style: :primary) { exit(0) }
       end
     end
   end
