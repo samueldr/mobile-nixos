@@ -139,6 +139,8 @@ in
 
       fdt-forward = callPackage ./mobile-nixos/fdt-forward {};
 
+      gui-assets = callPackage ./mobile-nixos/gui-assets {};
+
       make-flashable-zip = callPackage ./mobile-nixos/android-flashable-zip/make-flashable-zip.nix {};
 
       map-dtbs = callPackage ./mobile-nixos/map-dtbs {};
