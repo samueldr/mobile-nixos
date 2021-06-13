@@ -14,7 +14,7 @@ $color = $color.rjust(6, "0").rjust(8, "F").to_i(16)
 
 class UI
   # As this is not using BaseWindow, LVGUI::init isn't handled for us.
-  LVGUI.init()
+  LVGUI.init(assets_path: "boot-error/assets")
 
   def initialize()
     add_screen
@@ -108,13 +108,8 @@ class UI
   # Title elements
 
   def add_sad_phone()
-    file = nil
-    file = "/sad.svg" if File.exist?("/sad.svg")
-    file = "sad.svg" if File.exist?("sad.svg")
-    return unless file
-
     @sad_phone = LVGL::LVImage.new(@screen)
-    @sad_phone.set_src("#{file}?height=#{@title_bar.get_height - 2 * padding}")
+    @sad_phone.set_src("#{LVGL::Hacks.get_asset_path("sad.svg")}?height=#{@title_bar.get_height - 2 * padding}")
     @sad_phone.set_pos(2 * padding, padding)
   end
 
