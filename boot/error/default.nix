@@ -1,4 +1,4 @@
-{ runCommand
+{ runCommandNoCC
 , lib
 , mruby
 }:
@@ -14,14 +14,15 @@ let
     "lvgui/fiddlier.rb"
     "lvgui/lvgl/*.rb"
     "lvgui/lvgui/*.rb"
+    "lvgui/mobile_nixos/*.rb"
     "lvgui/vtconsole.rb"
   ];
 in
 
 # mkDerivation will append something like -aarch64-unknown-linux-gnu to the
 # derivation name with cross, which will break the mruby code loading.
-# Since we don't need anything from mkDerivation, really, let's use runCommand.
-runCommand "boot-error.mrb" {
+# Since we don't need anything from mkDerivation, really, let's use runCommandNoCC.
+runCommandNoCC "boot-error.mrb" {
   src = lib.cleanSource ./.;
 
   nativeBuildInputs = [
