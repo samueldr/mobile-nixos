@@ -70,6 +70,13 @@ module LVGL::Hacks
   def self.default_font()
       LVGL::FFI.mn_hal_default_font
   end
+
+  def self.theme_night()
+    LVGL::FFI.lv_theme_set_current(
+      LVGL::FFI.lv_theme_night_init(205, 0)
+    )
+  end
+
   def self.theme_nixos()
     LVGL::FFI.lv_theme_set_current(
       LVGL::FFI.lv_theme_nixos_init(0)

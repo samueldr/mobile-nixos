@@ -61,6 +61,10 @@ module LVGL::FFI
   extern "void lv_theme_set_current(lv_theme_t *)"
   extern "lv_theme_t * lv_theme_get_current(void)"
 
+  # lvgl/src/lv_themes/lv_theme_night.h
+  extern "lv_theme_t * lv_theme_night_init(uint16_t, lv_font_t *)"
+  extern "lv_theme_t * lv_theme_get_night(void)"
+
   # lvgl/src/lv_themes/lv_theme_nixos.h
   extern "lv_theme_t * lv_theme_nixos_init(lv_font_t *)"
   extern "lv_theme_t * lv_theme_get_nixos(void)"
