@@ -58,7 +58,7 @@ module LVGUI
   end
 
   # Sets things up; back box for some ugly hacks.
-  def self.init()
+  def self.init(theme: :nixos)
     return if @initialized
     @initialized = true
 
@@ -90,7 +90,7 @@ module LVGUI
     LVGL::FFI.lv_anim_core_init()
 
     # And switch to the desired theme
-    LVGL::Hacks.theme_nixos()
+    LVGL::Hacks.send(:"theme_#{theme}")
   end
 
   # Runs the app, black boxes LVGL things.
