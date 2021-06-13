@@ -12,33 +12,8 @@ module BootGUI
   class MainWindow < LVGUI::BaseWindow
     include LVGUI::ButtonPalette
 
-    # Add the logo to the view.
-    def logo()
-      # Try to find the logo, but don't fail if there isn't one.
-      file = nil
-      file = "/etc/logo.svg" if File.exist?("/etc/logo.svg")
-      file = "./logo.svg" if File.exist?("./logo.svg")
-      return unless file
-
-      if @container.get_height > @container.get_width
-        LVGL::Hacks::LVNanoSVG.resize_next_width((@container.get_width_fit * 0.8).to_i)
-      else
-        # Detecting the available space where the layout will stretch into is
-        # apparently hard with lvgl, thus we rely on the vertical resolution.
-        # Meh, that's not *so* bad.
-        # While it's a crude approximation, for layouting it's fine.
-        LVGL::Hacks::LVNanoSVG.resize_next_height((@container.get_height * 0.15).to_i)
-      end
-
-      @logo = LVGL::LVImage.new(@container)
-      @logo.set_src(file)
-    end
-
     def initialize()
       super()
-
-      # Add the logo
-      logo
 
       # An explanatory label
       LVGL::LVLabel.new(@container).tap do |label|
@@ -49,11 +24,24 @@ module BootGUI
       end
 
       # Our buttons palette!
+      add_button("Generations  #{LVGL::Symbols::RIGHT}", style: :primary) do
+        GenerationsWindow.instance.present
+      end
       add_buttons([
-        ["Generations  #{LVGL::Symbols::RIGHT}", ->() { GenerationsWindow.instance.present }],
         *(Hal::RebootModes.options),
-        ["Power off", ->() { run("poweroff") }],
       ])
+      add_button("Power off") do
+        run("poweroff")
+      end
+    end
+
+    def on_initialization_finished()
+      @header_bar.refresh_sizes()
+    end
+
+    def on_header_init()
+      @header_bar = MobileNixOS::EnhancedHeaderBar.new(@screen)
+      @header_bar.set_label("Recovery")
     end
   end
 
@@ -93,8 +81,10 @@ module BootGUI
       end
 
       if File.exist?(::SELECTIONS)
+        # Assume the first is primary
+        first = true
         JSON.parse(File.read(::SELECTIONS)).each do |selection|
-          add_button(selection["name"]) do
+          add_button(selection["name"], style: (if first then :primary else nil end)) do
             File.open("/run/boot/choice", "w") do |file|
               file.write({
                 generation: selection["id"],
@@ -106,6 +96,8 @@ module BootGUI
             VTConsole.map_console(1)
             exit 0
           end
+
+          first = false
         end
       else
         LVGL::LVLabel.new(@container).tap do |label|
