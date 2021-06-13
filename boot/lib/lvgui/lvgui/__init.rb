@@ -101,8 +101,12 @@ module LVGUI
     # Start the animation core
     LVGL::FFI.lv_anim_core_init()
 
-    # And switch to the desired theme
-    LVGL::Hacks.send(:"theme_#{theme}")
+    if theme == :nixos then
+      LVGL::Hacks.theme_nixos(LVGUI::Fonts.primary(), LVGUI::Fonts.secondary())
+    else
+      # And switch to the desired theme
+      LVGL::Hacks.send(:"theme_#{theme}")
+    end
   end
 
   # Runs the app, black boxes LVGL things.

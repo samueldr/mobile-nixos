@@ -77,9 +77,9 @@ module LVGL::Hacks
     )
   end
 
-  def self.theme_nixos()
+  def self.theme_nixos(font = 0, button_font = 0)
     LVGL::FFI.lv_theme_set_current(
-      LVGL::FFI.lv_theme_nixos_init(0)
+      LVGL::FFI.lv_theme_nixos_init(font, button_font)
     )
   end
 
