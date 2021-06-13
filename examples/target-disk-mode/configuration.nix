@@ -1,7 +1,8 @@
 { config, lib, pkgs, ... }:
 
 let
-  tdm-gui = "${pkgs.callPackage ./app {}}/libexec/app.mrb";
+  app = pkgs.callPackage ./app {};
+  tdm-gui = "${app}/libexec/app.mrb";
   internalStorageConfigured =
     config.mobile.boot.stage-1.bootConfig ? storage &&
     config.mobile.boot.stage-1.bootConfig.storage ? internal &&
@@ -60,7 +61,7 @@ in
   };
 
   system.build = {
-    app-simulator = pkgs.callPackage ./app/simulator.nix {};
+    app-simulator = app.simulator;
   };
 
   mobile.adbd.enable = lib.mkDefault enableADB;
