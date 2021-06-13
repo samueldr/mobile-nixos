@@ -18,6 +18,7 @@ module LVGUI
 
       # Preps a basic display
       @screen = Screen.new()
+      on_background_init()
       @status_bar = StatusBar.new(@screen)
       on_header_init()
       @toolbar = Toolbar.new(@screen)
@@ -80,6 +81,22 @@ module LVGUI
 
     # Hooking point to customize initialization
     def on_initialization_finished()
+    end
+
+    # Hook point to customize the background
+    def on_background_init()
+      background_path = LVGL::Hacks.get_asset_path("app-background.svg")
+      if File.exist?(background_path)
+
+        @background = LVGL::LVImage.new(@screen).tap do |el|
+          el.set_protect(LVGL::PROTECT::POS)
+          el.set_height(@screen.get_height())
+          el.set_width(@screen.get_width())
+          el.set_x(0)
+          el.set_y(LVGUI.pixel_scale(0))
+          el.set_src("#{background_path}?height=#{el.get_height()}")
+        end
+      end
     end
   end
 end
