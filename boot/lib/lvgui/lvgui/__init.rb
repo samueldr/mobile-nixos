@@ -70,7 +70,7 @@ module LVGUI
   end
 
   # Sets things up; back box for some ugly hacks.
-  def self.init(theme: :nixos)
+  def self.init(theme: :nixos, assets_path: "lvgui/assets")
     return if @initialized
     @initialized = true
 
@@ -94,9 +94,8 @@ module LVGUI
     # the framebuffer, so this program has to be enough by itself.
     VTConsole.map_console(0)
 
-    # XXX : here is the hang
     # Prepare LVGL
-    LVGL::Hacks.init()
+    LVGL::Hacks.init(assets_path: assets_path)
 
     # Start the animation core
     LVGL::FFI.lv_anim_core_init()

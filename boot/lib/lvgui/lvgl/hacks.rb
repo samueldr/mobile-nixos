@@ -48,9 +48,27 @@ end
 
 module LVGL::Hacks
   FONTS = {}
+  @@assets_path = nil
 
-  def self.init()
-    LVGL::FFI.hal_init(assets_path(""))
+  # +assets_path+ will be relative to an XDG data dir. E.g. /usr/share/
+  def self.init(assets_path:)
+    data_dir = [
+      # First look in the `share` directory neighboring `libexec` where the
+      # running mrb applet runs from.
+      File.join(File.dirname(File.dirname($0)), "share"),
+      # Then any XDG data dirs
+      XDG.data_dirs,
+    ]
+      .flatten()
+      .map { |dir| File.join(dir, assets_path) }
+      .find { |dir| File.exists?(dir) }
+
+    # Fallback to a probably non-existent dir
+    # (So things don't crash too hard)
+    data_dir ||= File.join(XDG.data_dirs.first, assets_path)
+    LVGL::Hacks.set_assets_path(data_dir)
+
+    LVGL::FFI.hal_init(get_asset_path(""))
     LVGL::FFI.lv_nanosvg_init()
   end
 
@@ -83,8 +101,12 @@ module LVGL::Hacks
     )
   end
 
-  def self.assets_path(asset_path)
-    File.join(".", asset_path)
+  def self.get_asset_path(asset_path)
+    File.join(@@assets_path, asset_path)
+  end
+
+  def self.set_assets_path(path)
+    @@assets_path = path
   end
 
   def self.get_font(file, size)
@@ -94,7 +116,7 @@ module LVGL::Hacks
       if FONTS[id]
         FONTS[id]
       else
-        FONTS[id] = LVGL::FFI.lvgui_get_font(assets_path(file), size)
+        FONTS[id] = LVGL::FFI.lvgui_get_font(get_asset_path(file), size)
       end
     )
   end
