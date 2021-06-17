@@ -24,13 +24,4 @@ in
       };
     };
   };
-
-  config = {
-    mobile.boot.stage-1.contents = [
-      {
-        object = (builtins.path { path = ../artwork/sad.svg; });
-        symlink = "/sad.svg";
-      }
-    ];
-  };
 }
