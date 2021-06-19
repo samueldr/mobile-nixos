@@ -19,6 +19,7 @@ mobile-nixos.kernel-builder-clang_9 {
   patches = [
     ./0001-mobile-nixos-Workaround-selected-processor-does-not-.patch
     ./0003-arch-arm64-Add-config-option-to-fix-bootloader-cmdli.patch
+    ./0001-HACK-touchscreen-Skip-loading-firmware.patch
   ];
 
   enableRemovingWerror = true;
