@@ -35,6 +35,8 @@
 , dtbTool-exynos
 , ufdt-apply-overlay
 
+, lz4
+
 , cpio
 , elfutils
 , libelf
@@ -182,6 +184,7 @@ stdenv.mkDerivation (inputArgs // {
     ++ optionals (lib.versionAtLeast version "4.16") [ bison flex ]
     ++ optional  (lib.versionAtLeast version "5.2")  cpio
     ++ optional  (lib.versionAtLeast version "5.8")  elfutils
+    ++ optional  (isCompressed == "lz4") lz4
     # Mobile NixOS inputs.
     # While some kernels might not need those, most will.
     ++ [ dtc ]
@@ -352,7 +355,10 @@ stdenv.mkDerivation (inputArgs // {
   buildPhase = if enableCombiningBuildAndInstallQuirk then ":" else null;
 
   installTargets =
-    if isCompressed != false then [ "zinstall" ] else [ "install" ]
+    # zinstall only deals with `Image.gz`
+    # install will install the uncompressed kernel only...
+    # Though it's not an issue as we copy it ourselves anyway.
+    if isCompressed == "gz" then [ "zinstall" ] else [ "install" ]
     ++ installTargets
   ;
 
