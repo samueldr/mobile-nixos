@@ -2,6 +2,7 @@
   mobile-nixos
 , fetchFromGitHub
 , fetchpatch
+, ufdt-apply-overlay
 , ...
 }:
 
@@ -21,6 +22,19 @@ mobile-nixos.kernel-builder-clang_9 {
     ./0003-arch-arm64-Add-config-option-to-fix-bootloader-cmdli.patch
     ./0001-HACK-touchscreen-Skip-loading-firmware.patch
   ];
+
+  nativeBuildInputs = [
+    ufdt-apply-overlay
+  ];
+
+  postInstall = ''
+    echo ":: Building dtbo.img"
+    (PS4=" $ "; set -x
+    mkdtboimg.py create \
+      $out/dtbo.img \
+      $(find $buildRoot/arch/arm64/boot/dts/google/ -iname '*.dtbo' | sort)
+    )
+  '';
 
   enableRemovingWerror = true;
   isImageGzDtb = true;
