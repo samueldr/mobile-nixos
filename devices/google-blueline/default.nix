@@ -34,7 +34,9 @@
     };
   };
 
-  mobile.system.vendor.partition = "/dev/disk/by-partlabel/vendor_a";
+  # The dynamic partitions retrofit probably break this.
+  # The GPT partitions don't map to the actual on-disk partitions anymore.
+  # mobile.system.vendor.partition = "/dev/disk/by-partlabel/vendor_a";
 
   boot.kernelParams = [
     # Extracted from an Android boot image
