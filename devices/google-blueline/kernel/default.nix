@@ -24,5 +24,6 @@ mobile-nixos.kernel-builder-clang_9 {
 
   enableRemovingWerror = true;
   isImageGzDtb = true;
+  isCompressed = "lz4";
   isModular = false;
 }
