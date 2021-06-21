@@ -1,6 +1,12 @@
-{ pkgs, ... }:
+{ config, pkgs, ... }:
 
 {
+  imports = [
+    # Implementations of the kernel provenances
+    ./mainline.nix
+    ./vendor.nix
+  ];
+
   mobile.device.name = "google-blueline";
   mobile.device.identity = {
     name = "Pixel 3";
@@ -13,10 +19,6 @@
     screen = {
       width = 1080; height = 2160;
     };
-  };
-
-  mobile.boot.stage-1 = {
-    kernel.package = pkgs.callPackage ./kernel { };
   };
 
   mobile.system.android.device_name = "blueline";
@@ -33,6 +35,15 @@
       pagesize = "4096";
     };
   };
+
+  # List of valid provenances
+  mobile.boot.stage-1.kernel.availableProvenances = [
+    "mainline"
+    "vendor"
+  ];
+
+  # TODO: Once mainline works well enough
+  # mobile.boot.stage-1.kernel.provenance = lib.mkDefault "mainline";
 
   # The dynamic partitions retrofit probably break this.
   # The GPT partitions don't map to the actual on-disk partitions anymore.
