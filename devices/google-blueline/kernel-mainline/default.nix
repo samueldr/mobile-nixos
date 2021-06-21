@@ -5,7 +5,7 @@
 , ...
 }:
 
-mobile-nixos.kernel-builder {
+mobile-nixos.kernel-builder rec {
   version = "5.13.0-rc2";
   configfile = ./config.aarch64;
 
@@ -24,14 +24,23 @@ mobile-nixos.kernel-builder {
 
   # TODO: generic mainline build; append per-device...
   postInstall = ''
+    echo ':: Copying kernel'
+    (PS4=" $ "; set -x
+    cp -v \
+      $buildRoot/arch/arm64/boot/Image.${isCompressed} \
+      $out/
+    )
+
     echo ':: Appending DTB'
     (PS4=" $ "; set -x
-    cd $out
-    cat Image.gz $buildRoot/arch/arm64/boot/dts/qcom/sdm845-blueline.dtb > Image.gz-dtb
+    cat \
+      $buildRoot/arch/arm64/boot/Image.${isCompressed} \
+      $buildRoot/arch/arm64/boot/dts/qcom/sdm845-blueline.dtb \
+      > $out/Image.${isCompressed}-dtb
     )
   '';
 
   isModular = false;
   isCompressed = "gz";
-  kernelFile = "Image.gz-dtb";
+  kernelFile = "Image.${isCompressed}-dtb";
 }
