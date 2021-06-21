@@ -128,6 +128,15 @@ in
 , isModular ? true
 , kernelPatches ? []
 
+# User as `.file` on the package to know the kernel image filename.
+, kernelFile ? kernelTarget + optionalString isImageGzDtb "-dtb"
+
+# Used to provide the default kernelFile
+, kernelFileExtension ? if isCompressed != false then ".${isCompressed}" else ""
+, kernelTarget ? if platform.linux-kernel.target == "Image"
+    then "${platform.linux-kernel.target}${kernelFileExtension}"
+    else platform.linux-kernel.target
+
 , ...
 } @ inputArgs:
 
@@ -155,10 +164,6 @@ let
   '';
 
   hasDTB = platform.linux-kernel ? DTB && platform.linux-kernel.DTB;
-  kernelFileExtension = if isCompressed != false then ".${isCompressed}" else "";
-  kernelTarget = if platform.linux-kernel.target == "Image"
-    then "${platform.linux-kernel.target}${kernelFileExtension}"
-    else platform.linux-kernel.target;
 in
 
 # This `let` block allows us to have a self-reference to this derivation.
@@ -453,7 +458,7 @@ stdenv.mkDerivation (inputArgs // {
     inherit isQcdt isExynosDT;
 
     # Used by consumers to refer to the kernel build product.
-    file = kernelTarget + optionalString isImageGzDtb "-dtb";
+    file = kernelFile;
 
     # Derivation with the as-built normalized kernel config
     normalizedConfig = kernelDerivation.overrideAttrs({ ... }: {
