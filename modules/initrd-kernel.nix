@@ -71,6 +71,39 @@ in
         This is not using a kernelPackages attrset, but a kernel derivation directly.
       '';
     };
+
+    availableProvenances = mkOption {
+      type = types.listOf types.str;
+      default = [];
+      internal = true;
+      description = ''
+        Devices implementation with multiple kernels to select from should list
+        available provenances, and *handle switching kernel* and necessary options.
+      '';
+    };
+
+    provenance = mkOption {
+      type = types.enum cfg.availableProvenances;
+      # This forces a "better" error message when unset.
+      #
+      # error: A definition for option `mobile.boot.stage-1.kernel.provenance' is not of type `one of "mainline", "vendor"'. Definition values:
+      # vs.
+      # error: The option `mobile.boot.stage-1.kernel.provenance' is used but not defined.
+      #
+      # The former being with a "wrong" default, we get the valid values.
+      default = null;
+      description = ''
+        Some devices allow selecting different kernels.
+
+        Generally this will allow selecting between vendor or mainline kernels.
+
+        The default value depends on the device implementation. Some will choose
+        the better kernel, some will force a user to select, when e.g. none of
+        the options are markedly better.
+
+        When required, and not set, the error message will list valid values.
+      '';
+    };
   };
 
   config.mobile.boot.stage-1 = (mkIf cfg.modular {
