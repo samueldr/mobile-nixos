@@ -27,17 +27,9 @@ mobile-nixos.kernel-builder-clang_9 {
     ufdt-apply-overlay
   ];
 
-  postInstall = ''
-    echo ":: Building dtbo.img"
-    (PS4=" $ "; set -x
-    mkdtboimg.py create \
-      $out/dtbo.img \
-      $(find $buildRoot/arch/arm64/boot/dts/google/ -iname '*.dtbo' | sort)
-    )
-  '';
-
   enableRemovingWerror = true;
   isImageGzDtb = true;
   isCompressed = "lz4";
   isModular = false;
+  dtboImg = true;
 }
