@@ -25,6 +25,10 @@ mobile-nixos.kernel-builder rec {
     # http://git.linaro.org/people/vinod.koul/kernel.git/log/?h=pixel/dsc_v1
     # @ 8e0150ddba7a61d981acbb288a59fcea7e444129
     ./0001-Linaro-blueline-dsc-v1-wip.patch
+
+    # https://git.linaro.org/people/vinod.koul/kernel.git/log/?h=pixel/gpi_i2c_touch
+    # @ 1b3424a2994b82ac38fdf16e2136e7811548fea4
+    ./0002-Linaro-blueline-touch.patch
   ];
 
   # TODO: generic mainline build; append per-device...
