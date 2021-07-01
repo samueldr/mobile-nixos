@@ -1,0 +1,12 @@
+= Google Pixel 3
+include::_support/common.inc[]
+
+== Device-specific notes
+
+=== Mainline
+
+It seems bootloader command-line arguments are not taken into account when
+booting the mainline kernel when using `CONFIG_CMDLINE_FROM_BOOTLOADER`.
+
+For the time being, customizing the kernel command-line requires editing the
+`config.aarch64` file for this device.
