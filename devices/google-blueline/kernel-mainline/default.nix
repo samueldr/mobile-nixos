@@ -21,6 +21,10 @@ mobile-nixos.kernel-builder rec {
 
   patches = [
     ./0001-HACK-Add-back-TEXT_OFFSET-in-the-built-image.patch
+
+    # http://git.linaro.org/people/vinod.koul/kernel.git/log/?h=pixel/dsc_v1
+    # @ 8e0150ddba7a61d981acbb288a59fcea7e444129
+    ./0001-Linaro-blueline-dsc-v1-wip.patch
   ];
 
   # TODO: generic mainline build; append per-device...

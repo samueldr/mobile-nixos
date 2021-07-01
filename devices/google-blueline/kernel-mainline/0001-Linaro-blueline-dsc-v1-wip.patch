@@ -1,0 +1,5159 @@
+From d1648ca059d4bdb19cc6973ef12375f6cc0c910d Mon Sep 17 00:00:00 2001
+From: John Stultz <john.stultz@linaro.org>
+Date: Sat, 31 Oct 2020 00:25:49 +0000
+Subject: [PATCH 01/26] iommu: Avoid crash if iommu_group is null
+
+In trying to handle a possible driver probe ordering issue
+brought up by Robin Murphy, I ran across a separate null pointer
+crash in the iommu core in iommu_group_remove_device():
+[    2.732803] dwc3-qcom a6f8800.usb: failed to get usb-ddr path: -517
+[    2.739281] Unable to handle kernel NULL pointer dereference at virtual address 00000000000000c0
+...
+[    2.775619] [00000000000000c0] user address but active_mm is swapper
+[    2.782039] Internal error: Oops: 96000005 [#1] PREEMPT SMP
+[    2.787670] Modules linked in:
+[    2.790769] CPU: 6 PID: 1 Comm: swapper/0 Tainted: G        W         5.10.0-rc1-mainline-00025-g272a618fc36-dirty #3973
+[    2.801719] Hardware name: Thundercomm Dragonboard 845c (DT)
+[    2.807431] pstate: 00c00005 (nzcv daif +PAN +UAO -TCO BTYPE=--)
+[    2.813508] pc : iommu_group_remove_device+0x30/0x1b0
+[    2.818611] lr : iommu_release_device+0x4c/0x78
+[    2.823189] sp : ffffffc01005b950
+...
+[    2.907082] Call trace:
+[    2.909566]  iommu_group_remove_device+0x30/0x1b0
+[    2.914323]  iommu_release_device+0x4c/0x78
+[    2.918559]  iommu_bus_notifier+0xe8/0x108
+[    2.922708]  blocking_notifier_call_chain+0x78/0xb8
+[    2.927641]  device_del+0x2ac/0x3d0
+[    2.931177]  platform_device_del.part.9+0x20/0x98
+[    2.935933]  platform_device_unregister+0x2c/0x40
+[    2.940694]  of_platform_device_destroy+0xd8/0xe0
+[    2.945450]  device_for_each_child_reverse+0x58/0xb0
+[    2.950471]  of_platform_depopulate+0x4c/0x78
+[    2.954886]  dwc3_qcom_probe+0x93c/0xcb8
+[    2.958858]  platform_drv_probe+0x58/0xa8
+[    2.962917]  really_probe+0xec/0x398
+[    2.966531]  driver_probe_device+0x5c/0xb8
+[    2.970677]  device_driver_attach+0x74/0x98
+[    2.974911]  __driver_attach+0x60/0xe8
+[    2.978700]  bus_for_each_dev+0x84/0xd8
+[    2.982581]  driver_attach+0x30/0x40
+[    2.986194]  bus_add_driver+0x160/0x208
+[    2.990076]  driver_register+0x64/0x110
+[    2.993957]  __platform_driver_register+0x58/0x68
+[    2.998716]  dwc3_qcom_driver_init+0x20/0x28
+[    3.003041]  do_one_initcall+0x6c/0x2d0
+[    3.006925]  kernel_init_freeable+0x214/0x268
+[    3.011339]  kernel_init+0x18/0x118
+[    3.014876]  ret_from_fork+0x10/0x18
+[    3.018495] Code: d0006a21 f9417295 91130021 910162b6 (b940c2a2)
+
+In the case above, the arm-smmu driver fails to probe with
+EPROBE_DEFER, and I'm guessing I'm guessing that causes
+iommu_group_add_device() to fail and sets the
+dev->iommu_group = NULL, then somehow we hit
+iommu_group_remove_device() and trip over the null value?
+I'm not really sure...
+
+Anyway, adding the null check seems to avoid the issue and the
+system boots fine after the arm-smmu driver later reprobed.
+
+Feedback or better ideas for a solution would be appreciated!
+
+Cc: Robin Murphy <robin.murphy@arm.com>
+Cc: Will Deacon <will@kernel.org>
+Cc: Andy Gross <agross@kernel.org>
+Cc: Maulik Shah <mkshah@codeaurora.org>
+Cc: Bjorn Andersson <bjorn.andersson@linaro.org>
+Cc: Saravana Kannan <saravanak@google.com>
+Cc: Marc Zyngier <maz@kernel.org>
+Cc: Lina Iyer <ilina@codeaurora.org>
+Cc: iommu@lists.linux-foundation.org
+Cc: linux-arm-msm <linux-arm-msm@vger.kernel.org>
+Signed-off-by: John Stultz <john.stultz@linaro.org>
+Change-Id: I7d866b117cb3b4f2f51e09cd844538a267b2d8be
+---
+ drivers/iommu/iommu.c | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/drivers/iommu/iommu.c b/drivers/iommu/iommu.c
+index 808ab70d5df50..f56a62149ef07 100644
+--- a/drivers/iommu/iommu.c
++++ b/drivers/iommu/iommu.c
+@@ -924,6 +924,10 @@ void iommu_group_remove_device(struct device *dev)
+ 	struct iommu_group *group = dev->iommu_group;
+ 	struct group_device *tmp_device, *device = NULL;
+ 
++	/* Avoid crash if iommu_group value is null */
++	if (!group)
++		return;
++
+ 	dev_info(dev, "Removing from iommu group %d\n", group->id);
+ 
+ 	/* Pre-notify listeners that a device is being removed. */
+-- 
+2.29.2
+
+
+From 161e7744868302515b0992f6e82981597fbe9b78 Mon Sep 17 00:00:00 2001
+From: Amit Pundir <amit.pundir@linaro.org>
+Date: Thu, 6 Jun 2019 19:38:51 +0530
+Subject: [PATCH 02/26] blueline: arm64: dts: qcom: Add Blueline (Pixel 3)
+
+This adds an initial dts for the Blueline (Pixel 3). Supported
+functionality includes Debug UART, UFS, USB-C (peripheral), USB-A
+(host), microSD-card and Bluetooth.
+
+Bootloader compatible board and msm IDs are needed for the kernel to boot
+with Pixel3 bootloader, so those are added.
+
+GPIOs 0 through 3 and 81 through 84 are configured to not be accessible
+from the application CPUs, so we mark them as reserved to allow the Pixel 3
+to boot.
+
+Also specify the UFS device-reset gpio, so that the controller will issue a
+reset of the UFS device.
+
+Signed-off-by: Bjorn Andersson <bjorn.andersson@linaro.org>
+
+[AmitP: Cherry-picked and refactored from Bjorn's db845c dts
+        ("arm64: dts: qcom: Add Dragonboard 845c") https://lkml.org/lkml/2019/6/6/7]
+Signed-off-by: Amit Pundir <amit.pundir@linaro.org>
+Signed-off-by: Sumit Semwal <sumit.semwal@linaro.org>
+ (sumits: merged commits to add board and msm ids, gpio range reservation,
+  ufs device-reset gpio and adaptation to v5.5+ changes)
+---
+ arch/arm64/boot/dts/qcom/Makefile            |   1 +
+ arch/arm64/boot/dts/qcom/sdm845-blueline.dts | 576 +++++++++++++++++++
+ 2 files changed, 577 insertions(+)
+ create mode 100644 arch/arm64/boot/dts/qcom/sdm845-blueline.dts
+
+diff --git a/arch/arm64/boot/dts/qcom/Makefile b/arch/arm64/boot/dts/qcom/Makefile
+index 456502aeee49b..5b11f6852e53a 100644
+--- a/arch/arm64/boot/dts/qcom/Makefile
++++ b/arch/arm64/boot/dts/qcom/Makefile
+@@ -64,6 +64,7 @@ dtb-$(CONFIG_ARCH_QCOM)	+= sdm845-cheza-r1.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sdm845-cheza-r2.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sdm845-cheza-r3.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sdm845-db845c.dtb
++dtb-$(CONFIG_ARCH_QCOM)	+= sdm845-blueline.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sdm845-mtp.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sdm845-oneplus-enchilada.dtb
+ dtb-$(CONFIG_ARCH_QCOM)	+= sdm845-oneplus-fajita.dtb
+diff --git a/arch/arm64/boot/dts/qcom/sdm845-blueline.dts b/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
+new file mode 100644
+index 0000000000000..7e6200f29b8a8
+--- /dev/null
++++ b/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
+@@ -0,0 +1,576 @@
++// SPDX-License-Identifier: GPL-2.0
++
++/dts-v1/;
++
++#include <dt-bindings/gpio/gpio.h>
++#include <dt-bindings/pinctrl/qcom,pmic-gpio.h>
++#include <dt-bindings/regulator/qcom,rpmh-regulator.h>
++#include "sdm845.dtsi"
++#include "pm8998.dtsi"
++#include "pmi8998.dtsi"
++
++/ {
++	model = "Google Pixel 3";
++	compatible = "google,b1c1-sdm845", "thundercomm,db845c", "qcom,sdm845";
++	qcom,board-id = <0x00021505 0>;
++	qcom,msm-id = <321 0x20001>;
++
++	aliases {
++		serial0 = &uart9;
++		hsuart0 = &uart6;
++	};
++
++	chosen {
++		stdout-path = "serial0:115200n8";
++	};
++
++	dc12v: dc12v-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "DC12V";
++		regulator-min-microvolt = <12000000>;
++		regulator-max-microvolt = <12000000>;
++		regulator-always-on;
++	};
++
++	lt9611_1v8: lt9611-vdd18-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "LT9611_1V8";
++
++		vin-supply = <&vdc_5v>;
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++
++		gpio = <&tlmm 89 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++	};
++
++	lt9611_3v3: lt9611-3v3 {
++		compatible = "regulator-fixed";
++		regulator-name = "LT9611_3V3";
++
++		vin-supply = <&vdc_3v3>;
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++
++		// TODO: make it possible to drive same GPIO from two clients
++		// gpio = <&tlmm 89 GPIO_ACTIVE_HIGH>;
++		// enable-active-high;
++	};
++
++	pcie0_1p05v: pcie-0-1p05v-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "PCIE0_1.05V";
++
++		vin-supply = <&vbat>;
++		regulator-min-microvolt = <1050000>;
++		regulator-max-microvolt = <1050000>;
++
++		// TODO: make it possible to drive same GPIO from two clients
++		// gpio = <&tlmm 90 GPIO_ACTIVE_HIGH>;
++		// enable-active-high;
++	};
++
++	pcie0_3p3v_dual: vldo-3v3-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "VLDO_3V3";
++
++		vin-supply = <&vbat>;
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++
++		gpio = <&tlmm 90 GPIO_ACTIVE_HIGH>;
++		enable-active-high;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&pcie0_pwren_state>;
++	};
++
++	gpio_keys {
++		compatible = "gpio-keys";
++		#address-cells = <1>;
++		#size-cells = <0>;
++		autorepeat;
++
++		pinctrl-names = "default";
++		pinctrl-0 = <&vol_up_pin_a>;
++
++		vol-up {
++			label = "Volume Up";
++			linux,code = <KEY_VOLUMEUP>;
++			gpios = <&pm8998_gpio 6 GPIO_ACTIVE_LOW>;
++		};
++	};
++
++	leds {
++		compatible = "gpio-leds";
++
++		user4 {
++			label = "green:user4";
++			gpios = <&pm8998_gpio 13 GPIO_ACTIVE_HIGH>;
++			linux,default-trigger = "panic-indicator";
++			default-state = "off";
++		};
++
++		wlan {
++			label = "yellow:wlan";
++			gpios = <&pm8998_gpio 9 GPIO_ACTIVE_HIGH>;
++			linux,default-trigger = "phy0tx";
++			default-state = "off";
++		};
++
++		bt {
++			label = "blue:bt";
++			gpios = <&pm8998_gpio 5 GPIO_ACTIVE_HIGH>;
++			linux,default-trigger = "bluetooth-power";
++			default-state = "off";
++		};
++	};
++
++	v5p0_hdmiout: v5p0-hdmiout-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "V5P0_HDMIOUT";
++
++		vin-supply = <&vdc_5v>;
++		regulator-min-microvolt = <500000>;
++		regulator-max-microvolt = <500000>;
++
++		// TODO: make it possible to drive same GPIO from two clients
++		// gpio = <&tlmm 89 GPIO_ACTIVE_HIGH>;
++		// enable-active-high;
++	};
++
++	vbat: vbat-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "VBAT";
++
++		vin-supply = <&dc12v>;
++		regulator-min-microvolt = <4200000>;
++		regulator-max-microvolt = <4200000>;
++		regulator-always-on;
++	};
++
++	vbat_som: vbat-som-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "VBAT_SOM";
++
++		vin-supply = <&dc12v>;
++		regulator-min-microvolt = <4200000>;
++		regulator-max-microvolt = <4200000>;
++		regulator-always-on;
++	};
++
++	vdc_3v3: vdc-3v3-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "VDC_3V3";
++		vin-supply = <&dc12v>;
++		regulator-min-microvolt = <3300000>;
++		regulator-max-microvolt = <3300000>;
++		regulator-always-on;
++	};
++
++	vdc_5v: vdc-5v-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "VDC_5V";
++
++		vin-supply = <&dc12v>;
++		regulator-min-microvolt = <500000>;
++		regulator-max-microvolt = <500000>;
++		regulator-always-on;
++	};
++
++	vreg_s4a_1p8: vreg-s4a-1p8 {
++		compatible = "regulator-fixed";
++		regulator-name = "vreg_s4a_1p8";
++
++		regulator-min-microvolt = <1800000>;
++		regulator-max-microvolt = <1800000>;
++		regulator-always-on;
++	};
++
++	vph_pwr: vph-pwr-regulator {
++		compatible = "regulator-fixed";
++		regulator-name = "vph_pwr";
++
++		vin-supply = <&vbat_som>;
++	};
++};
++
++&adsp_pas {
++	status = "okay";
++
++	firmware-name = "qcom/sdm845/adsp.mdt";
++};
++
++&apps_rsc {
++	pm8998-rpmh-regulators {
++		compatible = "qcom,pm8998-rpmh-regulators";
++		qcom,pmic-id = "a";
++		vdd-s1-supply = <&vph_pwr>;
++		vdd-s2-supply = <&vph_pwr>;
++		vdd-s3-supply = <&vph_pwr>;
++		vdd-s4-supply = <&vph_pwr>;
++		vdd-s5-supply = <&vph_pwr>;
++		vdd-s6-supply = <&vph_pwr>;
++		vdd-s7-supply = <&vph_pwr>;
++		vdd-s8-supply = <&vph_pwr>;
++		vdd-s9-supply = <&vph_pwr>;
++		vdd-s10-supply = <&vph_pwr>;
++		vdd-s11-supply = <&vph_pwr>;
++		vdd-s12-supply = <&vph_pwr>;
++		vdd-s13-supply = <&vph_pwr>;
++		vdd-l1-l27-supply = <&vreg_s7a_1p025>;
++		vdd-l2-l8-l17-supply = <&vreg_s3a_1p35>;
++		vdd-l3-l11-supply = <&vreg_s7a_1p025>;
++		vdd-l4-l5-supply = <&vreg_s7a_1p025>;
++		vdd-l6-supply = <&vph_pwr>;
++		vdd-l7-l12-l14-l15-supply = <&vreg_s5a_2p04>;
++		vdd-l9-supply = <&vreg_bob>;
++		vdd-l10-l23-l25-supply = <&vreg_bob>;
++		vdd-l13-l19-l21-supply = <&vreg_bob>;
++		vdd-l16-l28-supply = <&vreg_bob>;
++		vdd-l18-l22-supply = <&vreg_bob>;
++		vdd-l20-l24-supply = <&vreg_bob>;
++		vdd-l26-supply = <&vreg_s3a_1p35>;
++		vin-lvs-1-2-supply = <&vreg_s4a_1p8>;
++
++		vreg_s3a_1p35: smps3 {
++			regulator-min-microvolt = <1352000>;
++			regulator-max-microvolt = <1352000>;
++		};
++
++		vreg_s5a_2p04: smps5 {
++			regulator-min-microvolt = <1904000>;
++			regulator-max-microvolt = <2040000>;
++		};
++
++		vreg_s7a_1p025: smps7 {
++			regulator-min-microvolt = <900000>;
++			regulator-max-microvolt = <1028000>;
++		};
++
++		vreg_l1a_0p875: ldo1 {
++			regulator-min-microvolt = <880000>;
++			regulator-max-microvolt = <880000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l5a_0p8: ldo5 {
++			regulator-min-microvolt = <800000>;
++			regulator-max-microvolt = <800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l12a_1p8: ldo12 {
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l7a_1p8: ldo7 {
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l13a_2p95: ldo13 {
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <2960000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l17a_1p3: ldo17 {
++			regulator-min-microvolt = <1304000>;
++			regulator-max-microvolt = <1304000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l20a_2p95: ldo20 {
++			regulator-min-microvolt = <2960000>;
++			regulator-max-microvolt = <2968000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l21a_2p95: ldo21 {
++			regulator-min-microvolt = <2960000>;
++			regulator-max-microvolt = <2968000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l24a_3p075: ldo24 {
++			regulator-min-microvolt = <3088000>;
++			regulator-max-microvolt = <3088000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l25a_3p3: ldo25 {
++			regulator-min-microvolt = <3300000>;
++			regulator-max-microvolt = <3312000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++
++		vreg_l26a_1p2: ldo26 {
++			regulator-min-microvolt = <1200000>;
++			regulator-max-microvolt = <1200000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++		};
++	};
++
++	pmi8998-rpmh-regulators {
++		compatible = "qcom,pmi8998-rpmh-regulators";
++		qcom,pmic-id = "b";
++
++		vdd-bob-supply = <&vph_pwr>;
++
++		vreg_bob: bob {
++			regulator-min-microvolt = <3312000>;
++			regulator-max-microvolt = <3600000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_AUTO>;
++			regulator-allow-bypass;
++		};
++	};
++};
++
++&cdsp_pas {
++	status = "okay";
++	firmware-name = "qcom/sdm845/cdsp.mdt";
++};
++
++&gcc {
++	protected-clocks = <GCC_QSPI_CORE_CLK>,
++			   <GCC_QSPI_CORE_CLK_SRC>,
++			   <GCC_QSPI_CNOC_PERIPH_AHB_CLK>;
++};
++
++&pm8998_gpio {
++	vol_up_pin_a: vol-up-active {
++		pins = "gpio6";
++		function = "normal";
++		input-enable;
++		bias-pull-up;
++		qcom,drive-strength = <PMIC_GPIO_STRENGTH_NO>;
++	};
++};
++
++&pm8998_pon {
++	resin {
++		compatible = "qcom,pm8941-resin";
++		interrupts = <0x0 0x8 1 IRQ_TYPE_EDGE_BOTH>;
++		debounce = <15625>;
++		bias-pull-up;
++		linux,code = <KEY_VOLUMEDOWN>;
++	};
++};
++
++&qupv3_id_0 {
++	status = "okay";
++};
++
++&qupv3_id_1 {
++	status = "okay";
++};
++
++&sdhc_2 {
++	status = "okay";
++
++	pinctrl-names = "default";
++	pinctrl-0 = <&sdc2_default_state &sdc2_card_det_n>;
++
++	vmmc-supply = <&vreg_l21a_2p95>;
++	vqmmc-supply = <&vreg_l13a_2p95>;
++
++	bus-width = <4>;
++	cd-gpios = <&tlmm 126 GPIO_ACTIVE_LOW>;
++};
++
++&tlmm {
++	gpio-reserved-ranges = <0 4>, <81 4>;
++
++	pcie0_pwren_state: pcie0-pwren {
++		pins = "gpio90";
++		function = "gpio";
++
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	sdc2_default_state: sdc2-default {
++		clk {
++			pins = "sdc2_clk";
++			bias-disable;
++
++			/*
++			 * It seems that mmc_test reports errors if drive
++			 * strength is not 16 on clk, cmd, and data pins.
++			 */
++			drive-strength = <16>;
++		};
++
++		cmd {
++			pins = "sdc2_cmd";
++			bias-pull-up;
++			drive-strength = <10>;
++		};
++
++		data {
++			pins = "sdc2_data";
++			bias-pull-up;
++			drive-strength = <10>;
++		};
++	};
++
++	sdc2_card_det_n: sd-card-det-n {
++		pins = "gpio126";
++		function = "gpio";
++		bias-pull-up;
++	};
++};
++
++&uart6 {
++	status = "okay";
++
++	bluetooth {
++		compatible = "qcom,wcn3990-bt";
++
++		vddio-supply = <&vreg_s4a_1p8>;
++		vddxo-supply = <&vreg_l7a_1p8>;
++		vddrf-supply = <&vreg_l17a_1p3>;
++		vddch0-supply = <&vreg_l25a_3p3>;
++		max-speed = <3200000>;
++	};
++};
++
++&uart9 {
++	status = "okay";
++};
++
++&usb_1 {
++	status = "okay";
++};
++
++&usb_1_dwc3 {
++	dr_mode = "peripheral";
++};
++
++&usb_1_hsphy {
++	status = "okay";
++
++	vdd-supply = <&vreg_l1a_0p875>;
++	vdda-pll-supply = <&vreg_l12a_1p8>;
++	vdda-phy-dpdm-supply = <&vreg_l24a_3p075>;
++
++	qcom,imp-res-offset-value = <8>;
++	qcom,hstx-trim-value = <QUSB2_V2_HSTX_TRIM_21_6_MA>;
++	qcom,preemphasis-level = <QUSB2_V2_PREEMPHASIS_5_PERCENT>;
++	qcom,preemphasis-width = <QUSB2_V2_PREEMPHASIS_WIDTH_HALF_BIT>;
++};
++
++&usb_1_qmpphy {
++	status = "okay";
++
++	vdda-phy-supply = <&vreg_l26a_1p2>;
++	vdda-pll-supply = <&vreg_l1a_0p875>;
++};
++
++&usb_2 {
++	status = "okay";
++};
++
++&usb_2_dwc3 {
++	dr_mode = "host";
++};
++
++&usb_2_hsphy {
++	status = "okay";
++
++	vdd-supply = <&vreg_l1a_0p875>;
++	vdda-pll-supply = <&vreg_l12a_1p8>;
++	vdda-phy-dpdm-supply = <&vreg_l24a_3p075>;
++
++	qcom,imp-res-offset-value = <8>;
++	qcom,hstx-trim-value = <QUSB2_V2_HSTX_TRIM_22_8_MA>;
++};
++
++&usb_2_qmpphy {
++	status = "okay";
++
++	vdda-phy-supply = <&vreg_l26a_1p2>;
++	vdda-pll-supply = <&vreg_l1a_0p875>;
++};
++
++&ufs_mem_hc {
++	status = "okay";
++
++	reset-gpios = <&tlmm 150 GPIO_ACTIVE_LOW>;
++
++	vcc-supply = <&vreg_l20a_2p95>;
++	vcc-max-microamp = <800000>;
++};
++
++&ufs_mem_phy {
++	status = "okay";
++
++	vdda-phy-supply = <&vreg_l1a_0p875>;
++	vdda-pll-supply = <&vreg_l26a_1p2>;
++};
++
++&wifi {
++	status = "okay";
++
++	vdd-0.8-cx-mx-supply = <&vreg_l5a_0p8>;
++	vdd-1.8-xo-supply = <&vreg_l7a_1p8>;
++	vdd-1.3-rfa-supply = <&vreg_l17a_1p3>;
++	vdd-3.3-ch0-supply = <&vreg_l25a_3p3>;
++
++	qcom,snoc-host-cap-8bit-quirk;
++};
++
++/* PINCTRL - additions to nodes defined in sdm845.dtsi */
++
++&qup_uart6_default {
++	pinmux {
++		pins = "gpio45", "gpio46", "gpio47", "gpio48";
++		function = "qup6";
++	};
++
++	cts {
++		pins = "gpio45";
++		bias-disable;
++	};
++
++	rts-tx {
++		pins = "gpio46", "gpio47";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	rx {
++		pins = "gpio48";
++		bias-pull-up;
++	};
++};
++
++&qup_uart9_default {
++	pinconf-tx {
++		pins = "gpio4";
++		drive-strength = <2>;
++		bias-disable;
++	};
++
++	pinconf-rx {
++		pins = "gpio5";
++		drive-strength = <2>;
++		bias-pull-up;
++	};
++};
++
++&gpu {
++	zap-shader {
++		memory-region = <&gpu_mem>;
++		//firmware-name = "qcom/sdm845/a630_zap.mbn";
++	};
++};
++
++&mss_pil {
++	status = "okay";
++	firmware-name = "qcom/sdm845/mba.mbn", "qcom/sdm845/modem.mbn";
++};
+-- 
+2.29.2
+
+
+From 514c7e3c636dde86d21f715ad2e108b5390ab479 Mon Sep 17 00:00:00 2001
+From: Sumit Semwal <sumit.semwal@linaro.org>
+Date: Wed, 29 Jan 2020 00:53:58 +0530
+Subject: [PATCH 03/26] blueline_defconfig: Add blueline_defconfig for pixel3
+
+==
+- Corrected soc to soc@0
+- Added inline crypto changes
+- updated to v5.8-rc4
+- updated vendor/firmware path
+
+Signed-off-by: Sumit Semwal <sumit.semwal@linaro.org>
+Change-Id: I1d9e871f3418d83384dec389e8141bf2937232a8
+---
+ arch/arm64/configs/blueline_defconfig | 755 ++++++++++++++++++++++++++
+ 1 file changed, 755 insertions(+)
+ create mode 100644 arch/arm64/configs/blueline_defconfig
+
+diff --git a/arch/arm64/configs/blueline_defconfig b/arch/arm64/configs/blueline_defconfig
+new file mode 100644
+index 0000000000000..9c4cb473e40f5
+--- /dev/null
++++ b/arch/arm64/configs/blueline_defconfig
+@@ -0,0 +1,755 @@
++CONFIG_LOCALVERSION="-mainline"
++CONFIG_AUDIT=y
++CONFIG_NO_HZ=y
++CONFIG_HIGH_RES_TIMERS=y
++CONFIG_PREEMPT=y
++CONFIG_IRQ_TIME_ACCOUNTING=y
++CONFIG_TASKSTATS=y
++CONFIG_TASK_XACCT=y
++CONFIG_TASK_IO_ACCOUNTING=y
++CONFIG_PSI=y
++CONFIG_IKCONFIG=y
++CONFIG_IKCONFIG_PROC=y
++CONFIG_IKHEADERS=y
++CONFIG_LOG_BUF_SHIFT=21
++CONFIG_UCLAMP_TASK=y
++CONFIG_CGROUPS=y
++CONFIG_MEMCG=y
++CONFIG_BLK_CGROUP=y
++CONFIG_CGROUP_SCHED=y
++# CONFIG_FAIR_GROUP_SCHED is not set
++CONFIG_UCLAMP_TASK_GROUP=y
++CONFIG_CGROUP_FREEZER=y
++CONFIG_CPUSETS=y
++CONFIG_CGROUP_CPUACCT=y
++CONFIG_CGROUP_BPF=y
++CONFIG_NAMESPACES=y
++# CONFIG_PID_NS is not set
++CONFIG_BLK_DEV_INITRD=y
++# CONFIG_RD_BZIP2 is not set
++# CONFIG_RD_LZMA is not set
++# CONFIG_RD_XZ is not set
++# CONFIG_RD_LZO is not set
++# CONFIG_SYSFS_SYSCALL is not set
++# CONFIG_FHANDLE is not set
++CONFIG_KALLSYMS_ALL=y
++CONFIG_BPF_SYSCALL=y
++# CONFIG_RSEQ is not set
++CONFIG_EMBEDDED=y
++# CONFIG_COMPAT_BRK is not set
++# CONFIG_SLAB_MERGE_DEFAULT is not set
++CONFIG_SLAB_FREELIST_RANDOM=y
++CONFIG_SLAB_FREELIST_HARDENED=y
++CONFIG_SHUFFLE_PAGE_ALLOCATOR=y
++CONFIG_PROFILING=y
++CONFIG_ARCH_HISI=y
++CONFIG_ARCH_QCOM=y
++CONFIG_SCHED_MC=y
++CONFIG_NR_CPUS=32
++CONFIG_SECCOMP=y
++CONFIG_PARAVIRT=y
++CONFIG_ARM64_SW_TTBR0_PAN=y
++CONFIG_COMPAT=y
++CONFIG_ARMV8_DEPRECATED=y
++CONFIG_SWP_EMULATION=y
++CONFIG_CP15_BARRIER_EMULATION=y
++CONFIG_SETEND_EMULATION=y
++CONFIG_RANDOMIZE_BASE=y
++CONFIG_CMDLINE="earlycon console=ttyMSM0,115200n8 firmware_class.path=/vendor/firmware androidboot.hardware=pixel3_mainline init=/init androidboot.boot_devices=soc@0/1d84000.ufshc androidboot.serialno=89EX09405 printk.devkmsg=on androidboot.super_partition=system_b fw_devlink=permissive deferred_probe_timeout=30"
++CONFIG_CMDLINE_FORCE=y
++# CONFIG_DMI is not set
++CONFIG_PM_WAKELOCKS=y
++CONFIG_PM_WAKELOCKS_LIMIT=0
++# CONFIG_PM_WAKELOCKS_GC is not set
++CONFIG_ENERGY_MODEL=y
++CONFIG_CPU_IDLE=y
++CONFIG_ARM_CPUIDLE=y
++CONFIG_ARM_PSCI_CPUIDLE=y
++CONFIG_CPU_FREQ=y
++CONFIG_CPU_FREQ_TIMES=y
++CONFIG_CPU_FREQ_DEFAULT_GOV_SCHEDUTIL=y
++CONFIG_CPU_FREQ_GOV_POWERSAVE=y
++CONFIG_CPU_FREQ_GOV_CONSERVATIVE=y
++CONFIG_ARM_SCPI_CPUFREQ=y
++CONFIG_ARM_SCMI_CPUFREQ=y
++CONFIG_ARM_SCMI_PROTOCOL=y
++# CONFIG_ARM_SCMI_POWER_DOMAIN is not set
++CONFIG_ARM_SCPI_PROTOCOL=y
++# CONFIG_ARM_SCPI_POWER_DOMAIN is not set
++# CONFIG_EFI_ARMSTUB_DTB_LOADER is not set
++CONFIG_CRYPTO_SHA2_ARM64_CE=y
++CONFIG_CRYPTO_AES_ARM64_CE_BLK=y
++CONFIG_BLK_INLINE_ENCRYPTION=y
++CONFIG_BLK_INLINE_ENCRYPTION_FALLBACK=y
++CONFIG_GKI_HACKS_TO_FIX=y
++# CONFIG_CORE_DUMP_DEFAULT_ELF_HEADERS is not set
++CONFIG_BINFMT_MISC=y
++CONFIG_MEMORY_HOTPLUG=y
++CONFIG_CLEANCACHE=y
++CONFIG_CMA=y
++CONFIG_CMA_AREAS=16
++CONFIG_ZSMALLOC=y
++CONFIG_NET=y
++CONFIG_PACKET=y
++CONFIG_UNIX=y
++CONFIG_XFRM_USER=y
++CONFIG_XFRM_INTERFACE=y
++CONFIG_XFRM_STATISTICS=y
++CONFIG_NET_KEY=y
++CONFIG_XDP_SOCKETS=y
++CONFIG_INET=y
++CONFIG_IP_MULTICAST=y
++CONFIG_IP_ADVANCED_ROUTER=y
++CONFIG_IP_MULTIPLE_TABLES=y
++CONFIG_NET_IPIP=y
++CONFIG_NET_IPGRE_DEMUX=y
++CONFIG_NET_IPGRE=y
++CONFIG_NET_IPVTI=y
++CONFIG_INET_ESP=y
++CONFIG_INET_UDP_DIAG=y
++CONFIG_INET_DIAG_DESTROY=y
++CONFIG_IPV6_ROUTER_PREF=y
++CONFIG_IPV6_ROUTE_INFO=y
++CONFIG_IPV6_OPTIMISTIC_DAD=y
++CONFIG_INET6_ESP=y
++CONFIG_INET6_IPCOMP=y
++CONFIG_IPV6_MIP6=y
++CONFIG_IPV6_VTI=y
++CONFIG_IPV6_GRE=y
++CONFIG_IPV6_MULTIPLE_TABLES=y
++CONFIG_NETFILTER=y
++CONFIG_NF_CONNTRACK=y
++CONFIG_NF_CONNTRACK_SECMARK=y
++CONFIG_NF_CONNTRACK_EVENTS=y
++CONFIG_NF_CONNTRACK_AMANDA=y
++CONFIG_NF_CONNTRACK_FTP=y
++CONFIG_NF_CONNTRACK_H323=y
++CONFIG_NF_CONNTRACK_IRC=y
++CONFIG_NF_CONNTRACK_NETBIOS_NS=y
++CONFIG_NF_CONNTRACK_PPTP=y
++CONFIG_NF_CONNTRACK_SANE=y
++CONFIG_NF_CONNTRACK_TFTP=y
++CONFIG_NF_CT_NETLINK=y
++CONFIG_NETFILTER_XT_TARGET_CLASSIFY=y
++CONFIG_NETFILTER_XT_TARGET_CONNMARK=y
++CONFIG_NETFILTER_XT_TARGET_CONNSECMARK=y
++CONFIG_NETFILTER_XT_TARGET_CT=y
++CONFIG_NETFILTER_XT_TARGET_IDLETIMER=y
++CONFIG_NETFILTER_XT_TARGET_MARK=y
++CONFIG_NETFILTER_XT_TARGET_NFLOG=y
++CONFIG_NETFILTER_XT_TARGET_NFQUEUE=y
++CONFIG_NETFILTER_XT_TARGET_TPROXY=y
++CONFIG_NETFILTER_XT_TARGET_TRACE=y
++CONFIG_NETFILTER_XT_TARGET_SECMARK=y
++CONFIG_NETFILTER_XT_TARGET_TCPMSS=y
++CONFIG_NETFILTER_XT_MATCH_BPF=y
++CONFIG_NETFILTER_XT_MATCH_COMMENT=y
++CONFIG_NETFILTER_XT_MATCH_CONNLIMIT=y
++CONFIG_NETFILTER_XT_MATCH_CONNMARK=y
++CONFIG_NETFILTER_XT_MATCH_CONNTRACK=y
++CONFIG_NETFILTER_XT_MATCH_HASHLIMIT=y
++CONFIG_NETFILTER_XT_MATCH_HELPER=y
++CONFIG_NETFILTER_XT_MATCH_IPRANGE=y
++CONFIG_NETFILTER_XT_MATCH_LENGTH=y
++CONFIG_NETFILTER_XT_MATCH_LIMIT=y
++CONFIG_NETFILTER_XT_MATCH_MAC=y
++CONFIG_NETFILTER_XT_MATCH_MARK=y
++CONFIG_NETFILTER_XT_MATCH_OWNER=y
++CONFIG_NETFILTER_XT_MATCH_POLICY=y
++CONFIG_NETFILTER_XT_MATCH_PKTTYPE=y
++CONFIG_NETFILTER_XT_MATCH_QUOTA=y
++CONFIG_NETFILTER_XT_MATCH_QUOTA2=y
++CONFIG_NETFILTER_XT_MATCH_QUOTA2_LOG=y
++CONFIG_NETFILTER_XT_MATCH_SOCKET=y
++CONFIG_NETFILTER_XT_MATCH_STATE=y
++CONFIG_NETFILTER_XT_MATCH_STATISTIC=y
++CONFIG_NETFILTER_XT_MATCH_STRING=y
++CONFIG_NETFILTER_XT_MATCH_TIME=y
++CONFIG_NETFILTER_XT_MATCH_U32=y
++CONFIG_IP_NF_IPTABLES=y
++CONFIG_IP_NF_MATCH_ECN=y
++CONFIG_IP_NF_MATCH_TTL=y
++CONFIG_IP_NF_FILTER=y
++CONFIG_IP_NF_TARGET_REJECT=y
++CONFIG_IP_NF_NAT=y
++CONFIG_IP_NF_TARGET_MASQUERADE=y
++CONFIG_IP_NF_TARGET_NETMAP=y
++CONFIG_IP_NF_TARGET_REDIRECT=y
++CONFIG_IP_NF_MANGLE=y
++CONFIG_IP_NF_RAW=y
++CONFIG_IP_NF_SECURITY=y
++CONFIG_IP_NF_ARPTABLES=y
++CONFIG_IP_NF_ARPFILTER=y
++CONFIG_IP_NF_ARP_MANGLE=y
++CONFIG_IP6_NF_IPTABLES=y
++CONFIG_IP6_NF_MATCH_RPFILTER=y
++CONFIG_IP6_NF_FILTER=y
++CONFIG_IP6_NF_TARGET_REJECT=y
++CONFIG_IP6_NF_MANGLE=y
++CONFIG_IP6_NF_RAW=y
++CONFIG_TIPC=y
++CONFIG_L2TP=y
++CONFIG_BRIDGE=y
++CONFIG_NET_SCHED=y
++CONFIG_NET_SCH_HTB=y
++CONFIG_NET_SCH_INGRESS=y
++CONFIG_NET_CLS_U32=y
++CONFIG_NET_CLS_BPF=y
++CONFIG_NET_EMATCH=y
++CONFIG_NET_EMATCH_U32=y
++CONFIG_NET_CLS_ACT=y
++CONFIG_QRTR=y
++CONFIG_QRTR_SMD=y
++CONFIG_QRTR_TUN=y
++CONFIG_BT=y
++CONFIG_BT_HCIUART=y
++CONFIG_BT_HCIUART_QCA=y
++CONFIG_CFG80211=y
++# CONFIG_CFG80211_DEFAULT_PS is not set
++# CONFIG_CFG80211_CRDA_SUPPORT is not set
++CONFIG_MAC80211=y
++CONFIG_RFKILL=y
++CONFIG_PCI=y
++CONFIG_PCIEPORTBUS=y
++CONFIG_PCI_HOST_GENERIC=y
++CONFIG_PCIE_QCOM=y
++CONFIG_PCIE_KIRIN=y
++CONFIG_FW_LOADER_USER_HELPER=y
++CONFIG_FW_LOADER_USER_HELPER_FALLBACK=y
++# CONFIG_FW_CACHE is not set
++# CONFIG_ALLOW_DEV_COREDUMP is not set
++CONFIG_GNSS=y
++CONFIG_ZRAM=y
++CONFIG_BLK_DEV_LOOP=y
++CONFIG_BLK_DEV_LOOP_MIN_COUNT=16
++CONFIG_BLK_DEV_RAM=y
++CONFIG_BLK_DEV_RAM_SIZE=8192
++CONFIG_QCOM_FASTRPC=y
++CONFIG_UID_SYS_STATS=y
++CONFIG_SCSI=y
++# CONFIG_SCSI_PROC_FS is not set
++CONFIG_BLK_DEV_SD=y
++CONFIG_SCSI_UFSHCD=y
++CONFIG_SCSI_UFSHCD_PLATFORM=y
++CONFIG_SCSI_UFS_QCOM=y
++CONFIG_SCSI_UFS_CRYPTO=y
++CONFIG_MD=y
++CONFIG_BLK_DEV_DM=y
++CONFIG_DM_CRYPT=y
++CONFIG_DM_DEFAULT_KEY=y
++CONFIG_DM_SNAPSHOT=y
++CONFIG_DM_UEVENT=y
++CONFIG_DM_VERITY=y
++CONFIG_DM_VERITY_AVB=y
++CONFIG_DM_VERITY_FEC=y
++CONFIG_DM_BOW=y
++CONFIG_NETDEVICES=y
++CONFIG_DUMMY=y
++CONFIG_WIREGUARD=y
++CONFIG_TUN=y
++CONFIG_VETH=y
++# CONFIG_ETHERNET is not set
++CONFIG_PHYLIB=y
++CONFIG_PPP=y
++CONFIG_PPP_BSDCOMP=y
++CONFIG_PPP_DEFLATE=y
++CONFIG_PPP_MPPE=y
++CONFIG_PPTP=y
++CONFIG_PPPOL2TP=y
++CONFIG_USB_RTL8152=y
++CONFIG_USB_USBNET=y
++# CONFIG_USB_NET_AX8817X is not set
++# CONFIG_USB_NET_AX88179_178A is not set
++# CONFIG_USB_NET_CDCETHER is not set
++# CONFIG_USB_NET_CDC_NCM is not set
++# CONFIG_USB_NET_NET1080 is not set
++# CONFIG_USB_NET_CDC_SUBSET is not set
++# CONFIG_USB_NET_ZAURUS is not set
++# CONFIG_WLAN_VENDOR_ADMTEK is not set
++CONFIG_ATH10K=y
++CONFIG_ATH10K_PCI=y
++CONFIG_ATH10K_AHB=y
++CONFIG_ATH10K_SNOC=y
++# CONFIG_WLAN_VENDOR_ATMEL is not set
++# CONFIG_WLAN_VENDOR_BROADCOM is not set
++# CONFIG_WLAN_VENDOR_CISCO is not set
++# CONFIG_WLAN_VENDOR_INTEL is not set
++# CONFIG_WLAN_VENDOR_INTERSIL is not set
++# CONFIG_WLAN_VENDOR_MARVELL is not set
++# CONFIG_WLAN_VENDOR_MEDIATEK is not set
++# CONFIG_WLAN_VENDOR_RALINK is not set
++# CONFIG_WLAN_VENDOR_REALTEK is not set
++# CONFIG_WLAN_VENDOR_RSI is not set
++# CONFIG_WLAN_VENDOR_ST is not set
++# CONFIG_WLAN_VENDOR_TI is not set
++# CONFIG_WLAN_VENDOR_ZYDAS is not set
++# CONFIG_WLAN_VENDOR_QUANTENNA is not set
++CONFIG_INPUT_EVDEV=y
++CONFIG_KEYBOARD_GPIO=y
++# CONFIG_INPUT_MOUSE is not set
++CONFIG_INPUT_JOYSTICK=y
++CONFIG_INPUT_TOUCHSCREEN=y
++CONFIG_INPUT_MISC=y
++CONFIG_INPUT_PM8941_PWRKEY=y
++CONFIG_INPUT_UINPUT=y
++# CONFIG_VT is not set
++# CONFIG_LEGACY_PTYS is not set
++CONFIG_SERIAL_8250=y
++# CONFIG_SERIAL_8250_DEPRECATED_OPTIONS is not set
++CONFIG_SERIAL_8250_CONSOLE=y
++# CONFIG_SERIAL_8250_EXAR is not set
++CONFIG_SERIAL_OF_PLATFORM=y
++CONFIG_SERIAL_AMBA_PL011=y
++CONFIG_SERIAL_AMBA_PL011_CONSOLE=y
++CONFIG_SERIAL_MSM=y
++CONFIG_SERIAL_QCOM_GENI=y
++CONFIG_SERIAL_QCOM_GENI_CONSOLE=y
++CONFIG_SERIAL_SPRD=y
++CONFIG_SERIAL_SPRD_CONSOLE=y
++CONFIG_SERIAL_DEV_BUS=y
++# CONFIG_HW_RANDOM_CAVIUM is not set
++# CONFIG_DEVMEM is not set
++# CONFIG_DEVPORT is not set
++# CONFIG_I2C_COMPAT is not set
++CONFIG_I2C_CHARDEV=y
++CONFIG_I2C_MUX=y
++CONFIG_I2C_MUX_PCA954x=y
++# CONFIG_I2C_HELPER_AUTO is not set
++CONFIG_I2C_DESIGNWARE_PLATFORM=y
++CONFIG_I2C_QCOM_GENI=y
++CONFIG_I2C_QUP=y
++CONFIG_I2C_RK3X=y
++CONFIG_SPI=y
++CONFIG_SPI_PL022=y
++CONFIG_SPI_QCOM_QSPI=y
++CONFIG_SPI_QUP=y
++CONFIG_SPI_QCOM_GENI=y
++CONFIG_SPMI=y
++CONFIG_PINCTRL_MSM8998=y
++CONFIG_PINCTRL_QCOM_SPMI_PMIC=y
++CONFIG_PINCTRL_SDM845=y
++CONFIG_GPIO_WCD934X=y
++CONFIG_POWER_AVS=y
++CONFIG_POWER_RESET_HISI=y
++CONFIG_POWER_RESET_QCOM_PON=y
++CONFIG_SYSCON_REBOOT_MODE=y
++# CONFIG_HWMON is not set
++CONFIG_THERMAL=y
++CONFIG_THERMAL_GOV_USER_SPACE=y
++CONFIG_THERMAL_GOV_POWER_ALLOCATOR=y
++CONFIG_CPU_THERMAL=y
++CONFIG_DEVFREQ_THERMAL=y
++CONFIG_WATCHDOG=y
++CONFIG_QCOM_WDT=y
++CONFIG_PM8916_WATCHDOG=y
++CONFIG_MFD_ACT8945A=y
++CONFIG_MFD_SPMI_PMIC=y
++CONFIG_MFD_WCD934X=y
++CONFIG_REGULATOR_FIXED_VOLTAGE=y
++CONFIG_REGULATOR_GPIO=y
++CONFIG_REGULATOR_QCOM_RPMH=y
++CONFIG_REGULATOR_QCOM_SMD_RPM=y
++CONFIG_REGULATOR_QCOM_SPMI=y
++CONFIG_REGULATOR_VCTRL=y
++CONFIG_REGULATOR_QCOM_LABIBB=y
++# CONFIG_CXD2880_SPI_DRV is not set
++# CONFIG_MEDIA_TUNER_SIMPLE is not set
++# CONFIG_MEDIA_TUNER_TDA18250 is not set
++# CONFIG_MEDIA_TUNER_TDA8290 is not set
++# CONFIG_MEDIA_TUNER_TDA827X is not set
++# CONFIG_MEDIA_TUNER_TDA18271 is not set
++# CONFIG_MEDIA_TUNER_TDA9887 is not set
++# CONFIG_MEDIA_TUNER_TEA5761 is not set
++# CONFIG_MEDIA_TUNER_TEA5767 is not set
++# CONFIG_MEDIA_TUNER_MSI001 is not set
++# CONFIG_MEDIA_TUNER_MT20XX is not set
++# CONFIG_MEDIA_TUNER_MT2060 is not set
++# CONFIG_MEDIA_TUNER_MT2063 is not set
++# CONFIG_MEDIA_TUNER_MT2266 is not set
++# CONFIG_MEDIA_TUNER_MT2131 is not set
++# CONFIG_MEDIA_TUNER_QT1010 is not set
++# CONFIG_MEDIA_TUNER_XC2028 is not set
++# CONFIG_MEDIA_TUNER_XC5000 is not set
++# CONFIG_MEDIA_TUNER_XC4000 is not set
++# CONFIG_MEDIA_TUNER_MXL5005S is not set
++# CONFIG_MEDIA_TUNER_MXL5007T is not set
++# CONFIG_MEDIA_TUNER_MC44S803 is not set
++# CONFIG_MEDIA_TUNER_MAX2165 is not set
++# CONFIG_MEDIA_TUNER_TDA18218 is not set
++# CONFIG_MEDIA_TUNER_FC0011 is not set
++# CONFIG_MEDIA_TUNER_FC0012 is not set
++# CONFIG_MEDIA_TUNER_FC0013 is not set
++# CONFIG_MEDIA_TUNER_TDA18212 is not set
++# CONFIG_MEDIA_TUNER_E4000 is not set
++# CONFIG_MEDIA_TUNER_FC2580 is not set
++# CONFIG_MEDIA_TUNER_M88RS6000T is not set
++# CONFIG_MEDIA_TUNER_TUA9001 is not set
++# CONFIG_MEDIA_TUNER_SI2157 is not set
++# CONFIG_MEDIA_TUNER_IT913X is not set
++# CONFIG_MEDIA_TUNER_R820T is not set
++# CONFIG_MEDIA_TUNER_MXL301RF is not set
++# CONFIG_MEDIA_TUNER_QM1D1C0042 is not set
++# CONFIG_MEDIA_TUNER_QM1D1B0004 is not set
++# CONFIG_DVB_STB0899 is not set
++# CONFIG_DVB_STB6100 is not set
++# CONFIG_DVB_STV090x is not set
++# CONFIG_DVB_STV0910 is not set
++# CONFIG_DVB_STV6110x is not set
++# CONFIG_DVB_STV6111 is not set
++# CONFIG_DVB_MXL5XX is not set
++# CONFIG_DVB_DRXK is not set
++# CONFIG_DVB_TDA18271C2DD is not set
++# CONFIG_DVB_SI2165 is not set
++# CONFIG_DVB_MN88472 is not set
++# CONFIG_DVB_MN88473 is not set
++# CONFIG_DVB_CX24110 is not set
++# CONFIG_DVB_CX24123 is not set
++# CONFIG_DVB_MT312 is not set
++# CONFIG_DVB_ZL10036 is not set
++# CONFIG_DVB_ZL10039 is not set
++# CONFIG_DVB_S5H1420 is not set
++# CONFIG_DVB_STV0288 is not set
++# CONFIG_DVB_STB6000 is not set
++# CONFIG_DVB_STV0299 is not set
++# CONFIG_DVB_STV6110 is not set
++# CONFIG_DVB_STV0900 is not set
++# CONFIG_DVB_TDA8083 is not set
++# CONFIG_DVB_TDA10086 is not set
++# CONFIG_DVB_TDA8261 is not set
++# CONFIG_DVB_VES1X93 is not set
++# CONFIG_DVB_TUNER_ITD1000 is not set
++# CONFIG_DVB_TUNER_CX24113 is not set
++# CONFIG_DVB_TDA826X is not set
++# CONFIG_DVB_TUA6100 is not set
++# CONFIG_DVB_CX24116 is not set
++# CONFIG_DVB_CX24117 is not set
++# CONFIG_DVB_CX24120 is not set
++# CONFIG_DVB_SI21XX is not set
++# CONFIG_DVB_TS2020 is not set
++# CONFIG_DVB_DS3000 is not set
++# CONFIG_DVB_MB86A16 is not set
++# CONFIG_DVB_TDA10071 is not set
++# CONFIG_DVB_SP8870 is not set
++# CONFIG_DVB_SP887X is not set
++# CONFIG_DVB_CX22700 is not set
++# CONFIG_DVB_CX22702 is not set
++# CONFIG_DVB_S5H1432 is not set
++# CONFIG_DVB_DRXD is not set
++# CONFIG_DVB_L64781 is not set
++# CONFIG_DVB_TDA1004X is not set
++# CONFIG_DVB_NXT6000 is not set
++# CONFIG_DVB_MT352 is not set
++# CONFIG_DVB_ZL10353 is not set
++# CONFIG_DVB_DIB3000MB is not set
++# CONFIG_DVB_DIB3000MC is not set
++# CONFIG_DVB_DIB7000M is not set
++# CONFIG_DVB_DIB7000P is not set
++# CONFIG_DVB_DIB9000 is not set
++# CONFIG_DVB_TDA10048 is not set
++# CONFIG_DVB_EC100 is not set
++# CONFIG_DVB_STV0367 is not set
++# CONFIG_DVB_CXD2820R is not set
++# CONFIG_DVB_CXD2841ER is not set
++# CONFIG_DVB_ZD1301_DEMOD is not set
++# CONFIG_DVB_CXD2880 is not set
++# CONFIG_DVB_VES1820 is not set
++# CONFIG_DVB_TDA10021 is not set
++# CONFIG_DVB_TDA10023 is not set
++# CONFIG_DVB_STV0297 is not set
++# CONFIG_DVB_NXT200X is not set
++# CONFIG_DVB_OR51211 is not set
++# CONFIG_DVB_OR51132 is not set
++# CONFIG_DVB_BCM3510 is not set
++# CONFIG_DVB_LGDT330X is not set
++# CONFIG_DVB_LGDT3305 is not set
++# CONFIG_DVB_LG2160 is not set
++# CONFIG_DVB_S5H1409 is not set
++# CONFIG_DVB_AU8522_DTV is not set
++# CONFIG_DVB_AU8522_V4L is not set
++# CONFIG_DVB_S5H1411 is not set
++# CONFIG_DVB_S921 is not set
++# CONFIG_DVB_DIB8000 is not set
++# CONFIG_DVB_MB86A20S is not set
++# CONFIG_DVB_TC90522 is not set
++# CONFIG_DVB_MN88443X is not set
++# CONFIG_DVB_PLL is not set
++# CONFIG_DVB_TUNER_DIB0070 is not set
++# CONFIG_DVB_TUNER_DIB0090 is not set
++# CONFIG_DVB_DRX39XYJ is not set
++# CONFIG_DVB_LNBH25 is not set
++# CONFIG_DVB_LNBH29 is not set
++# CONFIG_DVB_LNBP21 is not set
++# CONFIG_DVB_LNBP22 is not set
++# CONFIG_DVB_ISL6405 is not set
++# CONFIG_DVB_ISL6421 is not set
++# CONFIG_DVB_ISL6423 is not set
++# CONFIG_DVB_A8293 is not set
++# CONFIG_DVB_LGS8GL5 is not set
++# CONFIG_DVB_LGS8GXX is not set
++# CONFIG_DVB_ATBM8830 is not set
++# CONFIG_DVB_TDA665x is not set
++# CONFIG_DVB_IX2505V is not set
++# CONFIG_DVB_M88RS2000 is not set
++# CONFIG_DVB_AF9033 is not set
++# CONFIG_DVB_HORUS3A is not set
++# CONFIG_DVB_ASCOT2E is not set
++# CONFIG_DVB_HELENE is not set
++# CONFIG_DVB_CXD2099 is not set
++# CONFIG_DVB_SP2 is not set
++# CONFIG_VGA_ARB is not set
++CONFIG_DRM=y
++# CONFIG_DRM_FBDEV_EMULATION is not set
++CONFIG_DRM_MSM=y
++# CONFIG_DRM_MSM_DSI_28NM_PHY is not set
++# CONFIG_DRM_MSM_DSI_20NM_PHY is not set
++# CONFIG_DRM_MSM_DSI_28NM_8960_PHY is not set
++CONFIG_DRM_PANEL_LG_SW43408=y
++CONFIG_BACKLIGHT_CLASS_DEVICE=y
++CONFIG_SOUND=y
++CONFIG_SND=y
++CONFIG_SND_HRTIMER=y
++CONFIG_SND_DYNAMIC_MINORS=y
++# CONFIG_SND_SUPPORT_OLD_API is not set
++# CONFIG_SND_VERBOSE_PROCFS is not set
++# CONFIG_SND_DRIVERS is not set
++CONFIG_SND_USB_AUDIO=y
++CONFIG_SND_SOC=y
++CONFIG_SND_SOC_QCOM=y
++CONFIG_SND_SOC_SDM845=y
++CONFIG_SND_SOC_AK4613=y
++CONFIG_SND_SOC_DMIC=y
++CONFIG_SND_SOC_WCD9335=y
++CONFIG_SND_SOC_WCD934X=y
++CONFIG_SND_SOC_WSA881X=y
++CONFIG_SND_SIMPLE_CARD=y
++CONFIG_SND_AUDIO_GRAPH_CARD=y
++CONFIG_HID_BATTERY_STRENGTH=y
++CONFIG_HIDRAW=y
++CONFIG_UHID=y
++CONFIG_HID_APPLE=y
++CONFIG_HID_ELECOM=y
++CONFIG_HID_MAGICMOUSE=y
++CONFIG_HID_MICROSOFT=y
++CONFIG_HID_MULTITOUCH=y
++CONFIG_HID_NINTENDO=y
++CONFIG_HID_PLANTRONICS=y
++CONFIG_HID_SONY=y
++CONFIG_USB_HIDDEV=y
++CONFIG_USB_ULPI_BUS=y
++CONFIG_USB=y
++CONFIG_USB_OTG=y
++CONFIG_USB_DWC3=y
++CONFIG_USB_DWC3_GADGET=y
++# CONFIG_USB_DWC3_HAPS is not set
++# CONFIG_USB_DWC3_OF_SIMPLE is not set
++CONFIG_USB_GADGET=y
++CONFIG_USB_GADGET_VBUS_DRAW=500
++CONFIG_USB_CONFIGFS=y
++CONFIG_USB_CONFIGFS_UEVENT=y
++CONFIG_USB_CONFIGFS_SERIAL=y
++CONFIG_USB_CONFIGFS_ACM=y
++CONFIG_USB_CONFIGFS_RNDIS=y
++CONFIG_USB_CONFIGFS_MASS_STORAGE=y
++CONFIG_USB_CONFIGFS_F_FS=y
++CONFIG_USB_CONFIGFS_F_ACC=y
++CONFIG_USB_CONFIGFS_F_AUDIO_SRC=y
++CONFIG_USB_CONFIGFS_F_MIDI=y
++CONFIG_USB_CONFIGFS_F_HID=y
++CONFIG_TYPEC=y
++CONFIG_TYPEC_TCPM=y
++CONFIG_MMC=y
++# CONFIG_PWRSEQ_EMMC is not set
++# CONFIG_PWRSEQ_SIMPLE is not set
++CONFIG_MMC_SDHCI=y
++CONFIG_MMC_SDHCI_PLTFM=y
++CONFIG_MMC_SDHCI_MSM=y
++CONFIG_NEW_LEDS=y
++CONFIG_LEDS_CLASS=y
++CONFIG_LEDS_TRIGGERS=y
++CONFIG_RTC_CLASS=y
++CONFIG_RTC_DRV_PL030=y
++CONFIG_RTC_DRV_PL031=y
++CONFIG_RTC_DRV_PM8XXX=y
++CONFIG_DMADEVICES=y
++CONFIG_QCOM_BAM_DMA=y
++CONFIG_QCOM_HIDMA_MGMT=y
++CONFIG_QCOM_HIDMA=y
++CONFIG_UIO=y
++CONFIG_STAGING=y
++CONFIG_ASHMEM=y
++CONFIG_ION=y
++CONFIG_ION_SYSTEM_HEAP=y
++CONFIG_COMMON_CLK_SCPI=y
++CONFIG_COMMON_CLK_QCOM=y
++CONFIG_QCOM_CLK_SMD_RPM=y
++CONFIG_QCOM_CLK_RPMH=y
++CONFIG_SDM_GPUCC_845=y
++CONFIG_SDM_DISPCC_845=y
++CONFIG_SPMI_PMIC_CLKDIV=y
++CONFIG_QCOM_HFPLL=y
++CONFIG_KPSS_XCC=y
++CONFIG_HWSPINLOCK=y
++CONFIG_HWSPINLOCK_QCOM=y
++CONFIG_MAILBOX=y
++CONFIG_ARM_MHU=y
++CONFIG_PLATFORM_MHU=y
++CONFIG_QCOM_APCS_IPC=y
++CONFIG_ARM_SMMU=y
++CONFIG_REMOTEPROC=y
++CONFIG_QCOM_Q6V5_ADSP=y
++CONFIG_QCOM_Q6V5_MSS=y
++CONFIG_QCOM_Q6V5_PAS=y
++CONFIG_QCOM_Q6V5_WCSS=y
++CONFIG_QCOM_SYSMON=y
++CONFIG_RPMSG_CHAR=y
++CONFIG_RPMSG_QCOM_GLINK_RPM=y
++CONFIG_RPMSG_QCOM_GLINK_SMEM=y
++CONFIG_RPMSG_QCOM_SMD=y
++CONFIG_SOUNDWIRE=y
++CONFIG_SOUNDWIRE_QCOM=y
++CONFIG_QCOM_AOSS_QMP=y
++CONFIG_QCOM_GENI_SE=y
++CONFIG_QCOM_LLCC=y
++CONFIG_QCOM_RMTFS_MEM=y
++CONFIG_QCOM_RPMH=y
++CONFIG_QCOM_RPMHPD=y
++CONFIG_QCOM_SMEM=y
++CONFIG_QCOM_SMD_RPM=y
++CONFIG_QCOM_SMP2P=y
++CONFIG_QCOM_SMSM=y
++CONFIG_QCOM_SOCINFO=y
++CONFIG_QCOM_APR=y
++CONFIG_DEVFREQ_GOV_PERFORMANCE=y
++CONFIG_DEVFREQ_GOV_POWERSAVE=y
++CONFIG_DEVFREQ_GOV_USERSPACE=y
++CONFIG_DEVFREQ_GOV_PASSIVE=y
++CONFIG_EXTCON_USB_GPIO=y
++CONFIG_IIO=y
++CONFIG_IIO_BUFFER=y
++CONFIG_IIO_TRIGGER=y
++CONFIG_PWM=y
++CONFIG_QCOM_PDC=y
++CONFIG_RESET_QCOM_AOSS=y
++CONFIG_RESET_QCOM_PDC=y
++CONFIG_PHY_QCOM_QMP=y
++CONFIG_PHY_QCOM_QUSB2=y
++CONFIG_PHY_QCOM_USB_HS=y
++CONFIG_ANDROID=y
++CONFIG_ANDROID_BINDER_IPC=y
++CONFIG_ANDROID_BINDERFS=y
++CONFIG_ANDROID_VENDOR_HOOKS=y
++CONFIG_LIBNVDIMM=y
++# CONFIG_ND_BLK is not set
++CONFIG_QCOM_QFPROM=y
++CONFIG_SLIMBUS=y
++CONFIG_SLIM_QCOM_NGD_CTRL=y
++CONFIG_INTERCONNECT=y
++CONFIG_INTERCONNECT_QCOM=y
++CONFIG_INTERCONNECT_QCOM_SDM845=y
++CONFIG_EXT4_FS=y
++CONFIG_EXT4_FS_SECURITY=y
++CONFIG_F2FS_FS=y
++CONFIG_F2FS_FS_SECURITY=y
++CONFIG_FS_ENCRYPTION=y
++CONFIG_FS_ENCRYPTION_INLINE_CRYPT=y
++CONFIG_FS_VERITY=y
++CONFIG_FS_VERITY_BUILTIN_SIGNATURES=y
++# CONFIG_DNOTIFY is not set
++CONFIG_QUOTA=y
++CONFIG_QFMT_V2=y
++CONFIG_FUSE_FS=y
++CONFIG_OVERLAY_FS=y
++CONFIG_INCREMENTAL_FS=y
++CONFIG_MSDOS_FS=y
++CONFIG_VFAT_FS=y
++# CONFIG_EFIVAR_FS is not set
++CONFIG_PSTORE=y
++CONFIG_PSTORE_CONSOLE=y
++CONFIG_PSTORE_RAM=y
++CONFIG_NLS_CODEPAGE_437=y
++CONFIG_NLS_CODEPAGE_737=y
++CONFIG_NLS_CODEPAGE_775=y
++CONFIG_NLS_CODEPAGE_850=y
++CONFIG_NLS_CODEPAGE_852=y
++CONFIG_NLS_CODEPAGE_855=y
++CONFIG_NLS_CODEPAGE_857=y
++CONFIG_NLS_CODEPAGE_860=y
++CONFIG_NLS_CODEPAGE_861=y
++CONFIG_NLS_CODEPAGE_862=y
++CONFIG_NLS_CODEPAGE_863=y
++CONFIG_NLS_CODEPAGE_864=y
++CONFIG_NLS_CODEPAGE_865=y
++CONFIG_NLS_CODEPAGE_866=y
++CONFIG_NLS_CODEPAGE_869=y
++CONFIG_NLS_CODEPAGE_936=y
++CONFIG_NLS_CODEPAGE_950=y
++CONFIG_NLS_CODEPAGE_932=y
++CONFIG_NLS_CODEPAGE_949=y
++CONFIG_NLS_CODEPAGE_874=y
++CONFIG_NLS_ISO8859_8=y
++CONFIG_NLS_CODEPAGE_1250=y
++CONFIG_NLS_CODEPAGE_1251=y
++CONFIG_NLS_ASCII=y
++CONFIG_NLS_ISO8859_1=y
++CONFIG_NLS_ISO8859_2=y
++CONFIG_NLS_ISO8859_3=y
++CONFIG_NLS_ISO8859_4=y
++CONFIG_NLS_ISO8859_5=y
++CONFIG_NLS_ISO8859_6=y
++CONFIG_NLS_ISO8859_7=y
++CONFIG_NLS_ISO8859_9=y
++CONFIG_NLS_ISO8859_13=y
++CONFIG_NLS_ISO8859_14=y
++CONFIG_NLS_ISO8859_15=y
++CONFIG_NLS_KOI8_R=y
++CONFIG_NLS_KOI8_U=y
++CONFIG_NLS_MAC_ROMAN=y
++CONFIG_NLS_MAC_CELTIC=y
++CONFIG_NLS_MAC_CENTEURO=y
++CONFIG_NLS_MAC_CROATIAN=y
++CONFIG_NLS_MAC_CYRILLIC=y
++CONFIG_NLS_MAC_GAELIC=y
++CONFIG_NLS_MAC_GREEK=y
++CONFIG_NLS_MAC_ICELAND=y
++CONFIG_NLS_MAC_INUIT=y
++CONFIG_NLS_MAC_ROMANIAN=y
++CONFIG_NLS_MAC_TURKISH=y
++CONFIG_NLS_UTF8=y
++CONFIG_UNICODE=y
++CONFIG_SECURITY=y
++CONFIG_SECURITYFS=y
++CONFIG_SECURITY_NETWORK=y
++CONFIG_HARDENED_USERCOPY=y
++# CONFIG_HARDENED_USERCOPY_FALLBACK is not set
++CONFIG_FORTIFY_SOURCE=y
++CONFIG_STATIC_USERMODEHELPER=y
++CONFIG_SECURITY_SELINUX=y
++CONFIG_INIT_ON_ALLOC_DEFAULT_ON=y
++CONFIG_CRYPTO_ADIANTUM=y
++CONFIG_CRYPTO_LZ4=y
++CONFIG_CRYPTO_ZSTD=y
++CONFIG_CRYPTO_ANSI_CPRNG=y
++CONFIG_CRC_CCITT=y
++CONFIG_CRC8=y
++CONFIG_XZ_DEC=y
++CONFIG_DMA_CMA=y
++CONFIG_PRINTK_TIME=y
++CONFIG_DEBUG_INFO=y
++# CONFIG_ENABLE_MUST_CHECK is not set
++CONFIG_HEADERS_INSTALL=y
++# CONFIG_SECTION_MISMATCH_WARN_ONLY is not set
++CONFIG_MAGIC_SYSRQ=y
++CONFIG_DEBUG_FS=y
++CONFIG_DEBUG_STACK_USAGE=y
++CONFIG_DEBUG_MEMORY_INIT=y
++CONFIG_PANIC_ON_OOPS=y
++CONFIG_PANIC_TIMEOUT=-1
++CONFIG_SOFTLOCKUP_DETECTOR=y
++# CONFIG_DETECT_HUNG_TASK is not set
++CONFIG_WQ_WATCHDOG=y
++CONFIG_SCHEDSTATS=y
++# CONFIG_DEBUG_PREEMPT is not set
++CONFIG_BUG_ON_DATA_CORRUPTION=y
++CONFIG_CORESIGHT=y
++CONFIG_CORESIGHT_STM=y
++# CONFIG_RUNTIME_TESTING_MENU is not set
+-- 
+2.29.2
+
+
+From 087de1bbfbefda368f8f0c2f01797cabe0b0392b Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Wed, 7 Apr 2021 23:59:51 +0530
+Subject: [PATCH 04/26] remove hdmi regulators
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ arch/arm64/boot/dts/qcom/sdm845-blueline.dts | 38 --------------------
+ 1 file changed, 38 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sdm845-blueline.dts b/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
+index 7e6200f29b8a8..86ce790b35012 100644
+--- a/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
++++ b/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
+@@ -32,31 +32,6 @@ dc12v: dc12v-regulator {
+ 		regulator-always-on;
+ 	};
+ 
+-	lt9611_1v8: lt9611-vdd18-regulator {
+-		compatible = "regulator-fixed";
+-		regulator-name = "LT9611_1V8";
+-
+-		vin-supply = <&vdc_5v>;
+-		regulator-min-microvolt = <1800000>;
+-		regulator-max-microvolt = <1800000>;
+-
+-		gpio = <&tlmm 89 GPIO_ACTIVE_HIGH>;
+-		enable-active-high;
+-	};
+-
+-	lt9611_3v3: lt9611-3v3 {
+-		compatible = "regulator-fixed";
+-		regulator-name = "LT9611_3V3";
+-
+-		vin-supply = <&vdc_3v3>;
+-		regulator-min-microvolt = <3300000>;
+-		regulator-max-microvolt = <3300000>;
+-
+-		// TODO: make it possible to drive same GPIO from two clients
+-		// gpio = <&tlmm 89 GPIO_ACTIVE_HIGH>;
+-		// enable-active-high;
+-	};
+-
+ 	pcie0_1p05v: pcie-0-1p05v-regulator {
+ 		compatible = "regulator-fixed";
+ 		regulator-name = "PCIE0_1.05V";
+@@ -126,19 +101,6 @@ bt {
+ 		};
+ 	};
+ 
+-	v5p0_hdmiout: v5p0-hdmiout-regulator {
+-		compatible = "regulator-fixed";
+-		regulator-name = "V5P0_HDMIOUT";
+-
+-		vin-supply = <&vdc_5v>;
+-		regulator-min-microvolt = <500000>;
+-		regulator-max-microvolt = <500000>;
+-
+-		// TODO: make it possible to drive same GPIO from two clients
+-		// gpio = <&tlmm 89 GPIO_ACTIVE_HIGH>;
+-		// enable-active-high;
+-	};
+-
+ 	vbat: vbat-regulator {
+ 		compatible = "regulator-fixed";
+ 		regulator-name = "VBAT";
+-- 
+2.29.2
+
+
+From da493b40f34c0966009efdc4874815a7d3f98427 Mon Sep 17 00:00:00 2001
+From: Sumit Semwal <sumit.semwal@linaro.org>
+Date: Mon, 1 Jul 2019 18:54:23 +0530
+Subject: [PATCH 05/26] dt-bindings: panel: Add LG SW43408 MIPI-DSI panel
+
+    LG SW43408 is 1080x2160, 4-lane MIPI-DSI panel.
+
+    Add dt-bingings for it.
+
+Signed-off-by: Sumit Semwal <sumit.semwal@linaro.org>
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+Signed-off-by: Sumit Semwal <sumit.semwal@linaro.org>
+---
+ .../bindings/display/panel/lg,sw43408.txt     | 47 +++++++++++++++++++
+ 1 file changed, 47 insertions(+)
+ create mode 100644 Documentation/devicetree/bindings/display/panel/lg,sw43408.txt
+
+diff --git a/Documentation/devicetree/bindings/display/panel/lg,sw43408.txt b/Documentation/devicetree/bindings/display/panel/lg,sw43408.txt
+new file mode 100644
+index 0000000000000..0955a9f11011b
+--- /dev/null
++++ b/Documentation/devicetree/bindings/display/panel/lg,sw43408.txt
+@@ -0,0 +1,47 @@
++LG model SW43408 DSI display driver
++
++The LG SW43408 is a generic display driver, currently only configured
++for use in the Pixel3 phone based on SDM845 chipset.
++
++Required properties:
++- compatible: should be "lg,sw43408"
++- reg: DSI virtual channel of the peripheral
++- vddi-supply: phandle of the regulator that provides the supply voltage
++  Power IC supply
++- vpnl-supply: phandle of the regulator that provides the supply voltage
++  for positive LCD bias
++- lab-supply: phandle of the regulator that provides the supply voltage
++  for LABIBB
++- reset-gpios: phandle of gpio for reset line
++  This should be 8mA, gpio can be configured using mux, pinctrl, pinctrl-names
++  (active high)
++- ports: This device has one video port driven by one DSIs. Their connections
++  are modeled using the OF graph bindings specified in
++  Documentation/devicetree/bindings/graph.txt.
++  - port@0: DSI input port driven by master DSI
++
++Example:
++
++	dsi@ae94000 {
++		panel@0 {
++		compatible = "lg,sw43408";
++		reg = <0>;
++		vddi-supply = <&vreg_l14a_1p88>;
++		vpnl-supply = <&vreg_l28a_3p0>;
++		lab-supply = <&lab_regulator>;
++
++		reset-gpios = <&tlmm 6 GPIO_ACTIVE_HIGH>;
++
++		ports {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			port@0 {
++				reg = <0>;
++				lg_sw43408_in_0: endpoint {
++					remote-endpoint = <&dsi0_out>;
++				};
++			};
++		};
++	};
++	};
+-- 
+2.29.2
+
+
+From 0428f48bc55746c61c255c6363214ab8c3984a0c Mon Sep 17 00:00:00 2001
+From: Sumit Semwal <sumit.semwal@linaro.org>
+Date: Wed, 19 Jun 2019 12:06:21 +0530
+Subject: [PATCH 06/26] drm: panel: Add lg sw43408 panel driver
+
+LG SW43408 is 1080x2160, 4-lane MIPI-DSI panel, used in some Pixel3
+phones.
+
+--
+updated for new lab name
+Signed-off-by: Sumit Semwal <sumit.semwal@linaro.org>
+Change-Id: I19e34e6354a38432881fa673aced39bf35e2fc46
+---
+ MAINTAINERS                              |   7 +
+ drivers/gpu/drm/panel/Kconfig            |  11 +
+ drivers/gpu/drm/panel/Makefile           |   1 +
+ drivers/gpu/drm/panel/panel-lg-sw43408.c | 725 +++++++++++++++++++++++
+ 4 files changed, 744 insertions(+)
+ create mode 100644 drivers/gpu/drm/panel/panel-lg-sw43408.c
+
+diff --git a/MAINTAINERS b/MAINTAINERS
+index 008fcad7ac008..4cbdf82fa79dc 100644
+--- a/MAINTAINERS
++++ b/MAINTAINERS
+@@ -5744,6 +5744,13 @@ S:	Orphan / Obsolete
+ F:	drivers/gpu/drm/i810/
+ F:	include/uapi/drm/i810_drm.h
+ 
++DRM DRIVER FOR LG SW43408 PANELS
++M:      Sumit Semwal <sumit.semwal@linaro.org>
++T:      git git://anongit.freedesktop.org/drm/drm-misc
++S:      Maintained
++F:      drivers/gpu/drm/panel/panel-lg-sw43408.c
++F:      Documentation/devicetree/bindings/display/panel/lg,sw43408-panel.txt
++
+ DRM DRIVER FOR LVDS PANELS
+ M:	Laurent Pinchart <laurent.pinchart@ideasonboard.com>
+ L:	dri-devel@lists.freedesktop.org
+diff --git a/drivers/gpu/drm/panel/Kconfig b/drivers/gpu/drm/panel/Kconfig
+index 4894913936e97..b5bb4350cf643 100644
+--- a/drivers/gpu/drm/panel/Kconfig
++++ b/drivers/gpu/drm/panel/Kconfig
+@@ -198,6 +198,17 @@ config DRM_PANEL_LEADTEK_LTK500HD1829
+ 	  24 bit RGB per pixel. It provides a MIPI DSI interface to
+ 	  the host and has a built-in LED backlight.
+ 
++config DRM_PANEL_LG_SW43408
++	tristate "LG SW43408 panel"
++	depends on OF
++	depends on DRM_MIPI_DSI
++	depends on BACKLIGHT_CLASS_DEVICE
++	help
++	  Say Y here if you want to enable support for LG sw43408 panel.
++	  The panel has a 1080x2160 resolution and uses
++	  24 bit RGB per pixel. It provides a MIPI DSI interface to
++	  the host and has a built-in LED backlight.
++
+ config DRM_PANEL_SAMSUNG_LD9040
+ 	tristate "Samsung LD9040 RGB/SPI panel"
+ 	depends on OF && SPI
+diff --git a/drivers/gpu/drm/panel/Makefile b/drivers/gpu/drm/panel/Makefile
+index cae4d976c0695..059dff12376d9 100644
+--- a/drivers/gpu/drm/panel/Makefile
++++ b/drivers/gpu/drm/panel/Makefile
+@@ -20,6 +20,7 @@ obj-$(CONFIG_DRM_PANEL_LEADTEK_LTK050H3146W) += panel-leadtek-ltk050h3146w.o
+ obj-$(CONFIG_DRM_PANEL_LEADTEK_LTK500HD1829) += panel-leadtek-ltk500hd1829.o
+ obj-$(CONFIG_DRM_PANEL_LG_LB035Q02) += panel-lg-lb035q02.o
+ obj-$(CONFIG_DRM_PANEL_LG_LG4573) += panel-lg-lg4573.o
++obj-$(CONFIG_DRM_PANEL_LG_SW43408) += panel-lg-sw43408.o
+ obj-$(CONFIG_DRM_PANEL_NEC_NL8048HL11) += panel-nec-nl8048hl11.o
+ obj-$(CONFIG_DRM_PANEL_NOVATEK_NT35510) += panel-novatek-nt35510.o
+ obj-$(CONFIG_DRM_PANEL_NOVATEK_NT36672A) += panel-novatek-nt36672a.o
+diff --git a/drivers/gpu/drm/panel/panel-lg-sw43408.c b/drivers/gpu/drm/panel/panel-lg-sw43408.c
+new file mode 100644
+index 0000000000000..e6192df05a7c3
+--- /dev/null
++++ b/drivers/gpu/drm/panel/panel-lg-sw43408.c
+@@ -0,0 +1,725 @@
++// SPDX-License-Identifier: GPL-2.0+
++/*
++ * Copyright (C) 2019 Linaro Ltd
++ * Author: Sumit Semwal <sumit.semwal@linaro.org>
++ */
++
++#include <linux/backlight.h>
++#include <linux/delay.h>
++#include <linux/kernel.h>
++#include <linux/module.h>
++#include <linux/of.h>
++#include <linux/of_device.h>
++
++#include <linux/gpio/consumer.h>
++#include <linux/pinctrl/consumer.h>
++#include <linux/regulator/consumer.h>
++
++#include <drm/drm_device.h>
++#include <drm/drm_mipi_dsi.h>
++#include <drm/drm_modes.h>
++#include <drm/drm_panel.h>
++#include <drm/drm_print.h>
++
++#include <video/mipi_display.h>
++
++struct panel_cmd {
++	size_t len;
++	const char *data;
++};
++
++#define _INIT_CMD(...) { \
++	.len = sizeof((char[]){__VA_ARGS__}), \
++	.data = (char[]){__VA_ARGS__} }
++
++static const char * const regulator_names[] = {
++	"vddi",
++	"vpnl",
++	"lab",
++};
++
++static unsigned long const regulator_enable_loads[] = {
++	62000,
++	857000,
++	100000,
++};
++
++static unsigned long const regulator_disable_loads[] = {
++	80,
++	0,
++	100,
++};
++
++struct panel_desc {
++	const struct drm_display_mode *display_mode;
++	const char *panel_name;
++
++	unsigned int width_mm;
++	unsigned int height_mm;
++
++	unsigned long mode_flags;
++	enum mipi_dsi_pixel_format format;
++	unsigned int lanes;
++
++	const struct panel_cmd *on_cmds_1;
++	const struct panel_cmd *on_cmds_2;
++};
++
++struct panel_info {
++	struct drm_panel base;
++	struct mipi_dsi_device *link;
++	const struct panel_desc *desc;
++
++	struct backlight_device *backlight;
++	u32 brightness;
++	u32 max_brightness;
++
++	u32 init_delay_us;
++
++	struct regulator_bulk_data supplies[ARRAY_SIZE(regulator_names)];
++
++	struct gpio_desc *reset_gpio;
++
++	struct pinctrl *pinctrl;
++	struct pinctrl_state *active;
++	struct pinctrl_state *suspend;
++
++	bool prepared;
++	bool enabled;
++	bool first_enable;
++};
++
++static inline struct panel_info *to_panel_info(struct drm_panel *panel)
++{
++	return container_of(panel, struct panel_info, base);
++}
++
++
++/*
++ * Need to reset gpios and regulators once in the beginning,
++ */
++static int panel_reset_at_beginning(struct panel_info * pinfo)
++{
++	int ret = 0, i;
++
++	DRM_DEV_ERROR(pinfo->base.dev,
++					"panel_reset_at_beginning\n");
++	/* enable supplies */
++	for (i = 0; i < ARRAY_SIZE(pinfo->supplies); i++) {
++		ret = regulator_set_load(pinfo->supplies[i].consumer,
++					regulator_enable_loads[i]);
++		if (ret)
++			return ret;
++	}
++
++	ret = regulator_bulk_enable(ARRAY_SIZE(pinfo->supplies), pinfo->supplies);
++	if (ret < 0)
++		return ret;
++
++	/* Disable supplies */
++	for (i = 0; i < ARRAY_SIZE(pinfo->supplies); i++) {
++		ret = regulator_set_load(pinfo->supplies[i].consumer,
++				regulator_disable_loads[i]);
++		if (ret) {
++			DRM_DEV_ERROR(pinfo->base.dev,
++				"regulator_set_load failed %d\n", ret);
++			return ret;
++		}
++	}
++
++	ret = regulator_bulk_disable(ARRAY_SIZE(pinfo->supplies), pinfo->supplies);
++	if (ret < 0)
++		return ret;
++
++	/*
++	 * Reset sequence of LG sw43408 panel requires the panel to be
++	 * out of reset for 9ms, followed by being held in reset
++	 * for 1ms and then out again
++	 */
++	gpiod_set_value(pinfo->reset_gpio, 1);
++	usleep_range(9000, 10000);
++	gpiod_set_value(pinfo->reset_gpio, 0);
++	usleep_range(1000, 2000);
++	gpiod_set_value(pinfo->reset_gpio, 1);
++	usleep_range(9000, 10000);
++
++	return 0;
++}
++
++static int send_mipi_cmds(struct drm_panel *panel, const struct panel_cmd *cmds)
++{
++	struct panel_info *pinfo = to_panel_info(panel);
++	unsigned int i = 0;
++	int err;
++
++	if (!cmds)
++		return -EFAULT;
++
++	for (i = 0; cmds[i].len != 0; i++) {
++		const struct panel_cmd *cmd = &cmds[i];
++
++		if (cmd->len == 2)
++			err = mipi_dsi_dcs_write(pinfo->link,
++						    cmd->data[1], NULL, 0);
++		else
++			err = mipi_dsi_dcs_write(pinfo->link,
++						    cmd->data[1], cmd->data + 2,
++						    cmd->len - 2);
++
++		if (err < 0)
++			return err;
++
++		usleep_range((cmd->data[0]) * 1000,
++			    (1 + cmd->data[0]) * 1000);
++	}
++
++	return 0;
++}
++
++static int panel_set_pinctrl_state(struct panel_info *panel, bool enable)
++{
++	int rc = 0;
++	struct pinctrl_state *state;
++
++	if (enable)
++		state = panel->active;
++	else
++		state = panel->suspend;
++
++	rc = pinctrl_select_state(panel->pinctrl, state);
++	if (rc)
++		pr_err("[%s] failed to set pin state, rc=%d\n", panel->desc->panel_name,
++			rc);
++	return rc;
++}
++
++static int lg_panel_disable(struct drm_panel *panel)
++{
++/* HACK: return 0 for now */
++
++#if 0
++	struct panel_info *pinfo = to_panel_info(panel);
++
++	backlight_disable(pinfo->backlight);
++
++	pinfo->enabled = false;
++#endif
++	return 0;
++}
++
++static int lg_panel_power_off(struct drm_panel *panel)
++{
++	struct panel_info *pinfo = to_panel_info(panel);
++	int i, ret = 0;
++	gpiod_set_value(pinfo->reset_gpio, 0);
++
++        ret = panel_set_pinctrl_state(pinfo, false);
++        if (ret) {
++                pr_err("[%s] failed to set pinctrl, rc=%d\n", pinfo->desc->panel_name, ret);
++		return ret;
++        }
++
++	for (i = 0; i < ARRAY_SIZE(pinfo->supplies); i++) {
++		ret = regulator_set_load(pinfo->supplies[i].consumer,
++				regulator_disable_loads[i]);
++		if (ret) {
++			DRM_DEV_ERROR(panel->dev,
++				"regulator_set_load failed %d\n", ret);
++			return ret;
++		}
++	}
++
++	ret = regulator_bulk_disable(ARRAY_SIZE(pinfo->supplies), pinfo->supplies);
++	if (ret) {
++		DRM_DEV_ERROR(panel->dev,
++			"regulator_bulk_disable failed %d\n", ret);
++	}
++	return ret;
++}
++
++static int lg_panel_unprepare(struct drm_panel *panel)
++{
++/* HACK : Currently, after a suspend, the resume doesn't enable screen, so
++ *        don't disable the panel until we figure out why that is.
++ */
++return 0;
++
++#if 0
++	struct panel_info *pinfo = to_panel_info(panel);
++	int ret;
++
++	if (!pinfo->prepared)
++		return 0;
++
++	ret = mipi_dsi_dcs_set_display_off(pinfo->link);
++	if (ret < 0) {
++		DRM_DEV_ERROR(panel->dev,
++			"set_display_off cmd failed ret = %d\n",
++			ret);
++	}
++
++	/* 120ms delay required here as per DCS spec */
++	msleep(120);
++
++	ret = mipi_dsi_dcs_enter_sleep_mode(pinfo->link);
++	if (ret < 0) {
++		DRM_DEV_ERROR(panel->dev,
++			"enter_sleep cmd failed ret = %d\n", ret);
++	}
++	/* 0x64 = 100ms delay */
++	msleep(100);
++
++	ret = lg_panel_power_off(panel);
++	if (ret < 0)
++		DRM_DEV_ERROR(panel->dev, "power_off failed ret = %d\n", ret);
++
++	pinfo->prepared = false;
++
++	return ret;
++#endif
++}
++
++static int lg_panel_power_on(struct panel_info *pinfo)
++{
++	int ret, i;
++	for (i = 0; i < ARRAY_SIZE(pinfo->supplies); i++) {
++		ret = regulator_set_load(pinfo->supplies[i].consumer,
++					regulator_enable_loads[i]);
++		if (ret)
++			return ret;
++	}
++
++	ret = regulator_bulk_enable(ARRAY_SIZE(pinfo->supplies), pinfo->supplies);
++	if (ret < 0)
++		return ret;
++
++	ret = panel_set_pinctrl_state(pinfo, true);
++	if (ret) {
++		pr_err("[%s] failed to set pinctrl, rc=%d\n", pinfo->desc->panel_name, ret);
++		return ret;
++	}
++
++	/*
++	 * Reset sequence of LG sw43408 panel requires the panel to be
++	 * out of reset for 9ms, followed by being held in reset
++	 * for 1ms and then out again
++	 * For now dont set this sequence as it causes panel to not come
++	 * back
++	 */
++	//gpiod_set_value(pinfo->reset_gpio, 1);
++	//usleep_range(9000, 10000);
++	//gpiod_set_value(pinfo->reset_gpio, 0);
++	//usleep_range(1000, 2000);
++	//gpiod_set_value(pinfo->reset_gpio, 1);
++	usleep_range(9000, 10000);
++
++	return 0;
++}
++
++static int lg_panel_prepare(struct drm_panel *panel)
++{
++	struct panel_info *pinfo = to_panel_info(panel);
++	int err;
++
++	if (unlikely(pinfo->first_enable)) {
++		pinfo->first_enable = false;
++		err = panel_reset_at_beginning(pinfo);
++		if (err < 0) {
++		pr_err("sw43408 panel_reset_at_beginning failed: %d\n", err);
++			return err;
++		}
++	}
++
++	if (pinfo->prepared)
++		return 0;
++
++	usleep_range(pinfo->init_delay_us, pinfo->init_delay_us);
++
++	err = lg_panel_power_on(pinfo);
++	if (err < 0)
++		goto poweroff;
++
++	/* send first part of init cmds */
++	err = send_mipi_cmds(panel, pinfo->desc->on_cmds_1);
++
++	if (err < 0) {
++		DRM_DEV_ERROR(panel->dev,
++				"failed to send DCS Init 1st Code: %d\n", err);
++		goto poweroff;
++	}
++
++	err = mipi_dsi_dcs_exit_sleep_mode(pinfo->link);
++	if (err < 0) {
++		DRM_DEV_ERROR(panel->dev, "failed to exit sleep mode: %d\n",
++			      err);
++		goto poweroff;
++	}
++	/* 0x87 = 135 ms delay */
++	msleep(135);
++
++	/* Set DCS_COMPRESSION_MODE */
++	err = mipi_dsi_dcs_write(pinfo->link, MIPI_DSI_COMPRESSION_MODE, (u8[]){ 0x11 }, 0);
++	if (err < 0) {
++		DRM_DEV_ERROR(panel->dev,
++				"failed to set compression mode: %d\n", err);
++		goto poweroff;
++	}
++
++
++	/* Send rest of the init cmds */
++	err = send_mipi_cmds(panel, pinfo->desc->on_cmds_2);
++
++	if (err < 0) {
++		DRM_DEV_ERROR(panel->dev,
++				"failed to send DCS Init 2nd Code: %d\n", err);
++		goto poweroff;
++	}
++
++	err = mipi_dsi_dcs_set_display_on(pinfo->link);
++	if (err < 0) {
++		DRM_DEV_ERROR(panel->dev,
++				"failed to Set Display ON: %d\n", err);
++		goto poweroff;
++	}
++
++	/* 0x32 = 50ms delay */
++	msleep(120);
++
++	pinfo->prepared = true;
++
++	return 0;
++
++poweroff:
++	gpiod_set_value(pinfo->reset_gpio, 1);
++	return err;
++}
++
++static int lg_panel_enable(struct drm_panel *panel)
++{
++	struct panel_info *pinfo = to_panel_info(panel);
++	int ret;
++
++	if (pinfo->enabled)
++		return 0;
++	ret = backlight_enable(pinfo->backlight);
++	if (ret) {
++		DRM_DEV_ERROR(panel->dev,
++				"Failed to enable backlight %d\n", ret);
++		return ret;
++	}
++
++	pinfo->enabled = true;
++
++	return 0;
++}
++
++static int lg_panel_get_modes(struct drm_panel *panel,
++			      struct drm_connector *connector)
++{
++	struct panel_info *pinfo = to_panel_info(panel);
++	const struct drm_display_mode *m = pinfo->desc->display_mode;
++	struct drm_display_mode *mode;
++	mode = drm_mode_duplicate(connector->dev, m);
++	if (!mode) {
++		DRM_DEV_ERROR(panel->dev, "failed to add mode %ux%u\n",
++				m->hdisplay, m->vdisplay);
++		return -ENOMEM;
++	}
++
++	connector->display_info.width_mm = pinfo->desc->width_mm;
++	connector->display_info.height_mm = pinfo->desc->height_mm;
++
++	drm_mode_set_name(mode);
++	drm_mode_probed_add(connector, mode);
++
++	return 1;
++}
++
++static int lg_panel_backlight_update_status(struct backlight_device *bl)
++{
++	struct panel_info *pinfo = bl_get_data(bl);
++	int ret = 0;
++
++	if (bl->props.power != FB_BLANK_UNBLANK ||
++	    bl->props.fb_blank != FB_BLANK_UNBLANK ||
++	    bl->props.state & BL_CORE_FBBLANK) {
++		pinfo->brightness = 0;
++	}
++	else
++		pinfo->brightness = bl->props.brightness;
++
++	ret = mipi_dsi_dcs_set_display_brightness(pinfo->link,
++					pinfo->brightness);
++	return ret;
++}
++
++static int lg_panel_backlight_get_brightness(struct backlight_device *bl)
++{
++	struct panel_info *pinfo = bl_get_data(bl);
++	int ret = 0;
++	u16 brightness = 0;
++
++	ret = mipi_dsi_dcs_get_display_brightness(pinfo->link, &brightness);
++	if (ret < 0)
++		return ret;
++
++	return brightness & 0xff;
++}
++
++const struct backlight_ops lg_panel_backlight_ops = {
++	.update_status = lg_panel_backlight_update_status,
++	.get_brightness = lg_panel_backlight_get_brightness,
++};
++
++static int lg_panel_backlight_init(struct panel_info *pinfo)
++{
++	struct backlight_properties props = {};
++	struct backlight_device	*bl;
++	struct device *dev = &pinfo->link->dev;
++
++	props.type = BACKLIGHT_RAW;
++
++	/* Set the max_brightness to 255 to begin with */
++	props.max_brightness = pinfo->max_brightness = 255;
++	props.brightness = pinfo->max_brightness;
++	pinfo->brightness = pinfo->max_brightness;
++	bl = devm_backlight_device_register(dev, "lg-sw43408", dev, pinfo,
++					     &lg_panel_backlight_ops, &props);
++	if (IS_ERR(bl)) {
++		DRM_ERROR("failed to register backlight device\n");
++		return PTR_ERR(bl);
++	}
++	pinfo->backlight = bl;
++
++	return 0;
++}
++
++
++static const struct drm_panel_funcs panel_funcs = {
++	.disable = lg_panel_disable,
++	.unprepare = lg_panel_unprepare,
++	.prepare = lg_panel_prepare,
++	.enable = lg_panel_enable,
++	.get_modes = lg_panel_get_modes,
++};
++
++static const struct panel_cmd lg_sw43408_on_cmds_1[] = {
++	_INIT_CMD(0x00, 0x26, 0x02),	// MIPI_DCS_SET_GAMMA_CURVE, 0x02
++	_INIT_CMD(0x00, 0x35, 0x00),	// MIPI_DCS_SET_TEAR_ON
++	_INIT_CMD(0x00, 0x53, 0x0C, 0x30),
++	_INIT_CMD(0x00, 0x55, 0x00, 0x70, 0xDF, 0x00, 0x70, 0xDF),
++	_INIT_CMD(0x00, 0xF7, 0x01, 0x49, 0x0C),
++
++	{},
++};
++
++static const struct panel_cmd lg_sw43408_on_cmds_2[] = {
++	_INIT_CMD(0x00, 0xB0, 0xAC),
++	_INIT_CMD(0x00, 0xCD,
++			0x00, 0x00, 0x00, 0x19, 0x19, 0x19, 0x19, 0x19,
++			0x19, 0x19, 0x19, 0x19, 0x19, 0x19, 0x19, 0x19,
++			0x16, 0x16),
++	_INIT_CMD(0x00, 0xCB, 0x80, 0x5C, 0x07, 0x03, 0x28),
++	_INIT_CMD(0x00, 0xC0, 0x02, 0x02, 0x0F),
++	_INIT_CMD(0x00, 0xE5, 0x00, 0x3A, 0x00, 0x3A, 0x00, 0x0E, 0x10),
++	_INIT_CMD(0x00, 0xB5,
++			0x75, 0x60, 0x2D, 0x5D, 0x80, 0x00, 0x0A, 0x0B,
++			0x00, 0x05, 0x0B, 0x00, 0x80, 0x0D, 0x0E, 0x40,
++			0x00, 0x0C, 0x00, 0x16, 0x00, 0xB8, 0x00, 0x80,
++			0x0D, 0x0E, 0x40, 0x00, 0x0C, 0x00, 0x16, 0x00,
++			0xB8, 0x00, 0x81, 0x00, 0x03, 0x03, 0x03, 0x01,
++			0x01),
++	_INIT_CMD(0x00, 0x55, 0x04, 0x61, 0xDB, 0x04, 0x70, 0xDB),
++	_INIT_CMD(0x00, 0xB0, 0xCA),
++
++	{},
++};
++
++static const struct drm_display_mode lg_panel_default_mode = {
++	.clock		= 152340,
++
++	.hdisplay	= 1080,
++	.hsync_start	= 1080 + 20,
++	.hsync_end	= 1080 + 20 + 32,
++	.htotal		= 1080 + 20 + 32 + 20,
++
++	.vdisplay	= 2160,
++	.vsync_start	= 2160 + 20,
++	.vsync_end	= 2160 + 20 + 4,
++	.vtotal		= 2160 + 20 + 4 + 20,
++
++	.type = DRM_MODE_TYPE_DRIVER | DRM_MODE_TYPE_PREFERRED,
++};
++
++static const struct panel_desc lg_panel_desc = {
++	.display_mode = &lg_panel_default_mode,
++
++	.width_mm = 62,
++	.height_mm = 124,
++
++	.mode_flags = MIPI_DSI_MODE_LPM,
++	.format = MIPI_DSI_FMT_RGB888,
++	.lanes = 4,
++	.on_cmds_1 = lg_sw43408_on_cmds_1,
++	.on_cmds_2 = lg_sw43408_on_cmds_2,
++};
++
++
++static const struct of_device_id panel_of_match[] = {
++	{ .compatible = "lg,sw43408",
++	  .data = &lg_panel_desc
++	},
++	{
++		/* sentinel */
++	}
++};
++MODULE_DEVICE_TABLE(of, panel_of_match);
++
++static int panel_pinctrl_init(struct panel_info *panel)
++{
++	struct device *dev = &panel->link->dev;
++	int rc = 0;
++
++	panel->pinctrl = devm_pinctrl_get(dev);
++	if (IS_ERR_OR_NULL(panel->pinctrl)) {
++		rc = PTR_ERR(panel->pinctrl);
++		pr_err("failed to get pinctrl, rc=%d\n", rc);
++		goto error;
++	}
++
++	panel->active = pinctrl_lookup_state(panel->pinctrl,
++							"panel_active");
++	if (IS_ERR_OR_NULL(panel->active)) {
++		rc = PTR_ERR(panel->active);
++		pr_err("failed to get pinctrl active state, rc=%d\n", rc);
++		goto error;
++	}
++
++	panel->suspend =
++		pinctrl_lookup_state(panel->pinctrl, "panel_suspend");
++
++	if (IS_ERR_OR_NULL(panel->suspend)) {
++		rc = PTR_ERR(panel->suspend);
++		pr_err("failed to get pinctrl suspend state, rc=%d\n", rc);
++		goto error;
++	}
++
++error:
++	return rc;
++}
++
++static int panel_add(struct panel_info *pinfo)
++{
++	struct device *dev = &pinfo->link->dev;
++	int i, ret;
++
++	pinfo->init_delay_us = 5000;
++
++	for (i = 0; i < ARRAY_SIZE(pinfo->supplies); i++)
++		pinfo->supplies[i].supply = regulator_names[i];
++
++	ret = devm_regulator_bulk_get(dev, ARRAY_SIZE(pinfo->supplies),
++				      pinfo->supplies);
++	if (ret < 0)
++		return ret;
++
++	pinfo->reset_gpio = devm_gpiod_get(dev, "reset", GPIOD_OUT_HIGH);
++	if (IS_ERR(pinfo->reset_gpio)) {
++		DRM_DEV_ERROR(dev, "cannot get reset gpio %ld\n",
++			PTR_ERR(pinfo->reset_gpio));
++		return PTR_ERR(pinfo->reset_gpio);
++	}
++
++	ret = panel_pinctrl_init(pinfo);
++	if (ret < 0)
++		return ret;
++
++	ret = lg_panel_backlight_init(pinfo);
++	if (ret < 0)
++		return ret;
++
++	drm_panel_init(&pinfo->base, dev, &panel_funcs,
++		       DRM_MODE_CONNECTOR_DSI);
++
++	drm_panel_add(&pinfo->base);
++	return ret;
++}
++
++static void panel_del(struct panel_info *pinfo)
++{
++	if (pinfo->base.dev)
++		drm_panel_remove(&pinfo->base);
++}
++
++static int panel_probe(struct mipi_dsi_device *dsi)
++{
++	struct panel_info *pinfo;
++	const struct panel_desc *desc;
++	int err;
++
++	pinfo = devm_kzalloc(&dsi->dev, sizeof(*pinfo), GFP_KERNEL);
++	if (!pinfo)
++		return -ENOMEM;
++
++	desc = of_device_get_match_data(&dsi->dev);
++	dsi->mode_flags = desc->mode_flags;
++	dsi->format = desc->format;
++	dsi->lanes = desc->lanes;
++	pinfo->desc = desc;
++
++	pinfo->link = dsi;
++	mipi_dsi_set_drvdata(dsi, pinfo);
++
++	err = panel_add(pinfo);
++	if (err < 0)
++		return err;
++
++	err = mipi_dsi_attach(dsi);
++	return err;
++}
++
++static int panel_remove(struct mipi_dsi_device *dsi)
++{
++	struct panel_info *pinfo = mipi_dsi_get_drvdata(dsi);
++	int err;
++
++	err = lg_panel_unprepare(&pinfo->base);
++	if (err < 0)
++		DRM_DEV_ERROR(&dsi->dev, "failed to unprepare panel: %d\n",
++				err);
++
++	err = lg_panel_disable(&pinfo->base);
++	if (err < 0)
++		DRM_DEV_ERROR(&dsi->dev, "failed to disable panel: %d\n", err);
++
++	err = mipi_dsi_detach(dsi);
++	if (err < 0)
++		DRM_DEV_ERROR(&dsi->dev, "failed to detach from DSI host: %d\n",
++				err);
++
++	panel_del(pinfo);
++
++	return 0;
++}
++
++static void panel_shutdown(struct mipi_dsi_device *dsi)
++{
++	struct panel_info *pinfo = mipi_dsi_get_drvdata(dsi);
++	lg_panel_disable(&pinfo->base);
++	lg_panel_unprepare(&pinfo->base);
++}
++
++static struct mipi_dsi_driver panel_driver = {
++	.driver = {
++		.name = "panel-lg-sw43408",
++		.of_match_table = panel_of_match,
++	},
++	.probe = panel_probe,
++	.remove = panel_remove,
++	.shutdown = panel_shutdown,
++};
++module_mipi_dsi_driver(panel_driver);
++
++MODULE_AUTHOR("Sumit Semwal <sumit.semwal@linaro.org>");
++MODULE_DESCRIPTION("LG SW436408 MIPI-DSI LED panel");
++MODULE_LICENSE("GPL");
+-- 
+2.29.2
+
+
+From 511077fa51c0dddaf3df3da0c45237e49e54c49e Mon Sep 17 00:00:00 2001
+From: Sumit Semwal <sumit.semwal@linaro.org>
+Date: Wed, 22 Jan 2020 13:06:22 +0530
+Subject: [PATCH 07/26] arm64: dts: qcom: sdm845c: Add pinmux nodes for dsi
+ panels
+
+Dsi panels need pinmux nodes for suspend/active pinmux
+bits; add them to SDM845c dtsi.
+
+Signed-off-by: John Stultz <john.stultz@linaro.org>
+Signed-off-by: Sumit Semwal <sumit.semwal@linaro.org>
+---
+ arch/arm64/boot/dts/qcom/sdm845.dtsi | 52 ++++++++++++++++++++++++++++
+ 1 file changed, 52 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sdm845.dtsi b/arch/arm64/boot/dts/qcom/sdm845.dtsi
+index 0a86fe71a66d1..b4754858a08f1 100644
+--- a/arch/arm64/boot/dts/qcom/sdm845.dtsi
++++ b/arch/arm64/boot/dts/qcom/sdm845.dtsi
+@@ -2955,6 +2955,58 @@ config {
+ 					bias-disable;
+ 				};
+ 			};
++
++			sde_dsi_active: sde_dsi_active {
++				mux {
++					pins = "gpio6", "gpio52";
++					function = "gpio";
++				};
++
++				config {
++					pins = "gpio6", "gpio52";
++					drive-strength = <8>;   /* 8 mA */
++					bias-disable = <0>;   /* no pull */
++				};
++			};
++
++			sde_dsi_suspend: sde_dsi_suspend {
++				mux {
++					pins = "gpio6", "gpio52";
++					function = "gpio";
++				};
++
++				config {
++					pins = "gpio6", "gpio52";
++					drive-strength = <2>;   /* 2 mA */
++					bias-pull-down;         /* PULL DOWN */
++				};
++			};
++
++			sde_te_active: sde_te_active {
++				mux {
++					pins = "gpio10";
++					function = "mdp_vsync";
++				};
++
++				config {
++					pins = "gpio10";
++					drive-strength = <2>;   /* 2 mA */
++					bias-pull-down;         /* PULL DOWN */
++				};
++			};
++
++			sde_te_suspend: sde_te_suspend {
++				mux {
++					pins = "gpio10";
++					function = "mdp_vsync";
++				};
++
++				config {
++					pins = "gpio10";
++					drive-strength = <2>;   /* 2 mA */
++					bias-pull-down;         /* PULL DOWN */
++				};
++			};
+ 		};
+ 
+ 		mss_pil: remoteproc@4080000 {
+-- 
+2.29.2
+
+
+From 03cc5a471e7c4f32da46bfe9ce46d10c211eaf9a Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Thu, 20 May 2021 17:05:33 +0530
+Subject: [PATCH 08/26] blueline_defconfig: add configs
+
+Add missing msm pinctrl config
+Add devtmpfs configs
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ arch/arm64/configs/blueline_defconfig | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/arch/arm64/configs/blueline_defconfig b/arch/arm64/configs/blueline_defconfig
+index 9c4cb473e40f5..0b08bfd5f38e1 100644
+--- a/arch/arm64/configs/blueline_defconfig
++++ b/arch/arm64/configs/blueline_defconfig
+@@ -214,6 +214,8 @@ CONFIG_PCIEPORTBUS=y
+ CONFIG_PCI_HOST_GENERIC=y
+ CONFIG_PCIE_QCOM=y
+ CONFIG_PCIE_KIRIN=y
++CONFIG_DEVTMPFS=y
++CONFIG_DEVTMPFS_MOUNT=y
+ CONFIG_FW_LOADER_USER_HELPER=y
+ CONFIG_FW_LOADER_USER_HELPER_FALLBACK=y
+ # CONFIG_FW_CACHE is not set
+@@ -325,6 +327,7 @@ CONFIG_SPI_QCOM_QSPI=y
+ CONFIG_SPI_QUP=y
+ CONFIG_SPI_QCOM_GENI=y
+ CONFIG_SPMI=y
++CONFIG_PINCTRL_MSM=y
+ CONFIG_PINCTRL_MSM8998=y
+ CONFIG_PINCTRL_QCOM_SPMI_PMIC=y
+ CONFIG_PINCTRL_SDM845=y
+-- 
+2.29.2
+
+
+From 75856d0e4c498d380e542d619b98dc0283d1115d Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Thu, 20 May 2021 21:53:08 +0530
+Subject: [PATCH 09/26] blueline: arm64: dts: qcom: Add display nodes
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ arch/arm64/boot/dts/qcom/sdm845-blueline.dts | 125 +++++++++++++++++++
+ 1 file changed, 125 insertions(+)
+
+diff --git a/arch/arm64/boot/dts/qcom/sdm845-blueline.dts b/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
+index 86ce790b35012..a9061e5c979fb 100644
+--- a/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
++++ b/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
+@@ -157,6 +157,42 @@ vph_pwr: vph-pwr-regulator {
+ 	};
+ };
+ 
++&pm8998_gpio {
++	/* Don't drive these, for display */
++	sde_pmgpio_active: sde_pmgpio_active {
++		pins = "gpio2", "gpio5";
++		function = "normal";
++		input-enable;
++		bias-disable;
++		power-source = <0>;
++	};
++	sde_pmgpio_suspend: sde_pmgpio_suspend {
++		pins = "gpio2", "gpio5";
++		function = "normal";
++		input-enable;
++		bias-disable;
++		power-source = <0>;
++	};
++};
++
++&sde_te_active {
++	mux {
++		pins = "gpio12";
++	};
++	config {
++		pins = "gpio12";
++	};
++};
++
++&sde_te_suspend {
++	mux {
++		pins = "gpio12";
++	};
++	config {
++		pins = "gpio12";
++	};
++};
++
+ &adsp_pas {
+ 	status = "okay";
+ 
+@@ -210,10 +246,12 @@ vreg_s7a_1p025: smps7 {
+ 			regulator-max-microvolt = <1028000>;
+ 		};
+ 
++		vdda_mipi_dsi0_pll:
+ 		vreg_l1a_0p875: ldo1 {
+ 			regulator-min-microvolt = <880000>;
+ 			regulator-max-microvolt = <880000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			regulator-boot-on;
+ 		};
+ 
+ 		vreg_l5a_0p8: ldo5 {
+@@ -240,6 +278,14 @@ vreg_l13a_2p95: ldo13 {
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
++		vreg_l14a_1p88: ldo14 {
++			regulator-min-microvolt = <1800000>;
++			regulator-max-microvolt = <1800000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			regulator-boot-on;
++			regulator-always-on;
++                };
++
+ 		vreg_l17a_1p3: ldo17 {
+ 			regulator-min-microvolt = <1304000>;
+ 			regulator-max-microvolt = <1304000>;
+@@ -270,10 +316,20 @@ vreg_l25a_3p3: ldo25 {
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
+ 		};
+ 
++		vdda_mipi_dsi0_1p2:
+ 		vreg_l26a_1p2: ldo26 {
+ 			regulator-min-microvolt = <1200000>;
+ 			regulator-max-microvolt = <1200000>;
+ 			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			regulator-boot-on;
++		};
++
++		vreg_l28a_3p0: ldo28 {
++			regulator-min-microvolt = <2856000>;
++			regulator-max-microvolt = <3008000>;
++			regulator-initial-mode = <RPMH_REGULATOR_MODE_HPM>;
++			regulator-boot-on;
++			regulator-always-on;
+ 		};
+ 	};
+ 
+@@ -536,3 +592,72 @@ &mss_pil {
+ 	status = "okay";
+ 	firmware-name = "qcom/sdm845/mba.mbn", "qcom/sdm845/modem.mbn";
+ };
++
++&dsi0 {
++	status = "okay";
++	vdda-supply = <&vdda_mipi_dsi0_1p2>;
++
++        qcom,mdss-dsc-enabled;
++        qcom,mdss-slice-height = <16>;
++        qcom,mdss-slice-width = <540>;
++        qcom,mdss-slice-per-pkt = <1>;
++        qcom,mdss-bit-per-component = <8>;
++        qcom,mdss-bit-per-pixel = <8>;
++        qcom,mdss-block-prediction-enable;
++
++	ports {
++		port@1 {
++			endpoint {
++				remote-endpoint = <&lg_sw43408_in_0>;
++				data-lanes = <0 1 2 3>;
++			};
++		};
++	};
++
++	panel@0 {
++		compatible = "lg,sw43408";
++		reg = <0>;
++		vddi-supply = <&vreg_l14a_1p88>;
++		vpnl-supply = <&vreg_l28a_3p0>;
++		lab-supply = <&lab>;
++
++		reset-gpios = <&tlmm 6 GPIO_ACTIVE_HIGH>;
++
++		pinctrl-names = "panel_active", "panel_suspend";
++		pinctrl-0 = <&sde_dsi_active &sde_te_active &sde_pmgpio_active>;
++		pinctrl-1 = <&sde_dsi_suspend &sde_te_suspend &sde_pmgpio_suspend>;
++
++		ports {
++			#address-cells = <1>;
++			#size-cells = <0>;
++
++			port@0 {
++				reg = <0>;
++				lg_sw43408_in_0: endpoint {
++					remote-endpoint = <&dsi0_out>;
++				};
++			};
++		};
++	};
++};
++
++&dsi0_phy {
++	status = "okay";
++	vdds-supply = <&vdda_mipi_dsi0_pll>;
++};
++
++&vreg_l28a_3p0{
++        qcom,init-voltage = <3000000>;
++};
++
++&mdss {
++	status = "okay";
++};
++
++&mdss_mdp {
++	status = "okay";
++};
++
++&lab {
++	regulator-always-on;
++};
+-- 
+2.29.2
+
+
+From c4fb423645c139da16ec7824e9ca537de2196890 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Thu, 20 May 2021 21:54:50 +0530
+Subject: [PATCH 10/26] drm/dsc: Fix a typo
+
+Fix typo s/i/is in the comment
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ include/drm/drm_dsc.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/include/drm/drm_dsc.h b/include/drm/drm_dsc.h
+index cf43561e60fad..bbe120f461e58 100644
+--- a/include/drm/drm_dsc.h
++++ b/include/drm/drm_dsc.h
+@@ -491,7 +491,7 @@ struct drm_dsc_picture_parameter_set {
+ 	 * PPS43[3:0] - Lower end of the variability range around the target
+ 	 * bits per group that is allowed by short term RC.
+ 	 * PPS43[7:4]- Upper end of the variability range around the target
+-	 * bits per group that i allowed by short term rc.
++	 * bits per group that is allowed by short term rc.
+ 	 */
+ 	u8 rc_tgt_offset;
+ 	/**
+-- 
+2.29.2
+
+
+From ed9f99096b00f02a116bc1889f6ad036316f9979 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Thu, 20 May 2021 21:57:05 +0530
+Subject: [PATCH 11/26] drm/dsc: Add dsc pps header init function
+
+We required a helper to create and set the dsc_dce_header, so add the
+dsc_dce_header and API drm_dsc_dsi_pps_header_init
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/drm_dsc.c | 11 +++++++++++
+ include/drm/drm_dsc.h     | 16 ++++++++++++++++
+ 2 files changed, 27 insertions(+)
+
+diff --git a/drivers/gpu/drm/drm_dsc.c b/drivers/gpu/drm/drm_dsc.c
+index ff602f7ec65b1..0c1b745090e21 100644
+--- a/drivers/gpu/drm/drm_dsc.c
++++ b/drivers/gpu/drm/drm_dsc.c
+@@ -49,6 +49,17 @@ void drm_dsc_dp_pps_header_init(struct dp_sdp_header *pps_header)
+ }
+ EXPORT_SYMBOL(drm_dsc_dp_pps_header_init);
+ 
++void drm_dsc_dsi_pps_header_init(struct dsc_dce_header *dsc_header)
++{
++	memset(dsc_header, 0, sizeof(*dsc_header));
++
++	dsc_header->bp0 = 0x0A;
++	dsc_header->bp1 = 1;
++	dsc_header->bp4 = 10;
++	dsc_header->bp6 = 128;
++}
++EXPORT_SYMBOL(drm_dsc_dsi_pps_header_init);
++
+ /**
+  * drm_dsc_dp_rc_buffer_size - get rc buffer size in bytes
+  * @rc_buffer_block_size: block size code, according to DPCD offset 62h
+diff --git a/include/drm/drm_dsc.h b/include/drm/drm_dsc.h
+index bbe120f461e58..5a3bbeb3e12f2 100644
+--- a/include/drm/drm_dsc.h
++++ b/include/drm/drm_dsc.h
+@@ -602,8 +602,24 @@ struct drm_dsc_pps_infoframe {
+ 	struct drm_dsc_picture_parameter_set pps_payload;
+ } __packed;
+ 
++struct dsc_dce_header {
++	u8 bp0;
++	u8 bp1;
++	u8 bp2;
++	u8 bp3;
++	u8 bp4;
++	u8 bp5;
++	u8 bp6;
++} __packed;
++
++struct drm_dsi_dsc_infoframe {
++	struct dsc_dce_header dsc_header;
++	struct drm_dsc_picture_parameter_set pps_payload;
++} __packed;
++
+ void drm_dsc_dp_pps_header_init(struct dp_sdp_header *pps_header);
+ int drm_dsc_dp_rc_buffer_size(u8 rc_buffer_block_size, u8 rc_buffer_size);
++void drm_dsc_dsi_pps_header_init(struct dsc_dce_header *dsc_header);
+ void drm_dsc_pps_payload_pack(struct drm_dsc_picture_parameter_set *pps_sdp,
+ 				const struct drm_dsc_config *dsc_cfg);
+ int drm_dsc_compute_rc_parameters(struct drm_dsc_config *vdsc_cfg);
+-- 
+2.29.2
+
+
+From f5bbc4c3c4edc48ddb01ee6989b8b7d73d987524 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:57:13 +0530
+Subject: [PATCH 12/26] dt-bindings: msm/dsi: Document Display Stream
+ Compression (DSC) parameters
+
+DSC enables streams to be compressed before we send to panel. This
+requires DSC enabled encoder and a panel to be present. So we add this
+information in board DTS and find if DSC can be enabled and the
+parameters required to configure DSC are added to binding document along
+with example
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ .../devicetree/bindings/display/msm/dsi.txt       | 15 +++++++++++++++
+ 1 file changed, 15 insertions(+)
+
+diff --git a/Documentation/devicetree/bindings/display/msm/dsi.txt b/Documentation/devicetree/bindings/display/msm/dsi.txt
+index b9a64d3ff1848..83d2fb92267ef 100644
+--- a/Documentation/devicetree/bindings/display/msm/dsi.txt
++++ b/Documentation/devicetree/bindings/display/msm/dsi.txt
+@@ -48,6 +48,13 @@ Optional properties:
+ - pinctrl-n: the "sleep" pinctrl state
+ - ports: contains DSI controller input and output ports as children, each
+   containing one endpoint subnode.
++- qcom,mdss-dsc-enabled: Display Stream Compression (DSC) is enabled
++- qcom,mdss-slice-height: DSC slice height in pixels
++- qcom,mdss-slice-width: DSC slice width in pixels
++- qcom,mdss-slice-per-pkt: DSC slices per packet
++- qcom,mdss-bit-per-component: DSC bits per component
++- qcom,mdss-bit-per-pixel: DSC bits per pixel
++- qcom,mdss-block-prediction-enable: Block prediction mode of DSC enabled
+ 
+   DSI Endpoint properties:
+   - remote-endpoint: For port@0, set to phandle of the connected panel/bridge's
+@@ -188,6 +195,14 @@ Example:
+ 		qcom,master-dsi;
+ 		qcom,sync-dual-dsi;
+ 
++		qcom,mdss-dsc-enabled;
++		qcom,mdss-slice-height = <16>;
++		qcom,mdss-slice-width = <540>;
++		qcom,mdss-slice-per-pkt = <1>;
++		qcom,mdss-bit-per-component = <8>;
++		qcom,mdss-bit-per-pixel = <8>;
++		qcom,mdss-block-prediction-enable;
++
+ 		qcom,mdss-mdp-transfer-time-us = <12000>;
+ 
+ 		pinctrl-names = "default", "sleep";
+-- 
+2.29.2
+
+
+From 49ac675b774e125d0136adfaf618e875f5f257f8 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:04:02 +0530
+Subject: [PATCH 13/26] drm/msm/dsi: add support for dsc data
+
+DSC needs some configuration from device tree, add support to read and
+store these params and add DSC structures in msm_drv
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/dsi/dsi_host.c | 170 +++++++++++++++++++++++++++++
+ drivers/gpu/drm/msm/msm_drv.h      |  32 ++++++
+ 2 files changed, 202 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+index 8a10e43432813..864d3c655e73e 100644
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -156,6 +156,7 @@ struct msm_dsi_host {
+ 	struct regmap *sfpb;
+ 
+ 	struct drm_display_mode *mode;
++	struct msm_display_dsc_config *dsc;
+ 
+ 	/* connected device info */
+ 	struct device_node *device_node;
+@@ -1744,6 +1745,168 @@ static int dsi_host_parse_lane_data(struct msm_dsi_host *msm_host,
+ 	return -EINVAL;
+ }
+ 
++static u32 dsi_dsc_rc_buf_thresh[DSC_NUM_BUF_RANGES - 1] = {
++	0x0e, 0x1c, 0x2a, 0x38, 0x46, 0x54, 0x62,
++	0x69, 0x70, 0x77, 0x79, 0x7b, 0x7d, 0x7e
++};
++
++/* only 8bpc, 8bpp added */
++static char min_qp[DSC_NUM_BUF_RANGES] = {
++	0, 0, 1, 1, 3, 3, 3, 3, 3, 3, 5, 5, 5, 7, 13
++};
++
++static char max_qp[DSC_NUM_BUF_RANGES] = {
++	4, 4, 5, 6, 7, 7, 7, 8, 9, 10, 11, 12, 13, 13, 15
++};
++
++static char bpg_offset[DSC_NUM_BUF_RANGES] = {
++	2, 0, 0, -2, -4, -6, -8, -8, -8, -10, -10, -12, -12, -12, -12
++};
++
++static int dsi_populate_dsc_params(struct msm_display_dsc_config *dsc)
++{
++	int i;
++
++	dsc->drm.rc_model_size = 8192;
++	dsc->drm.first_line_bpg_offset = 15;
++	dsc->drm.rc_edge_factor = 6;
++	dsc->drm.rc_tgt_offset_high = 3;
++	dsc->drm.rc_tgt_offset_low = 3;
++	dsc->drm.simple_422 = 0;
++	dsc->drm.convert_rgb = 1;
++	dsc->drm.vbr_enable = 0;
++
++	/* handle only bpp = bpc = 8 */
++	for (i = 0; i < DSC_NUM_BUF_RANGES - 1 ; i++)
++		dsc->drm.rc_buf_thresh[i] = dsi_dsc_rc_buf_thresh[i];
++
++	for (i = 0; i < DSC_NUM_BUF_RANGES; i++) {
++		dsc->drm.rc_range_params[i].range_min_qp = min_qp[i];
++		dsc->drm.rc_range_params[i].range_max_qp = max_qp[i];
++		dsc->drm.rc_range_params[i].range_bpg_offset = bpg_offset[i];
++	}
++
++	dsc->drm.initial_offset = 6144;
++	dsc->drm.initial_xmit_delay = 512;
++	dsc->drm.initial_scale_value = 32;
++	dsc->drm.first_line_bpg_offset = 12;
++	dsc->drm.line_buf_depth = dsc->drm.bits_per_component + 1;
++
++	/* bpc 8 */
++	dsc->drm.flatness_min_qp = 3;
++	dsc->drm.flatness_max_qp = 12;
++	dsc->det_thresh_flatness = 7;
++	dsc->drm.rc_quant_incr_limit0 = 11;
++	dsc->drm.rc_quant_incr_limit1 = 11;
++	dsc->drm.mux_word_size = DSC_MUX_WORD_SIZE_8_10_BPC;
++
++	/* FIXME: need to call drm_dsc_compute_rc_parameters() so that rest of
++	 * params are calculated
++	 */
++
++	i = dsc->drm.slice_width % 3;
++	switch (i) {
++	case 0:
++		dsc->slice_last_group_size = 2;
++		break;
++
++	case 1:
++		dsc->slice_last_group_size = 0;
++		break;
++
++	case 2:
++		dsc->slice_last_group_size = 0;
++		break;
++
++	default:
++		break;
++	}
++
++	return 0;
++}
++
++static int dsi_host_parse_dsc(struct msm_dsi_host *msm_host,
++			      struct device_node *np)
++{
++	struct device *dev = &msm_host->pdev->dev;
++	struct msm_display_dsc_config *dsc;
++	bool is_dsc_enabled;
++	u32 data;
++	int ret;
++
++	is_dsc_enabled = of_property_read_bool(np, "qcom,mdss-dsc-enabled");
++
++	if (!is_dsc_enabled)
++		return 0;
++
++	dsc = kzalloc(sizeof(*dsc), GFP_KERNEL);
++	if (!dsc)
++		return -ENOMEM;
++
++	ret = of_property_read_u32(np, "qcom,mdss-dsc-version", &data);
++	if (ret) {
++		dsc->drm.dsc_version_major = 0x1;
++		dsc->drm.dsc_version_minor = 0x1;
++	} else {
++		dsc->drm.dsc_version_major = (data >> 4) & 0xf;
++		dsc->drm.dsc_version_minor = data & 0xf;
++	}
++
++	ret = of_property_read_u32(np, "qcom,mdss-scr-version", &data);
++	if (ret)
++		dsc->scr_rev = 0;
++	else
++		dsc->scr_rev = data & 0xff;
++
++	ret = of_property_read_u32(np, "qcom,mdss-slice-height", &data);
++	if (ret) {
++		DRM_DEV_ERROR(dev, "failed to read dsc slice height\n");
++		goto err;
++	}
++	dsc->drm.slice_height = data;
++
++	ret = of_property_read_u32(np, "qcom,mdss-slice-width", &data);
++	if (ret) {
++		DRM_DEV_ERROR(dev, "failed to read dsc slice width\n");
++		goto err;
++	}
++	dsc->drm.slice_width = data;
++
++	ret = of_property_read_u32(np, "qcom,mdss-slice-per-pkt", &data);
++	if (ret) {
++		DRM_DEV_ERROR(dev, "failed to read mdss-slice-per-pkt\n");
++		goto err;
++	}
++	dsc->slice_per_pkt = data;
++
++	ret = of_property_read_u32(np, "qcom,mdss-bit-per-component", &data);
++	if (ret) {
++		DRM_DEV_ERROR(dev, "failed to read mdss-bit-per-component\n");
++		goto err;
++	}
++	dsc->drm.bits_per_component = data;
++
++	ret = of_property_read_u32(np, "qcom,mdss-bit-per-pixel", &data);
++	if (ret) {
++		DRM_DEV_ERROR(dev, "failed to read bit-per-pixel\n");
++		goto err;
++	}
++	dsc->drm.bits_per_pixel = data;
++
++	dsc->drm.block_pred_enable = of_property_read_bool(np,
++			 "qcom,mdss-block-prediction-enable");
++
++	dsi_populate_dsc_params(dsc);
++
++	msm_host->dsc = dsc;
++
++	return 0;
++
++err:
++	kfree(dsc);
++	return ret;
++}
++
+ static int dsi_host_parse_dt(struct msm_dsi_host *msm_host)
+ {
+ 	struct device *dev = &msm_host->pdev->dev;
+@@ -1763,6 +1926,13 @@ static int dsi_host_parse_dt(struct msm_dsi_host *msm_host)
+ 		return 0;
+ 	}
+ 
++	ret = dsi_host_parse_dsc(msm_host, np);
++	if (ret) {
++		DRM_DEV_ERROR(dev, "%s: invalid dsc configuration %d\n", __func__, ret);
++		ret = -EINVAL;
++		goto err;
++	}
++
+ 	ret = dsi_host_parse_lane_data(msm_host, endpoint);
+ 	if (ret) {
+ 		DRM_DEV_ERROR(dev, "%s: invalid lane configuration %d\n",
+diff --git a/drivers/gpu/drm/msm/msm_drv.h b/drivers/gpu/drm/msm/msm_drv.h
+index 2668941df529c..26661dd439368 100644
+--- a/drivers/gpu/drm/msm/msm_drv.h
++++ b/drivers/gpu/drm/msm/msm_drv.h
+@@ -30,6 +30,7 @@
+ #include <drm/drm_plane_helper.h>
+ #include <drm/drm_probe_helper.h>
+ #include <drm/drm_fb_helper.h>
++#include <drm/drm_dsc.h>
+ #include <drm/msm_drm.h>
+ #include <drm/drm_gem.h>
+ 
+@@ -70,6 +71,16 @@ enum msm_mdp_plane_property {
+ #define MSM_GPU_MAX_RINGS 4
+ #define MAX_H_TILES_PER_DISPLAY 2
+ 
++/**
++ * enum msm_display_compression_type - compression method used for pixel stream
++ * @MSM_DISPLAY_COMPRESSION_NONE:	Pixel data is not compressed
++ * @MSM_DISPLAY_COMPRESSION_DSC:	DSC compresison is used
++ */
++enum msm_display_compression_type {
++	MSM_DISPLAY_COMPRESSION_NONE,
++	MSM_DISPLAY_COMPRESSION_DSC,
++};
++
+ /**
+  * enum msm_display_caps - features/capabilities supported by displays
+  * @MSM_DISPLAY_CAP_VID_MODE:           Video or "active" mode supported
+@@ -134,6 +145,24 @@ struct msm_drm_thread {
+ 	struct kthread_worker *worker;
+ };
+ 
++/* DSC config */
++struct msm_display_dsc_config {
++	struct drm_dsc_config drm;
++	u8 scr_rev;
++
++	u32 initial_lines;
++	u32 pkt_per_line;
++	u32 bytes_in_slice;
++	u32 bytes_per_pkt;
++	u32 eol_byte_num;
++	u32 pclk_per_line;
++	u32 slice_last_group_size;
++	u32 slice_per_pkt;
++	u32 det_thresh_flatness;
++	u32 extra_width;
++	u32 pps_delay_ms;
++};
++
+ struct msm_drm_private {
+ 
+ 	struct drm_device *dev;
+@@ -227,6 +256,9 @@ struct msm_drm_private {
+ 	/* Properties */
+ 	struct drm_property *plane_property[PLANE_PROP_MAX_NUM];
+ 
++	/* DSC configuration */
++	struct msm_display_dsc_config *dsc;
++
+ 	/* VRAM carveout, used when no IOMMU: */
+ 	struct {
+ 		unsigned long size;
+-- 
+2.29.2
+
+
+From bab3d649f2c61509e22d7ffdd60d0e1d0eeea8e1 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 15:24:40 +0530
+Subject: [PATCH 14/26] drm/msm/disp/dpu1: Add support for DSC
+
+Display Stream Compression (DSC) is one of the hw blocks in dpu, so add
+support by adding hw blocks for DSC
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/Makefile                  |   1 +
+ .../gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h    |  26 +++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c    | 221 ++++++++++++++++++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.h    |  79 +++++++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_mdss.h   |  13 ++
+ 5 files changed, 340 insertions(+)
+ create mode 100644 drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
+ create mode 100644 drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.h
+
+diff --git a/drivers/gpu/drm/msm/Makefile b/drivers/gpu/drm/msm/Makefile
+index 610d630326bb4..fd8fc57f1f588 100644
+--- a/drivers/gpu/drm/msm/Makefile
++++ b/drivers/gpu/drm/msm/Makefile
+@@ -61,6 +61,7 @@ msm-y := \
+ 	disp/dpu1/dpu_hw_blk.o \
+ 	disp/dpu1/dpu_hw_catalog.o \
+ 	disp/dpu1/dpu_hw_ctl.o \
++	disp/dpu1/dpu_hw_dsc.o \
+ 	disp/dpu1/dpu_hw_interrupts.o \
+ 	disp/dpu1/dpu_hw_intf.o \
+ 	disp/dpu1/dpu_hw_lm.o \
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h
+index 4dfd8a20ad5c5..a699633f7013c 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.h
+@@ -165,6 +165,7 @@ enum {
+  * @DPU_PINGPONG_TE2        Additional tear check block for split pipes
+  * @DPU_PINGPONG_SPLIT      PP block supports split fifo
+  * @DPU_PINGPONG_SLAVE      PP block is a suitable slave for split fifo
++ * @DPU_PINGPONG_DSC        Display stream compression blocks
+  * @DPU_PINGPONG_DITHER,    Dither blocks
+  * @DPU_PINGPONG_MAX
+  */
+@@ -173,10 +174,21 @@ enum {
+ 	DPU_PINGPONG_TE2,
+ 	DPU_PINGPONG_SPLIT,
+ 	DPU_PINGPONG_SLAVE,
++	DPU_PINGPONG_DSC,
+ 	DPU_PINGPONG_DITHER,
+ 	DPU_PINGPONG_MAX
+ };
+ 
++/**
++ * DSC sub-blocks
++ * @DPU_DSC		DSC sub block
++ * @DPU_DSC_MAX
++ */
++enum {
++	DPU_DSC = 0x1,
++	DPU_DSC_MAX
++};
++
+ /**
+  * CTL sub-blocks
+  * @DPU_CTL_SPLIT_DISPLAY       CTL supports video mode split display
+@@ -413,6 +425,7 @@ struct dpu_dspp_sub_blks {
+ struct dpu_pingpong_sub_blks {
+ 	struct dpu_pp_blk te;
+ 	struct dpu_pp_blk te2;
++	struct dpu_pp_blk dsc;
+ 	struct dpu_pp_blk dither;
+ };
+ 
+@@ -547,6 +560,16 @@ struct dpu_merge_3d_cfg  {
+ 	const struct dpu_merge_3d_sub_blks *sblk;
+ };
+ 
++/**
++ * struct dpu_dsc_cfg - information of DSC blocks
++ * @id                 enum identifying this block
++ * @base               register offset of this block
++ * @features           bit mask identifying sub-blocks/features
++ */
++struct dpu_dsc_cfg {
++	DPU_HW_BLK_INFO;
++};
++
+ /**
+  * struct dpu_intf_cfg - information of timing engine blocks
+  * @id                 enum identifying this block
+@@ -748,6 +771,9 @@ struct dpu_mdss_cfg {
+ 	u32 merge_3d_count;
+ 	const struct dpu_merge_3d_cfg *merge_3d;
+ 
++	u32 dsc_count;
++	struct dpu_dsc_cfg *dsc;
++
+ 	u32 intf_count;
+ 	const struct dpu_intf_cfg *intf;
+ 
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
+new file mode 100644
+index 0000000000000..8b8d0553709d9
+--- /dev/null
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
+@@ -0,0 +1,221 @@
++// SPDX-License-Identifier: GPL-2.0-only
++/*
++ * Copyright (c) 2020, Linaro Limited
++ */
++
++#include "dpu_kms.h"
++#include "dpu_hw_catalog.h"
++#include "dpu_hwio.h"
++#include "dpu_hw_mdss.h"
++#include "dpu_hw_dsc.h"
++
++#define DSC_COMMON_MODE	                0x000
++#define DSC_ENC                         0X004
++#define DSC_PICTURE                     0x008
++#define DSC_SLICE                       0x00C
++#define DSC_CHUNK_SIZE                  0x010
++#define DSC_DELAY                       0x014
++#define DSC_SCALE_INITIAL               0x018
++#define DSC_SCALE_DEC_INTERVAL          0x01C
++#define DSC_SCALE_INC_INTERVAL          0x020
++#define DSC_FIRST_LINE_BPG_OFFSET       0x024
++#define DSC_BPG_OFFSET                  0x028
++#define DSC_DSC_OFFSET                  0x02C
++#define DSC_FLATNESS                    0x030
++#define DSC_RC_MODEL_SIZE               0x034
++#define DSC_RC                          0x038
++#define DSC_RC_BUF_THRESH               0x03C
++#define DSC_RANGE_MIN_QP                0x074
++#define DSC_RANGE_MAX_QP                0x0B0
++#define DSC_RANGE_BPG_OFFSET            0x0EC
++
++static void dpu_hw_dsc_disable(struct dpu_hw_dsc *dsc)
++{
++	struct dpu_hw_blk_reg_map *c = &dsc->hw;
++
++	DPU_REG_WRITE(c, DSC_COMMON_MODE, 0);
++}
++
++static void dpu_hw_dsc_config(struct dpu_hw_dsc *hw_dsc,
++			      struct msm_display_dsc_config *dsc,
++			      u32 mode, bool ich_reset_override)
++{
++	struct dpu_hw_blk_reg_map *c = &hw_dsc->hw;
++	u32 data;
++	u32 initial_lines = dsc->initial_lines;
++	bool is_cmd_mode = !(mode & BIT(2));
++
++	DPU_REG_WRITE(c, DSC_COMMON_MODE, mode);
++
++	data = 0;
++	if (ich_reset_override)
++		data = 3 << 28;
++
++	if (is_cmd_mode)
++		initial_lines += 1;
++
++	data |= (initial_lines << 20);
++	data |= ((dsc->slice_last_group_size) << 18);
++	/* bpp is 6.4 format, 4 LSBs bits are for fractional part */
++	data |= dsc->drm.bits_per_pixel << 12;
++	data |= (dsc->drm.block_pred_enable << 7);
++	data |= (dsc->drm.line_buf_depth << 3);
++	data |= (dsc->drm.simple_422 << 2);
++	data |= (dsc->drm.convert_rgb << 1);
++	if (dsc->drm.bits_per_component  == 10)
++		data |= BIT(0);
++
++	DPU_REG_WRITE(c, DSC_ENC, data);
++
++	data = dsc->drm.pic_width << 16;
++	data |= dsc->drm.pic_height;
++	DPU_REG_WRITE(c, DSC_PICTURE, data);
++
++	data = dsc->drm.slice_width << 16;
++	data |= dsc->drm.slice_height;
++	DPU_REG_WRITE(c, DSC_SLICE, data);
++
++	data = DIV_ROUND_UP(dsc->drm.slice_width * dsc->drm.bits_per_pixel, 8) << 16;
++
++	DPU_REG_WRITE(c, DSC_CHUNK_SIZE, data);
++
++	data = dsc->drm.initial_dec_delay << 16;
++	data |= dsc->drm.initial_xmit_delay;
++	DPU_REG_WRITE(c, DSC_DELAY, data);
++
++	data = dsc->drm.initial_scale_value;
++	DPU_REG_WRITE(c, DSC_SCALE_INITIAL, data);
++
++	data = dsc->drm.scale_decrement_interval;
++	DPU_REG_WRITE(c, DSC_SCALE_DEC_INTERVAL, data);
++
++	data = 0x00000184; /* only this value works */
++	DPU_REG_WRITE(c, DSC_SCALE_INC_INTERVAL, data);
++
++	data = dsc->drm.first_line_bpg_offset;
++	DPU_REG_WRITE(c, DSC_FIRST_LINE_BPG_OFFSET, data);
++
++	data = dsc->drm.nfl_bpg_offset << 16;
++	data |= dsc->drm.slice_bpg_offset;
++	DPU_REG_WRITE(c, DSC_BPG_OFFSET, data);
++
++	data = dsc->drm.initial_offset << 16;
++	data |= dsc->drm.final_offset;
++	DPU_REG_WRITE(c, DSC_DSC_OFFSET, data);
++
++	data = dsc->det_thresh_flatness << 10;
++	data |= dsc->drm.flatness_max_qp << 5;
++	data |= dsc->drm.flatness_min_qp;
++	DPU_REG_WRITE(c, DSC_FLATNESS, data);
++
++	data = dsc->drm.rc_model_size;
++	DPU_REG_WRITE(c, DSC_RC_MODEL_SIZE, data);
++
++	data = dsc->drm.rc_tgt_offset_low << 18;
++	data |= dsc->drm.rc_tgt_offset_high << 14;
++	data |= dsc->drm.rc_quant_incr_limit1 << 9;
++	data |= dsc->drm.rc_quant_incr_limit0 << 4;
++	data |= dsc->drm.rc_edge_factor;
++	DPU_REG_WRITE(c, DSC_RC, data);
++}
++
++static void dpu_hw_dsc_config_thresh(struct dpu_hw_dsc *hw_dsc,
++				     struct msm_display_dsc_config *dsc)
++{
++	struct drm_dsc_rc_range_parameters *rc = dsc->drm.rc_range_params;
++	struct dpu_hw_blk_reg_map *c = &hw_dsc->hw;
++	u32 off = 0x0;
++	u16 *lp;
++	int i;
++
++	lp = dsc->drm.rc_buf_thresh;
++	off = DSC_RC_BUF_THRESH;
++	for (i = 0; i < DSC_NUM_BUF_RANGES - 1 ; i++) {
++		DPU_REG_WRITE(c, off, *lp++);
++		off += 4;
++	}
++
++	off = DSC_RANGE_MIN_QP;
++	for (i = 0; i < DSC_NUM_BUF_RANGES; i++) {
++		DPU_REG_WRITE(c, off, rc[i].range_min_qp);
++		off += 4;
++	}
++
++	off = DSC_RANGE_MAX_QP;
++	for (i = 0; i < 15; i++) {
++		DPU_REG_WRITE(c, off, rc[i].range_max_qp);
++		off += 4;
++	}
++
++	off = DSC_RANGE_BPG_OFFSET;
++	for (i = 0; i < 15; i++) {
++		DPU_REG_WRITE(c, off, rc[i].range_bpg_offset);
++		off += 4;
++	}
++}
++
++static struct dpu_dsc_cfg *_dsc_offset(enum dpu_dsc dsc,
++				       struct dpu_mdss_cfg *m,
++				       void __iomem *addr,
++				       struct dpu_hw_blk_reg_map *b)
++{
++	int i;
++
++	for (i = 0; i < m->dsc_count; i++) {
++		if (dsc == m->dsc[i].id) {
++			b->base_off = addr;
++			b->blk_off = m->dsc[i].base;
++			b->length = m->dsc[i].len;
++			b->hwversion = m->hwversion;
++			b->log_mask = DPU_DBG_MASK_DSC;
++			return &m->dsc[i];
++		}
++	}
++
++	return NULL;
++}
++
++static void _setup_dsc_ops(struct dpu_hw_dsc_ops *ops,
++			   unsigned long cap)
++{
++	ops->dsc_disable = dpu_hw_dsc_disable;
++	ops->dsc_config = dpu_hw_dsc_config;
++	ops->dsc_config_thresh = dpu_hw_dsc_config_thresh;
++};
++
++static struct dpu_hw_blk_ops dpu_hw_ops = {
++	.start = NULL,
++	.stop = NULL,
++};
++
++struct dpu_hw_dsc *dpu_hw_dsc_init(enum dpu_dsc idx, void __iomem *addr,
++				   struct dpu_mdss_cfg *m)
++{
++	struct dpu_hw_dsc *c;
++	struct dpu_dsc_cfg *cfg;
++
++	c = kzalloc(sizeof(*c), GFP_KERNEL);
++	if (!c)
++		return ERR_PTR(-ENOMEM);
++
++	cfg = _dsc_offset(idx, m, addr, &c->hw);
++	if (IS_ERR_OR_NULL(cfg)) {
++		kfree(c);
++		return ERR_PTR(-EINVAL);
++	}
++
++	c->idx = idx;
++	c->caps = cfg;
++	_setup_dsc_ops(&c->ops, c->caps->features);
++
++	dpu_hw_blk_init(&c->base, DPU_HW_BLK_DSC, idx, &dpu_hw_ops);
++
++	return c;
++}
++
++void dpu_hw_dsc_destroy(struct dpu_hw_dsc *dsc)
++{
++	if (dsc)
++		dpu_hw_blk_destroy(&dsc->base);
++	kfree(dsc);
++}
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.h
+new file mode 100644
+index 0000000000000..c680fd948865a
+--- /dev/null
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.h
+@@ -0,0 +1,79 @@
++/* SPDX-License-Identifier: GPL-2.0-only */
++/* Copyright (c) 2020, Linaro Limited */
++
++#ifndef _DPU_HW_DSC_H
++#define _DPU_HW_DSC_H
++
++#include <drm/drm_dsc.h>
++
++#define DSC_MODE_SPLIT_PANEL            BIT(0)
++#define DSC_MODE_MULTIPLEX              BIT(1)
++#define DSC_MODE_VIDEO                  BIT(2)
++
++struct dpu_hw_dsc;
++
++/**
++ * struct dpu_hw_dsc_ops - interface to the dsc hardware driver functions
++ * Assumption is these functions will be called after clocks are enabled
++ */
++struct dpu_hw_dsc_ops {
++	/**
++	 * dsc_disable - disable dsc
++	 * @hw_dsc: Pointer to dsc context
++	 */
++	void (*dsc_disable)(struct dpu_hw_dsc *hw_dsc);
++
++	/**
++	 * dsc_config - configures dsc encoder
++	 * @hw_dsc: Pointer to dsc context
++	 * @dsc: panel dsc parameters
++	 * @mode: dsc topology mode to be set
++	 * @ich_reset_override: option to reset ich
++	 */
++	void (*dsc_config)(struct dpu_hw_dsc *hw_dsc,
++			   struct msm_display_dsc_config *dsc,
++			   u32 mode, bool ich_reset_override);
++
++	/**
++	 * dsc_config_thresh - programs panel thresholds
++	 * @hw_dsc: Pointer to dsc context
++	 * @dsc: panel dsc parameters
++	 */
++	void (*dsc_config_thresh)(struct dpu_hw_dsc *hw_dsc,
++				  struct msm_display_dsc_config *dsc);
++};
++
++struct dpu_hw_dsc {
++	struct dpu_hw_blk base;
++	struct dpu_hw_blk_reg_map hw;
++
++	/* dsc */
++	enum dpu_dsc idx;
++	const struct dpu_dsc_cfg *caps;
++
++	/* ops */
++	struct dpu_hw_dsc_ops ops;
++};
++
++/**
++ * dpu_hw_dsc_init - initializes the dsc block for the passed dsc idx.
++ * @idx:  DSC index for which driver object is required
++ * @addr: Mapped register io address of MDP
++ * @m:    Pointer to mdss catalog data
++ * Returns: Error code or allocated dpu_hw_dsc context
++ */
++struct dpu_hw_dsc *dpu_hw_dsc_init(enum dpu_dsc idx, void __iomem *addr,
++				   struct dpu_mdss_cfg *m);
++
++/**
++ * dpu_hw_dsc_destroy - destroys dsc driver context
++ * @dsc:   Pointer to dsc driver context returned by dpu_hw_dsc_init
++ */
++void dpu_hw_dsc_destroy(struct dpu_hw_dsc *dsc);
++
++static inline struct dpu_hw_dsc *to_dpu_hw_dsc(struct dpu_hw_blk *hw)
++{
++	return container_of(hw, struct dpu_hw_dsc, base);
++}
++
++#endif /* _DPU_HW_DSC_H */
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_mdss.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_mdss.h
+index 09a3fb3e89f52..1b72c11090ee4 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_mdss.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_mdss.h
+@@ -97,6 +97,7 @@ enum dpu_hw_blk_type {
+ 	DPU_HW_BLK_WB,
+ 	DPU_HW_BLK_DSPP,
+ 	DPU_HW_BLK_MERGE_3D,
++	DPU_HW_BLK_DSC,
+ 	DPU_HW_BLK_MAX,
+ };
+ 
+@@ -176,6 +177,17 @@ enum dpu_ctl {
+ 	CTL_MAX
+ };
+ 
++enum dpu_dsc {
++	DSC_NONE = 0,
++	DSC_0,
++	DSC_1,
++	DSC_2,
++	DSC_3,
++	DSC_4,
++	DSC_5,
++	DSC_MAX
++};
++
+ enum dpu_pingpong {
+ 	PINGPONG_0 = 1,
+ 	PINGPONG_1,
+@@ -437,5 +449,6 @@ struct dpu_mdss_color {
+ #define DPU_DBG_MASK_VBIF     (1 << 8)
+ #define DPU_DBG_MASK_ROT      (1 << 9)
+ #define DPU_DBG_MASK_DSPP     (1 << 10)
++#define DPU_DBG_MASK_DSC      (1 << 11)
+ 
+ #endif  /* _DPU_HW_MDSS_H */
+-- 
+2.29.2
+
+
+From e87bab2c4a9320f3a892b2a3d990cc62c5aea9e2 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 15:24:40 +0530
+Subject: [PATCH 15/26] drm/msm/disp/dpu1: Add support for DSC in pingpong
+ block
+
+In SDM845, DSC can be enabled by writing to pingpong block registers, so
+add support for DSC in hw_pp
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ .../gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.c   | 32 +++++++++++++++++++
+ .../gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.h   | 14 ++++++++
+ 2 files changed, 46 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.c
+index 245a7a62b5c68..07fc131ca9aae 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.c
+@@ -28,6 +28,9 @@
+ #define PP_FBC_MODE                     0x034
+ #define PP_FBC_BUDGET_CTL               0x038
+ #define PP_FBC_LOSSY_MODE               0x03C
++#define PP_DSC_MODE                     0x0a0
++#define PP_DCE_DATA_IN_SWAP             0x0ac
++#define PP_DCE_DATA_OUT_SWAP            0x0c8
+ 
+ #define PP_DITHER_EN			0x000
+ #define PP_DITHER_BITDEPTH		0x004
+@@ -245,6 +248,32 @@ static u32 dpu_hw_pp_get_line_count(struct dpu_hw_pingpong *pp)
+ 	return line;
+ }
+ 
++static int dpu_hw_pp_dsc_enable(struct dpu_hw_pingpong *pp)
++{
++	struct dpu_hw_blk_reg_map *c = &pp->hw;
++
++	DPU_REG_WRITE(c, PP_DSC_MODE, 1);
++	return 0;
++}
++
++static void dpu_hw_pp_dsc_disable(struct dpu_hw_pingpong *pp)
++{
++	struct dpu_hw_blk_reg_map *c = &pp->hw;
++
++	DPU_REG_WRITE(c, PP_DSC_MODE, 0);
++}
++
++static int dpu_hw_pp_setup_dsc(struct dpu_hw_pingpong *pp)
++{
++	struct dpu_hw_blk_reg_map *pp_c = &pp->hw;
++	int data;
++
++	data = DPU_REG_READ(pp_c, PP_DCE_DATA_OUT_SWAP);
++	data |= BIT(18); /* endian flip */
++	DPU_REG_WRITE(pp_c, PP_DCE_DATA_OUT_SWAP, data);
++	return 0;
++}
++
+ static void _setup_pingpong_ops(struct dpu_hw_pingpong *c,
+ 				unsigned long features)
+ {
+@@ -256,6 +285,9 @@ static void _setup_pingpong_ops(struct dpu_hw_pingpong *c,
+ 	c->ops.get_autorefresh = dpu_hw_pp_get_autorefresh_config;
+ 	c->ops.poll_timeout_wr_ptr = dpu_hw_pp_poll_timeout_wr_ptr;
+ 	c->ops.get_line_count = dpu_hw_pp_get_line_count;
++	c->ops.setup_dsc = dpu_hw_pp_setup_dsc;
++	c->ops.enable_dsc = dpu_hw_pp_dsc_enable;
++	c->ops.disable_dsc = dpu_hw_pp_dsc_disable;
+ 
+ 	if (test_bit(DPU_PINGPONG_DITHER, &features))
+ 		c->ops.setup_dither = dpu_hw_pp_setup_dither;
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.h
+index 845b9ce80e319..5058e41ffbc04 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_pingpong.h
+@@ -124,6 +124,20 @@ struct dpu_hw_pingpong_ops {
+ 	 */
+ 	void (*setup_dither)(struct dpu_hw_pingpong *pp,
+ 			struct dpu_hw_dither_cfg *cfg);
++	/**
++	 * Enable DSC
++	 */
++	int (*enable_dsc)(struct dpu_hw_pingpong *pp);
++
++	/**
++	 * Disable DSC
++	 */
++	void (*disable_dsc)(struct dpu_hw_pingpong *pp);
++
++	/**
++	 * Setup DSC
++	 */
++	int (*setup_dsc)(struct dpu_hw_pingpong *pp);
+ };
+ 
+ struct dpu_hw_pingpong {
+-- 
+2.29.2
+
+
+From 9eb227d7a22627425526eb67eca61f45ddec720a Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:15:27 +0530
+Subject: [PATCH 16/26] drm/msm/disp/dpu1: Add DSC support in RM
+
+This add the bits in RM to enable the DSC blocks
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h |  1 +
+ drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c  | 32 +++++++++++++++++++++++++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_rm.h  |  1 +
+ 3 files changed, 34 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h
+index d6717d6672f7d..d56c05146dfee 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_kms.h
+@@ -165,6 +165,7 @@ struct dpu_global_state {
+ 	uint32_t ctl_to_enc_id[CTL_MAX - CTL_0];
+ 	uint32_t intf_to_enc_id[INTF_MAX - INTF_0];
+ 	uint32_t dspp_to_enc_id[DSPP_MAX - DSPP_0];
++	uint32_t dsc_to_enc_id[DSC_MAX - DSC_0];
+ };
+ 
+ struct dpu_global_state
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
+index fd2d104f0a91d..4da6d72b7996a 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.c
+@@ -11,6 +11,7 @@
+ #include "dpu_hw_intf.h"
+ #include "dpu_hw_dspp.h"
+ #include "dpu_hw_merge3d.h"
++#include "dpu_hw_dsc.h"
+ #include "dpu_encoder.h"
+ #include "dpu_trace.h"
+ 
+@@ -75,6 +76,14 @@ int dpu_rm_destroy(struct dpu_rm *rm)
+ 			dpu_hw_intf_destroy(hw);
+ 		}
+ 	}
++	for (i = 0; i < ARRAY_SIZE(rm->dsc_blks); i++) {
++		struct dpu_hw_dsc *hw;
++
++		if (rm->intf_blks[i]) {
++			hw = to_dpu_hw_dsc(rm->dsc_blks[i]);
++			dpu_hw_dsc_destroy(hw);
++		}
++	}
+ 
+ 	return 0;
+ }
+@@ -221,6 +230,19 @@ int dpu_rm_init(struct dpu_rm *rm,
+ 		rm->dspp_blks[dspp->id - DSPP_0] = &hw->base;
+ 	}
+ 
++	for (i = 0; i < cat->dsc_count; i++) {
++		struct dpu_hw_dsc *hw;
++		const struct dpu_dsc_cfg *dsc = &cat->dsc[i];
++
++		hw = dpu_hw_dsc_init(dsc->id, mmio, cat);
++		if (IS_ERR_OR_NULL(hw)) {
++			rc = PTR_ERR(hw);
++			DPU_ERROR("failed dsc object creation: err %d\n", rc);
++			goto fail;
++		}
++		rm->dsc_blks[dsc->id - DSC_0] = &hw->base;
++	}
++
+ 	return 0;
+ 
+ fail:
+@@ -476,6 +498,9 @@ static int _dpu_rm_reserve_intf(
+ 	}
+ 
+ 	global_state->intf_to_enc_id[idx] = enc_id;
++
++	global_state->dsc_to_enc_id[0] = enc_id;
++	global_state->dsc_to_enc_id[1] = enc_id;
+ 	return 0;
+ }
+ 
+@@ -567,6 +592,8 @@ void dpu_rm_release(struct dpu_global_state *global_state,
+ 		ARRAY_SIZE(global_state->ctl_to_enc_id), enc->base.id);
+ 	_dpu_rm_clear_mapping(global_state->intf_to_enc_id,
+ 		ARRAY_SIZE(global_state->intf_to_enc_id), enc->base.id);
++	_dpu_rm_clear_mapping(global_state->dsc_to_enc_id,
++		ARRAY_SIZE(global_state->dsc_to_enc_id), enc->base.id);
+ }
+ 
+ int dpu_rm_reserve(
+@@ -640,6 +667,11 @@ int dpu_rm_get_assigned_resources(struct dpu_rm *rm,
+ 		hw_to_enc_id = global_state->dspp_to_enc_id;
+ 		max_blks = ARRAY_SIZE(rm->dspp_blks);
+ 		break;
++	case DPU_HW_BLK_DSC:
++		hw_blks = rm->dsc_blks;
++		hw_to_enc_id = global_state->dsc_to_enc_id;
++		max_blks = ARRAY_SIZE(rm->dsc_blks);
++		break;
+ 	default:
+ 		DPU_ERROR("blk type %d not managed by rm\n", type);
+ 		return 0;
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.h
+index 1f12c8d5b8aa0..278d2a510b807 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_rm.h
+@@ -30,6 +30,7 @@ struct dpu_rm {
+ 	struct dpu_hw_blk *intf_blks[INTF_MAX - INTF_0];
+ 	struct dpu_hw_blk *dspp_blks[DSPP_MAX - DSPP_0];
+ 	struct dpu_hw_blk *merge_3d_blks[MERGE_3D_MAX - MERGE_3D_0];
++	struct dpu_hw_blk *dsc_blks[DSC_MAX - DSC_0];
+ 
+ 	uint32_t lm_max_width;
+ };
+-- 
+2.29.2
+
+
+From 2a5831dbfb2773de912f8b0c1d12f3ddd0b4de7a Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:20:57 +0530
+Subject: [PATCH 17/26] drm/msm/disp/dpu1: Add DSC for SDM845 to hw_catalog
+
+This add SDM845 DSC blocks into hw_catalog
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ .../gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c    | 22 +++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
+index b569030a0847b..1bf599e8ffe07 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_catalog.c
+@@ -40,6 +40,8 @@
+ 
+ #define PINGPONG_SDM845_MASK BIT(DPU_PINGPONG_DITHER)
+ 
++#define DSC_SDM845_MASK BIT(DPU_DSC)
++
+ #define PINGPONG_SDM845_SPLIT_MASK \
+ 	(PINGPONG_SDM845_MASK | BIT(DPU_PINGPONG_TE2))
+ 
+@@ -751,6 +753,24 @@ static const struct dpu_pingpong_cfg sc7280_pp[] = {
+ 	PP_BLK("pingpong_2", PINGPONG_2, 0x6b000, 0, sc7280_pp_sblk),
+ 	PP_BLK("pingpong_3", PINGPONG_3, 0x6c000, 0, sc7280_pp_sblk),
+ };
++
++/*************************************************************
++ * DSC sub blocks config
++ *************************************************************/
++#define DSC_BLK(_name, _id, _base) \
++	{\
++	.name = _name, .id = _id, \
++	.base = _base, .len = 0x140, \
++	.features = DSC_SDM845_MASK, \
++	}
++
++static struct dpu_dsc_cfg sdm845_dsc[] = {
++	DSC_BLK("dsc_0", DSC_0, 0x80000),
++	DSC_BLK("dsc_1", DSC_1, 0x80400),
++	DSC_BLK("dsc_2", DSC_2, 0x80800),
++	DSC_BLK("dsc_3", DSC_3, 0x80c00),
++};
++
+ /*************************************************************
+  * INTF sub blocks config
+  *************************************************************/
+@@ -1053,6 +1073,8 @@ static void sdm845_cfg_init(struct dpu_mdss_cfg *dpu_cfg)
+ 		.mixer = sdm845_lm,
+ 		.pingpong_count = ARRAY_SIZE(sdm845_pp),
+ 		.pingpong = sdm845_pp,
++		.dsc_count = ARRAY_SIZE(sdm845_dsc),
++		.dsc = sdm845_dsc,
+ 		.intf_count = ARRAY_SIZE(sdm845_intf),
+ 		.intf = sdm845_intf,
+ 		.vbif_count = ARRAY_SIZE(sdm845_vbif),
+-- 
+2.29.2
+
+
+From 4fc79268cf153943094aedd9ad1f4cf7f6df0f0a Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:24:20 +0530
+Subject: [PATCH 18/26] drm/msm/disp/dpu1: Add DSC support in hw_ctl
+
+Later gens of hardware have DSC bits moved to hw_ctl, so configure these
+bits so that DSC would work there as well
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+index 2d4645e01ebf6..aeea6add61ee5 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+@@ -25,6 +25,8 @@
+ #define   CTL_MERGE_3D_ACTIVE           0x0E4
+ #define   CTL_INTF_ACTIVE               0x0F4
+ #define   CTL_MERGE_3D_FLUSH            0x100
++#define   CTL_DSC_ACTIVE                0x0E8
++#define   CTL_DSC_FLUSH                0x104
+ #define   CTL_INTF_FLUSH                0x110
+ #define   CTL_INTF_MASTER               0x134
+ #define   CTL_FETCH_PIPE_ACTIVE         0x0FC
+@@ -34,6 +36,7 @@
+ 
+ #define DPU_REG_RESET_TIMEOUT_US        2000
+ #define  MERGE_3D_IDX   23
++#define  DSC_IDX        22
+ #define  INTF_IDX       31
+ #define CTL_INVALID_BIT                 0xffff
+ 
+@@ -120,6 +123,7 @@ static u32 dpu_hw_ctl_get_pending_flush(struct dpu_hw_ctl *ctx)
+ 
+ static inline void dpu_hw_ctl_trigger_flush_v1(struct dpu_hw_ctl *ctx)
+ {
++	DPU_REG_WRITE(&ctx->hw, CTL_DSC_FLUSH, BIT(0) | BIT(1) | BIT(2) | BIT(3));
+ 
+ 	if (ctx->pending_flush_mask & BIT(MERGE_3D_IDX))
+ 		DPU_REG_WRITE(&ctx->hw, CTL_MERGE_3D_FLUSH,
+@@ -128,7 +132,7 @@ static inline void dpu_hw_ctl_trigger_flush_v1(struct dpu_hw_ctl *ctx)
+ 		DPU_REG_WRITE(&ctx->hw, CTL_INTF_FLUSH,
+ 				ctx->pending_intf_flush_mask);
+ 
+-	DPU_REG_WRITE(&ctx->hw, CTL_FLUSH, ctx->pending_flush_mask);
++	DPU_REG_WRITE(&ctx->hw, CTL_FLUSH, ctx->pending_flush_mask |  BIT(DSC_IDX));
+ }
+ 
+ static inline void dpu_hw_ctl_trigger_flush(struct dpu_hw_ctl *ctx)
+@@ -507,6 +511,7 @@ static void dpu_hw_ctl_intf_cfg_v1(struct dpu_hw_ctl *ctx,
+ 	if (cfg->merge_3d)
+ 		DPU_REG_WRITE(c, CTL_MERGE_3D_ACTIVE,
+ 			      BIT(cfg->merge_3d - MERGE_3D_0));
++	DPU_REG_WRITE(c, CTL_DSC_ACTIVE, BIT(0) | BIT(1) | BIT(2) | BIT(3));
+ }
+ 
+ static void dpu_hw_ctl_intf_cfg(struct dpu_hw_ctl *ctx,
+-- 
+2.29.2
+
+
+From 5d65df7b42baaac9b18dc58844209381cebdc244 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:32:33 +0530
+Subject: [PATCH 19/26] drm/msm/disp/dpu1: Don't use DSC with mode_3d
+
+We cannot enable mode_3d when we are using the DSC. So pass
+configuration to detect DSC is enabled and not enable mode_3d
+when we are using DSC
+
+We add a helper dpu_encoder_helper_get_dsc_mode() to detect dsc
+enabled and pass this to .setup_intf_cfg()
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys.h     | 11 +++++++++++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_cmd.c |  2 ++
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c           |  5 +++--
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h           |  2 ++
+ 4 files changed, 18 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys.h
+index ecbc4be989809..d43b804528eb3 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys.h
+@@ -336,6 +336,17 @@ static inline enum dpu_3d_blend_mode dpu_encoder_helper_get_3d_blend_mode(
+ 	return BLEND_3D_NONE;
+ }
+ 
++static inline bool dpu_encoder_helper_get_dsc_mode(struct dpu_encoder_phys *phys_enc)
++{
++	struct drm_encoder *drm_enc = phys_enc->parent;
++	struct msm_drm_private *priv = drm_enc->dev->dev_private;
++
++	if (priv->dsc)
++		return true;
++
++	return false;
++}
++
+ /**
+  * dpu_encoder_helper_split_config - split display configuration helper function
+  *	This helper function may be used by physical encoders to configure
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_cmd.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_cmd.c
+index b2be39b9144e4..5fe87881c30c9 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_cmd.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder_phys_cmd.c
+@@ -69,6 +69,8 @@ static void _dpu_encoder_phys_cmd_update_intf_cfg(
+ 	intf_cfg.intf_mode_sel = DPU_CTL_MODE_SEL_CMD;
+ 	intf_cfg.stream_sel = cmd_enc->stream_sel;
+ 	intf_cfg.mode_3d = dpu_encoder_helper_get_3d_blend_mode(phys_enc);
++	intf_cfg.dsc = dpu_encoder_helper_get_dsc_mode(phys_enc);
++
+ 	ctl->ops.setup_intf_cfg(ctl, &intf_cfg);
+ }
+ 
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+index aeea6add61ee5..f059416311ee4 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.c
+@@ -121,7 +121,7 @@ static u32 dpu_hw_ctl_get_pending_flush(struct dpu_hw_ctl *ctx)
+ 	return ctx->pending_flush_mask;
+ }
+ 
+-static inline void dpu_hw_ctl_trigger_flush_v1(struct dpu_hw_ctl *ctx)
++static void dpu_hw_ctl_trigger_flush_v1(struct dpu_hw_ctl *ctx)
+ {
+ 	DPU_REG_WRITE(&ctx->hw, CTL_DSC_FLUSH, BIT(0) | BIT(1) | BIT(2) | BIT(3));
+ 
+@@ -522,7 +522,8 @@ static void dpu_hw_ctl_intf_cfg(struct dpu_hw_ctl *ctx,
+ 
+ 	intf_cfg |= (cfg->intf & 0xF) << 4;
+ 
+-	if (cfg->mode_3d) {
++	/* In DSC we can't set merge, so check for dsc too */
++	if (cfg->mode_3d && !cfg->dsc) {
+ 		intf_cfg |= BIT(19);
+ 		intf_cfg |= (cfg->mode_3d - 0x1) << 20;
+ 	}
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
+index 806c171e5df21..347a653c1e019 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_ctl.h
+@@ -39,6 +39,7 @@ struct dpu_hw_stage_cfg {
+  * @mode_3d:               3d mux configuration
+  * @merge_3d:              3d merge block used
+  * @intf_mode_sel:         Interface mode, cmd / vid
++ * @dsc:                   DSC is enabled
+  * @stream_sel:            Stream selection for multi-stream interfaces
+  */
+ struct dpu_hw_intf_cfg {
+@@ -46,6 +47,7 @@ struct dpu_hw_intf_cfg {
+ 	enum dpu_3d_blend_mode mode_3d;
+ 	enum dpu_merge_3d merge_3d;
+ 	enum dpu_ctl_mode_sel intf_mode_sel;
++	bool dsc;
+ 	int stream_sel;
+ };
+ 
+-- 
+2.29.2
+
+
+From c18acc3ca2ef76a8e41de7b6fa3ac31044da83b5 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:37:34 +0530
+Subject: [PATCH 20/26] drm/msm/disp/dpu1: Add support for DSC in encoder
+
+When DSC is enabled in DT, we need to configure the encoder for DSC
+configuration, calculate DSC parameters for the given timing.
+
+This patch adds that support by adding dpu_encoder_prep_dsc() which is
+invoked when DSC is enabled in DT
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c | 190 +++++++++++++++++++-
+ 1 file changed, 189 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
+index 8d942052db8ac..18cb1274a8bb0 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
+@@ -21,12 +21,17 @@
+ #include "dpu_hw_intf.h"
+ #include "dpu_hw_ctl.h"
+ #include "dpu_hw_dspp.h"
++#include "dpu_hw_dsc.h"
+ #include "dpu_formats.h"
+ #include "dpu_encoder_phys.h"
+ #include "dpu_crtc.h"
+ #include "dpu_trace.h"
+ #include "dpu_core_irq.h"
+ 
++#define DSC_MODE_SPLIT_PANEL		BIT(0)
++#define DSC_MODE_MULTIPLEX		BIT(1)
++#define DSC_MODE_VIDEO			BIT(2)
++
+ #define DPU_DEBUG_ENC(e, fmt, ...) DPU_DEBUG("enc%d " fmt,\
+ 		(e) ? (e)->base.base.id : -1, ##__VA_ARGS__)
+ 
+@@ -135,6 +140,7 @@ enum dpu_enc_rc_states {
+  * @cur_slave:		As above but for the slave encoder.
+  * @hw_pp:		Handle to the pingpong blocks used for the display. No.
+  *			pingpong blocks can be different than num_phys_encs.
++ * @hw_dsc		Handle to the DSC blocks used for the display.
+  * @intfs_swapped:	Whether or not the phys_enc interfaces have been swapped
+  *			for partial update right-only cases, such as pingpong
+  *			split where virtual pingpong does not generate IRQs
+@@ -180,6 +186,7 @@ struct dpu_encoder_virt {
+ 	struct dpu_encoder_phys *cur_master;
+ 	struct dpu_encoder_phys *cur_slave;
+ 	struct dpu_hw_pingpong *hw_pp[MAX_CHANNELS_PER_ENC];
++	struct dpu_hw_dsc *hw_dsc[MAX_CHANNELS_PER_ENC];
+ 
+ 	bool intfs_swapped;
+ 
+@@ -566,6 +573,8 @@ static struct msm_display_topology dpu_encoder_get_topology(
+ 			struct drm_display_mode *mode)
+ {
+ 	struct msm_display_topology topology = {0};
++	struct drm_encoder *drm_enc;
++	struct msm_drm_private *priv;
+ 	int i, intf_count = 0;
+ 
+ 	for (i = 0; i < MAX_PHYS_ENCODERS_PER_VIRTUAL; i++)
+@@ -1008,7 +1017,8 @@ static void dpu_encoder_virt_mode_set(struct drm_encoder *drm_enc,
+ 	struct dpu_hw_blk *hw_ctl[MAX_CHANNELS_PER_ENC];
+ 	struct dpu_hw_blk *hw_lm[MAX_CHANNELS_PER_ENC];
+ 	struct dpu_hw_blk *hw_dspp[MAX_CHANNELS_PER_ENC] = { NULL };
+-	int num_lm, num_ctl, num_pp;
++	struct dpu_hw_blk *hw_dsc[MAX_CHANNELS_PER_ENC];
++	int num_lm, num_ctl, num_pp, num_dsc;
+ 	int i, j;
+ 
+ 	if (!drm_enc) {
+@@ -1061,11 +1071,16 @@ static void dpu_encoder_virt_mode_set(struct drm_encoder *drm_enc,
+ 	dpu_rm_get_assigned_resources(&dpu_kms->rm, global_state,
+ 		drm_enc->base.id, DPU_HW_BLK_DSPP, hw_dspp,
+ 		ARRAY_SIZE(hw_dspp));
++	num_dsc = dpu_rm_get_assigned_resources(&dpu_kms->rm, global_state,
++		drm_enc->base.id, DPU_HW_BLK_DSC, hw_dsc, ARRAY_SIZE(hw_dsc));
+ 
+ 	for (i = 0; i < MAX_CHANNELS_PER_ENC; i++)
+ 		dpu_enc->hw_pp[i] = i < num_pp ? to_dpu_hw_pingpong(hw_pp[i])
+ 						: NULL;
+ 
++	for (i = 0; i < MAX_CHANNELS_PER_ENC; i++)
++		dpu_enc->hw_dsc[i] = i < num_dsc ? to_dpu_hw_dsc(hw_dsc[i]) : NULL;
++
+ 	cstate = to_dpu_crtc_state(drm_crtc->state);
+ 
+ 	for (i = 0; i < num_lm; i++) {
+@@ -1810,10 +1825,179 @@ static void dpu_encoder_vsync_event_work_handler(struct kthread_work *work)
+ 			nsecs_to_jiffies(ktime_to_ns(wakeup_time)));
+ }
+ 
++static int dpu_encoder_dsc_update_pic_dim(struct msm_display_dsc_config *dsc,
++					  int pic_width, int pic_height)
++{
++	if (!dsc || !pic_width || !pic_height) {
++		DPU_ERROR("invalid input: pic_width=%d pic_height=%d\n",
++			  pic_width, pic_height);
++		return -EINVAL;
++	}
++
++	if ((pic_width % dsc->drm.slice_width) || (pic_height % dsc->drm.slice_height)) {
++		DPU_ERROR("pic_dim=%dx%d has to be multiple of slice=%dx%d\n",
++			  pic_width, pic_height, dsc->drm.slice_width, dsc->drm.slice_height);
++		return -EINVAL;
++	}
++
++	dsc->drm.pic_width = pic_width;
++	dsc->drm.pic_height = pic_height;
++
++	return 0;
++}
++
++static void
++dpu_encoder_dsc_pclk_param_calc(struct msm_display_dsc_config *dsc, u32 width)
++{
++	int slice_per_pkt, slice_per_intf;
++	int bytes_in_slice, total_bytes_per_intf;
++
++	if (!dsc || !dsc->drm.slice_width || !dsc->slice_per_pkt) {
++		DPU_ERROR("Invalid DSC/slices\n");
++		return;
++	}
++
++	slice_per_pkt = dsc->slice_per_pkt;
++	slice_per_intf = DIV_ROUND_UP(width, dsc->drm.slice_width);
++
++	/*
++	 * If slice_per_pkt is greater than slice_per_intf then default to 1.
++	 * This can happen during partial update.
++	 */
++	if (slice_per_pkt > slice_per_intf)
++		slice_per_pkt = 1;
++
++	bytes_in_slice = DIV_ROUND_UP(dsc->drm.slice_width *
++				      dsc->drm.bits_per_pixel, 8);
++	total_bytes_per_intf = bytes_in_slice * slice_per_intf;
++
++	dsc->eol_byte_num = total_bytes_per_intf % 3;
++	dsc->pclk_per_line =  DIV_ROUND_UP(total_bytes_per_intf, 3);
++	dsc->bytes_in_slice = bytes_in_slice;
++	dsc->bytes_per_pkt = bytes_in_slice * slice_per_pkt;
++	dsc->pkt_per_line = slice_per_intf / slice_per_pkt;
++}
++
++static void
++dpu_encoder_dsc_initial_line_calc(struct msm_display_dsc_config *dsc,
++				  u32 enc_ip_width)
++{
++	int ssm_delay, total_pixels, soft_slice_per_enc;
++
++	soft_slice_per_enc = enc_ip_width / dsc->drm.slice_width;
++
++	/*
++	 * minimum number of initial line pixels is a sum of:
++	 * 1. sub-stream multiplexer delay (83 groups for 8bpc,
++	 *    91 for 10 bpc) * 3
++	 * 2. for two soft slice cases, add extra sub-stream multiplexer * 3
++	 * 3. the initial xmit delay
++	 * 4. total pipeline delay through the "lock step" of encoder (47)
++	 * 5. 6 additional pixels as the output of the rate buffer is
++	 *    48 bits wide
++	 */
++	ssm_delay = ((dsc->drm.bits_per_component < 10) ? 84 : 92);
++	total_pixels = ssm_delay * 3 + dsc->drm.initial_xmit_delay + 47;
++	if (soft_slice_per_enc > 1)
++		total_pixels += (ssm_delay * 3);
++	dsc->initial_lines = DIV_ROUND_UP(total_pixels, dsc->drm.slice_width);
++}
++
++static bool
++dpu_encoder_dsc_ich_reset_override_needed(struct msm_display_dsc_config *dsc, bool pu_en)
++{
++	/* As per the DSC spec, ICH_RESET can be either end of the slice line
++	 * or at the end of the slice. HW internally generates ich_reset at
++	 * end of the slice line if DSC_MERGE is used or encoder has two
++	 * soft slices. However, if encoder has only 1 soft slice and DSC_MERGE
++	 * is not used then it will generate ich_reset at the end of slice.
++	 *
++	 * Now as per the spec, during one PPS session, position where
++	 * ich_reset is generated should not change. Now if full-screen frame
++	 * has more than 1 soft slice then HW will automatically generate
++	 * ich_reset at the end of slice_line. But for the same panel, if
++	 * partial frame is enabled and only 1 encoder is used with 1 slice,
++	 * then HW will generate ich_reset at end of the slice. This is a
++	 * mismatch. Prevent this by overriding HW's decision.
++	 */
++	return pu_en && dsc && (dsc->drm.slice_count > 1) &&
++		(dsc->drm.slice_width == dsc->drm.pic_width);
++}
++
++static void dpu_encoder_dsc_pipe_cfg(struct dpu_hw_dsc *hw_dsc,
++				     struct dpu_hw_pingpong *hw_pp,
++				     struct msm_display_dsc_config *dsc,
++				     u32 common_mode, bool ich_reset)
++{
++	if (hw_dsc->ops.dsc_config)
++		hw_dsc->ops.dsc_config(hw_dsc, dsc, common_mode, ich_reset);
++
++	if (hw_dsc->ops.dsc_config_thresh)
++		hw_dsc->ops.dsc_config_thresh(hw_dsc, dsc);
++
++	if (hw_pp->ops.setup_dsc)
++		hw_pp->ops.setup_dsc(hw_pp);
++
++	if (hw_pp->ops.enable_dsc)
++		hw_pp->ops.enable_dsc(hw_pp);
++}
++
++static void dpu_encoder_prep_dsc(struct dpu_encoder_virt *dpu_enc,
++				 struct msm_display_dsc_config *dsc)
++{
++	/* coding only for 2LM, 2enc, 1 dsc config */
++	struct dpu_encoder_phys *enc_master = dpu_enc->cur_master;
++	struct dpu_hw_dsc *hw_dsc[MAX_CHANNELS_PER_ENC];
++	struct dpu_hw_pingpong *hw_pp[MAX_CHANNELS_PER_ENC];
++	int this_frame_slices;
++	int intf_ip_w, enc_ip_w;
++	int ich_res, dsc_common_mode;
++	int pic_width, pic_height;
++	int i;
++
++	for (i = 0; i < MAX_CHANNELS_PER_ENC; i++) {
++		hw_pp[i] = dpu_enc->hw_pp[i];
++		hw_dsc[i] = dpu_enc->hw_dsc[i];
++
++		if (!hw_pp[i] || !hw_dsc[i]) {
++			DPU_ERROR_ENC(dpu_enc, "invalid params for DSC\n");
++			return;
++		}
++	}
++
++	dsc_common_mode = 0;
++	pic_width = dsc->drm.pic_width;
++	pic_height = dsc->drm.pic_height;
++
++	dpu_encoder_dsc_update_pic_dim(dsc, pic_width, pic_height);
++
++	dsc_common_mode = DSC_MODE_MULTIPLEX | DSC_MODE_SPLIT_PANEL;
++	if (enc_master->intf_mode == INTF_MODE_VIDEO)
++		dsc_common_mode |= DSC_MODE_VIDEO;
++
++	this_frame_slices = pic_width / dsc->drm.slice_width;
++	intf_ip_w = this_frame_slices * dsc->drm.slice_width;
++
++	dpu_encoder_dsc_pclk_param_calc(dsc, intf_ip_w);
++
++	/*
++	 * dsc merge case: when using 2 encoders for the same stream,
++	 * no. of slices need to be same on both the encoders.
++	 */
++	enc_ip_w = intf_ip_w / 2;
++	dpu_encoder_dsc_initial_line_calc(dsc, enc_ip_w);
++
++	ich_res = dpu_encoder_dsc_ich_reset_override_needed(dsc, false);
++
++	for (i = 0; i < MAX_CHANNELS_PER_ENC; i++)
++		dpu_encoder_dsc_pipe_cfg(hw_dsc[i], hw_pp[i], dsc, dsc_common_mode, ich_res);
++}
++
+ void dpu_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc)
+ {
+ 	struct dpu_encoder_virt *dpu_enc;
+ 	struct dpu_encoder_phys *phys;
++	struct msm_drm_private *priv;
+ 	bool needs_hw_reset = false;
+ 	unsigned int i;
+ 
+@@ -1841,6 +2025,10 @@ void dpu_encoder_prepare_for_kickoff(struct drm_encoder *drm_enc)
+ 			dpu_encoder_helper_hw_reset(dpu_enc->phys_encs[i]);
+ 		}
+ 	}
++
++	priv = drm_enc->dev->dev_private;
++	if (priv->dsc)
++		dpu_encoder_prep_dsc(dpu_enc, priv->dsc);
+ }
+ 
+ void dpu_encoder_kickoff(struct drm_encoder *drm_enc)
+-- 
+2.29.2
+
+
+From 1d568ff26a34ba7e14a1b0d31ffb0f341ba6bdfc Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:37:34 +0530
+Subject: [PATCH 21/26] drm/msm/disp/dpu1: Add support for DSC in topology
+
+For DSC to work we typically need a 2,2,1 configuration. This should
+suffice for resolutions upto 4k. For more resolutions like 8k this won't
+work.
+
+Furthermore, we can use 1 DSC encoder in lesser resulutions, but that is
+not power efficient according to Abhinav, so it is recommended to always
+use 2 encoders.
+
+So for now we blindly create 2,2,1 topology when DSC is enabled
+
+Co-developed-by: Abhinav Kumar <abhinavk@codeaurora.org>
+Signed-off-by: Abhinav Kumar <abhinavk@codeaurora.org>
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c | 14 ++++++++++++++
+ 1 file changed, 14 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
+index 18cb1274a8bb0..bffb40085c678 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
+@@ -609,8 +609,22 @@ static struct msm_display_topology dpu_encoder_get_topology(
+ 	topology.num_enc = 0;
+ 	topology.num_intf = intf_count;
+ 
++	drm_enc = &dpu_enc->base;
++	priv = drm_enc->dev->dev_private;
++	if (priv && priv->dsc) {
++		/* In case of Display Stream Compression DSC, we would use
++		 * 2 encoders, 2 line mixers and 1 interface
++		 * this is power optimal and can drive upto (including) 4k
++		 * screens
++		 */
++		topology.num_enc = 2;
++		topology.num_intf = 1;
++		topology.num_lm = 2;
++	}
++
+ 	return topology;
+ }
++
+ static int dpu_encoder_virt_atomic_check(
+ 		struct drm_encoder *drm_enc,
+ 		struct drm_crtc_state *crtc_state,
+-- 
+2.29.2
+
+
+From 452159abd6ef83dba58fb2124ad61ffe70b54e59 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:45:00 +0530
+Subject: [PATCH 22/26] drm/msm/dsi: Add support for DSC configuration
+
+When DSC is enabled, we need to configure DSI registers accordingly and
+configure the respective stream compression registers.
+
+Add support to calculate the register setting based on DSC params and
+timing information and configure these registers.
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/dsi/dsi.xml.h  |  10 +++
+ drivers/gpu/drm/msm/dsi/dsi_host.c | 118 ++++++++++++++++++++++++++---
+ 2 files changed, 118 insertions(+), 10 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/dsi/dsi.xml.h b/drivers/gpu/drm/msm/dsi/dsi.xml.h
+index 50eb4d1b8fddf..b8e9e608abfcf 100644
+--- a/drivers/gpu/drm/msm/dsi/dsi.xml.h
++++ b/drivers/gpu/drm/msm/dsi/dsi.xml.h
+@@ -2310,4 +2310,14 @@ static inline uint32_t REG_DSI_7nm_PHY_LN_TX_DCTRL(uint32_t i0) { return 0x00000
+ 
+ #define REG_DSI_7nm_PHY_PLL_PERF_OPTIMIZE			0x00000260
+ 
++#define REG_DSI_VIDEO_COMPRESSION_MODE_CTRL			0x0000029c
++
++#define REG_DSI_VIDEO_COMPRESSION_MODE_CTRL2			0x000002a0
++
++#define REG_DSI_COMMAND_COMPRESSION_MODE_CTRL			0x000002a4
++
++#define REG_DSI_COMMAND_COMPRESSION_MODE_CTRL2			0x000002a8
++
++#define REG_DSI_COMMAND_COMPRESSION_MODE_CTRL3			0x000002ac
++
+ #endif /* DSI_XML */
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+index 864d3c655e73e..e26545fc82e03 100644
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -954,6 +954,7 @@ static void dsi_timing_setup(struct msm_dsi_host *msm_host, bool is_dual_dsi)
+ 	u32 va_end = va_start + mode->vdisplay;
+ 	u32 hdisplay = mode->hdisplay;
+ 	u32 wc;
++	u32 data;
+ 
+ 	DBG("");
+ 
+@@ -972,7 +973,69 @@ static void dsi_timing_setup(struct msm_dsi_host *msm_host, bool is_dual_dsi)
+ 		hdisplay /= 2;
+ 	}
+ 
++	if (msm_host->dsc) {
++		struct msm_display_dsc_config *dsc = msm_host->dsc;
++
++		/* update dsc params with timing params */
++		dsc->drm.pic_width = mode->hdisplay;
++		dsc->drm.pic_height = mode->vdisplay;
++
++		/* Divide the display by 3 but keep back/font porch and
++		 * pulse width same
++		 */
++		h_total -= hdisplay;
++		hdisplay /= 3;
++		h_total += hdisplay;
++		ha_end = ha_start + hdisplay;
++	}
++
+ 	if (msm_host->mode_flags & MIPI_DSI_MODE_VIDEO) {
++		if (msm_host->dsc) {
++			struct msm_display_dsc_config *dsc = msm_host->dsc;
++			u32 reg, intf_width, slice_per_intf, width;
++			u32 total_bytes_per_intf;
++
++			/* first calculate dsc parameters and then program
++			 * compress mode registers
++			 */
++			intf_width = hdisplay;
++			slice_per_intf = DIV_ROUND_UP(intf_width, dsc->drm.slice_width);
++
++			/* If slice_per_pkt > slice_per_intf, then use 1
++			 * This can happen during partial update
++			 */
++			if (dsc->slice_per_pkt > slice_per_intf)
++				dsc->slice_per_pkt = 1;
++
++			dsc->bytes_in_slice = DIV_ROUND_UP(dsc->drm.slice_width * 8, 8);
++			total_bytes_per_intf = dsc->bytes_in_slice * slice_per_intf;
++
++			dsc->eol_byte_num = total_bytes_per_intf % 3;
++			dsc->pclk_per_line =  DIV_ROUND_UP(total_bytes_per_intf, 3);
++			dsc->bytes_per_pkt = dsc->bytes_in_slice * dsc->slice_per_pkt;
++			dsc->pkt_per_line = slice_per_intf / dsc->slice_per_pkt;
++
++			width = dsc->pclk_per_line;
++			reg = dsc->bytes_per_pkt << 16;
++			reg |= (0x0b << 8);    /* dtype of compressed image */
++
++			/* pkt_per_line:
++			 * 0 == 1 pkt
++			 * 1 == 2 pkt
++			 * 2 == 4 pkt
++			 * 3 pkt is not supported
++			 * above translates to ffs() - 1
++			 */
++			reg |= (ffs(dsc->pkt_per_line) - 1) << 6;
++
++			dsc->eol_byte_num = total_bytes_per_intf % 3;
++			reg |= dsc->eol_byte_num << 4;
++			reg |= 1;
++
++			dsi_write(msm_host,
++				  REG_DSI_VIDEO_COMPRESSION_MODE_CTRL, reg);
++		}
++
+ 		dsi_write(msm_host, REG_DSI_ACTIVE_H,
+ 			DSI_ACTIVE_H_START(ha_start) |
+ 			DSI_ACTIVE_H_END(ha_end));
+@@ -991,19 +1054,50 @@ static void dsi_timing_setup(struct msm_dsi_host *msm_host, bool is_dual_dsi)
+ 			DSI_ACTIVE_VSYNC_VPOS_START(vs_start) |
+ 			DSI_ACTIVE_VSYNC_VPOS_END(vs_end));
+ 	} else {		/* command mode */
++		if (msm_host->dsc) {
++			struct msm_display_dsc_config *dsc = msm_host->dsc;
++			u32 reg, reg_ctrl, reg_ctrl2;
++			u32 slice_per_intf, bytes_in_slice, total_bytes_per_intf;
++
++			reg_ctrl = dsi_read(msm_host, REG_DSI_COMMAND_COMPRESSION_MODE_CTRL);
++			reg_ctrl2 = dsi_read(msm_host, REG_DSI_COMMAND_COMPRESSION_MODE_CTRL2);
++
++			slice_per_intf = DIV_ROUND_UP(hdisplay, dsc->drm.slice_width);
++			bytes_in_slice = DIV_ROUND_UP(dsc->drm.slice_width *
++						      dsc->drm.bits_per_pixel, 8);
++			dsc->drm.slice_chunk_size = bytes_in_slice;
++			total_bytes_per_intf = dsc->bytes_in_slice * slice_per_intf;
++			dsc->pkt_per_line = slice_per_intf / dsc->slice_per_pkt;
++
++			reg = 0x39 << 8;
++			reg |= ffs(dsc->pkt_per_line) << 6;
++
++			dsc->eol_byte_num = total_bytes_per_intf % 3;
++			reg |= dsc->eol_byte_num << 4;
++			reg |= 1;
++
++			reg_ctrl |= reg;
++			reg_ctrl2 |= bytes_in_slice;
++
++			dsi_write(msm_host, REG_DSI_COMMAND_COMPRESSION_MODE_CTRL, reg);
++			dsi_write(msm_host, REG_DSI_COMMAND_COMPRESSION_MODE_CTRL2, reg_ctrl2);
++		}
++
+ 		/* image data and 1 byte write_memory_start cmd */
+-		wc = hdisplay * dsi_get_bpp(msm_host->format) / 8 + 1;
++		if (!msm_host->dsc)
++			wc = hdisplay * dsi_get_bpp(msm_host->format) / 8 + 1;
++		else
++			wc = mode->hdisplay / 2 + 1;
++
++		data = DSI_CMD_MDP_STREAM0_CTRL_WORD_COUNT(wc) |
++		       DSI_CMD_MDP_STREAM0_CTRL_VIRTUAL_CHANNEL(msm_host->channel) |
++			DSI_CMD_MDP_STREAM0_CTRL_DATA_TYPE(MIPI_DSI_DCS_LONG_WRITE);
+ 
+-		dsi_write(msm_host, REG_DSI_CMD_MDP_STREAM0_CTRL,
+-			DSI_CMD_MDP_STREAM0_CTRL_WORD_COUNT(wc) |
+-			DSI_CMD_MDP_STREAM0_CTRL_VIRTUAL_CHANNEL(
+-					msm_host->channel) |
+-			DSI_CMD_MDP_STREAM0_CTRL_DATA_TYPE(
+-					MIPI_DSI_DCS_LONG_WRITE));
++		dsi_write(msm_host, REG_DSI_CMD_MDP_STREAM0_CTRL, data);
+ 
+-		dsi_write(msm_host, REG_DSI_CMD_MDP_STREAM0_TOTAL,
+-			DSI_CMD_MDP_STREAM0_TOTAL_H_TOTAL(hdisplay) |
+-			DSI_CMD_MDP_STREAM0_TOTAL_V_TOTAL(mode->vdisplay));
++		data = DSI_CMD_MDP_STREAM0_TOTAL_H_TOTAL(hdisplay) |
++			DSI_CMD_MDP_STREAM0_TOTAL_V_TOTAL(mode->vdisplay);
++		dsi_write(msm_host, REG_DSI_CMD_MDP_STREAM0_TOTAL, data);
+ 	}
+ }
+ 
+@@ -2111,6 +2205,7 @@ int msm_dsi_host_modeset_init(struct mipi_dsi_host *host,
+ 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
+ 	const struct msm_dsi_cfg_handler *cfg_hnd = msm_host->cfg_hnd;
+ 	struct platform_device *pdev = msm_host->pdev;
++	struct msm_drm_private *priv;
+ 	int ret;
+ 
+ 	msm_host->irq = irq_of_parse_and_map(pdev->dev.of_node, 0);
+@@ -2130,6 +2225,9 @@ int msm_dsi_host_modeset_init(struct mipi_dsi_host *host,
+ 	}
+ 
+ 	msm_host->dev = dev;
++	priv = dev->dev_private;
++	priv->dsc = msm_host->dsc;
++
+ 	ret = cfg_hnd->ops->tx_buf_alloc(msm_host, SZ_4K);
+ 	if (ret) {
+ 		pr_err("%s: alloc tx gem obj failed, %d\n", __func__, ret);
+-- 
+2.29.2
+
+
+From e221fc4864e1bb61798f414f92c0ee1c6d67ffe6 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Fri, 21 May 2021 16:45:00 +0530
+Subject: [PATCH 23/26] drm/msm/dsi: Pass DSC params to drm_panel
+
+When DSC is enabled, we need to pass the DSC parameters to panel driver
+as well, so add a dsc parameter in panel and set it when DSC is enabled
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/dsi/dsi_host.c | 5 +++++
+ include/drm/drm_panel.h            | 7 +++++++
+ 2 files changed, 12 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+index e26545fc82e03..7fc7002eda78a 100644
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -1700,6 +1700,7 @@ static int dsi_host_attach(struct mipi_dsi_host *host,
+ 					struct mipi_dsi_device *dsi)
+ {
+ 	struct msm_dsi_host *msm_host = to_msm_dsi_host(host);
++	struct drm_panel *panel;
+ 	int ret;
+ 
+ 	if (dsi->lanes > msm_host->num_data_lanes)
+@@ -1719,6 +1720,10 @@ static int dsi_host_attach(struct mipi_dsi_host *host,
+ 	if (msm_host->dev)
+ 		queue_work(msm_host->workqueue, &msm_host->hpd_work);
+ 
++	panel = msm_dsi_host_get_panel(host);
++	if (panel)
++		panel->dsc = &msm_host->dsc->drm;
++
+ 	return 0;
+ }
+ 
+diff --git a/include/drm/drm_panel.h b/include/drm/drm_panel.h
+index 33605c3f0ebaa..27a7808a29f25 100644
+--- a/include/drm/drm_panel.h
++++ b/include/drm/drm_panel.h
+@@ -171,6 +171,13 @@ struct drm_panel {
+ 	 * Panel entry in registry.
+ 	 */
+ 	struct list_head list;
++
++	/**
++	 * @dsc:
++	 *
++	 * Panel DSC pps payload to be sent
++	 */
++	struct drm_dsc_config *dsc;
+ };
+ 
+ void drm_panel_init(struct drm_panel *panel, struct device *dev,
+-- 
+2.29.2
+
+
+From dcf128e83ddd25e461a5080a349de5a0552eed32 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Wed, 4 Mar 2020 11:22:14 +0530
+Subject: [PATCH 24/26] drm: panel: sw43408: Add DSC support
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/panel/panel-lg-sw43408.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/drivers/gpu/drm/panel/panel-lg-sw43408.c b/drivers/gpu/drm/panel/panel-lg-sw43408.c
+index e6192df05a7c3..932bf36ae7da6 100644
+--- a/drivers/gpu/drm/panel/panel-lg-sw43408.c
++++ b/drivers/gpu/drm/panel/panel-lg-sw43408.c
+@@ -20,6 +20,7 @@
+ #include <drm/drm_modes.h>
+ #include <drm/drm_panel.h>
+ #include <drm/drm_print.h>
++#include <drm/drm_dsc.h>
+ 
+ #include <video/mipi_display.h>
+ 
+@@ -397,6 +398,7 @@ static int lg_panel_prepare(struct drm_panel *panel)
+ static int lg_panel_enable(struct drm_panel *panel)
+ {
+ 	struct panel_info *pinfo = to_panel_info(panel);
++	struct drm_dsi_dsc_infoframe pps;
+ 	int ret;
+ 
+ 	if (pinfo->enabled)
+@@ -408,6 +410,22 @@ static int lg_panel_enable(struct drm_panel *panel)
+ 		return ret;
+ 	}
+ 
++	if (panel->dsc) {
++		/* this panel uses DSC so send the pps */
++		drm_dsc_dsi_pps_header_init(&pps.dsc_header);
++		drm_dsc_compute_rc_parameters(panel->dsc);
++		drm_dsc_pps_payload_pack(&pps.pps_payload, panel->dsc);
++		pr_err("VK: in %s doing pps write now\n", __func__);
++		ret = mipi_dsi_dcs_write(pinfo->link,
++					 MIPI_DSI_PICTURE_PARAMETER_SET,
++					 &pps, 135);
++		if (ret < 0) {
++			DRM_DEV_ERROR(panel->dev,
++				      "failed to set pps: %d\n", ret);
++			return ret;
++		}
++	}
++
+ 	pinfo->enabled = true;
+ 
+ 	return 0;
+-- 
+2.29.2
+
+
+From 2d5a617cafd538af14c4be0446a38ad22cb883f7 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Thu, 10 Jun 2021 18:11:09 +0530
+Subject: [PATCH 25/26] HACK: Hard coding
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
+index 8b8d0553709d9..de7cbe785cca4 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
+@@ -77,35 +77,43 @@ static void dpu_hw_dsc_config(struct dpu_hw_dsc *hw_dsc,
+ 
+ 	data = DIV_ROUND_UP(dsc->drm.slice_width * dsc->drm.bits_per_pixel, 8) << 16;
+ 
++	data = 0x021C0000; // XXX
+ 	DPU_REG_WRITE(c, DSC_CHUNK_SIZE, data);
+ 
+ 	data = dsc->drm.initial_dec_delay << 16;
+ 	data |= dsc->drm.initial_xmit_delay;
++	data = 0x020E0200; // XXX
+ 	DPU_REG_WRITE(c, DSC_DELAY, data);
+ 
+ 	data = dsc->drm.initial_scale_value;
++	data = 0x00000020; // XXX
+ 	DPU_REG_WRITE(c, DSC_SCALE_INITIAL, data);
+ 
+ 	data = dsc->drm.scale_decrement_interval;
++	data = 0x00000007; // XXX
+ 	DPU_REG_WRITE(c, DSC_SCALE_DEC_INTERVAL, data);
+ 
+ 	data = 0x00000184; /* only this value works */
+ 	DPU_REG_WRITE(c, DSC_SCALE_INC_INTERVAL, data);
+ 
+ 	data = dsc->drm.first_line_bpg_offset;
++	data = 0x0000000C; // XXX
+ 	DPU_REG_WRITE(c, DSC_FIRST_LINE_BPG_OFFSET, data);
+ 
+ 	data = dsc->drm.nfl_bpg_offset << 16;
+ 	data |= dsc->drm.slice_bpg_offset;
++	data = 0x0667065c; // XXX
+ 	DPU_REG_WRITE(c, DSC_BPG_OFFSET, data);
+ 
+ 	data = dsc->drm.initial_offset << 16;
+ 	data |= dsc->drm.final_offset;
++	data = 0x180010F0; // XXX
+ 	DPU_REG_WRITE(c, DSC_DSC_OFFSET, data);
+ 
+ 	data = dsc->det_thresh_flatness << 10;
+ 	data |= dsc->drm.flatness_max_qp << 5;
+ 	data |= dsc->drm.flatness_min_qp;
++	data = 0x00001d83;
+ 	DPU_REG_WRITE(c, DSC_FLATNESS, data);
+ 
+ 	data = dsc->drm.rc_model_size;
+-- 
+2.29.2
+
+
+From 8e0150ddba7a61d981acbb288a59fcea7e444129 Mon Sep 17 00:00:00 2001
+From: Vinod Koul <vkoul@kernel.org>
+Date: Wed, 30 Jun 2021 22:22:40 +0530
+Subject: [PATCH 26/26] test: change dsc params logic
+
+Signed-off-by: Vinod Koul <vkoul@kernel.org>
+---
+ drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c |  23 ----
+ drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c  |  28 +++--
+ drivers/gpu/drm/msm/dsi/dsi_host.c          | 118 ++++++++++++++++----
+ drivers/gpu/drm/panel/panel-lg-sw43408.c    |   5 +-
+ 4 files changed, 113 insertions(+), 61 deletions(-)
+
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
+index bffb40085c678..711c6d7f40d1d 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_encoder.c
+@@ -1839,27 +1839,6 @@ static void dpu_encoder_vsync_event_work_handler(struct kthread_work *work)
+ 			nsecs_to_jiffies(ktime_to_ns(wakeup_time)));
+ }
+ 
+-static int dpu_encoder_dsc_update_pic_dim(struct msm_display_dsc_config *dsc,
+-					  int pic_width, int pic_height)
+-{
+-	if (!dsc || !pic_width || !pic_height) {
+-		DPU_ERROR("invalid input: pic_width=%d pic_height=%d\n",
+-			  pic_width, pic_height);
+-		return -EINVAL;
+-	}
+-
+-	if ((pic_width % dsc->drm.slice_width) || (pic_height % dsc->drm.slice_height)) {
+-		DPU_ERROR("pic_dim=%dx%d has to be multiple of slice=%dx%d\n",
+-			  pic_width, pic_height, dsc->drm.slice_width, dsc->drm.slice_height);
+-		return -EINVAL;
+-	}
+-
+-	dsc->drm.pic_width = pic_width;
+-	dsc->drm.pic_height = pic_height;
+-
+-	return 0;
+-}
+-
+ static void
+ dpu_encoder_dsc_pclk_param_calc(struct msm_display_dsc_config *dsc, u32 width)
+ {
+@@ -1983,8 +1962,6 @@ static void dpu_encoder_prep_dsc(struct dpu_encoder_virt *dpu_enc,
+ 	pic_width = dsc->drm.pic_width;
+ 	pic_height = dsc->drm.pic_height;
+ 
+-	dpu_encoder_dsc_update_pic_dim(dsc, pic_width, pic_height);
+-
+ 	dsc_common_mode = DSC_MODE_MULTIPLEX | DSC_MODE_SPLIT_PANEL;
+ 	if (enc_master->intf_mode == INTF_MODE_VIDEO)
+ 		dsc_common_mode |= DSC_MODE_VIDEO;
+diff --git a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
+index de7cbe785cca4..9a0f403bcf5dd 100644
+--- a/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
++++ b/drivers/gpu/drm/msm/disp/dpu1/dpu_hw_dsc.c
+@@ -41,7 +41,7 @@ static void dpu_hw_dsc_config(struct dpu_hw_dsc *hw_dsc,
+ 			      u32 mode, bool ich_reset_override)
+ {
+ 	struct dpu_hw_blk_reg_map *c = &hw_dsc->hw;
+-	u32 data;
++	u32 data, lsb, bpp;
+ 	u32 initial_lines = dsc->initial_lines;
+ 	bool is_cmd_mode = !(mode & BIT(2));
+ 
+@@ -55,15 +55,21 @@ static void dpu_hw_dsc_config(struct dpu_hw_dsc *hw_dsc,
+ 		initial_lines += 1;
+ 
+ 	data |= (initial_lines << 20);
+-	data |= ((dsc->slice_last_group_size) << 18);
++	data |= ((dsc->slice_last_group_size - 1) << 18);
+ 	/* bpp is 6.4 format, 4 LSBs bits are for fractional part */
+ 	data |= dsc->drm.bits_per_pixel << 12;
++	lsb = dsc->drm.bits_per_pixel % 4;
++	bpp = dsc->drm.bits_per_pixel / 4;
++	bpp *= 4;
++	bpp <<= 4;
++	bpp |= lsb;
++
++	data |= bpp << 8;
+ 	data |= (dsc->drm.block_pred_enable << 7);
+ 	data |= (dsc->drm.line_buf_depth << 3);
+ 	data |= (dsc->drm.simple_422 << 2);
+ 	data |= (dsc->drm.convert_rgb << 1);
+-	if (dsc->drm.bits_per_component  == 10)
+-		data |= BIT(0);
++	data |= dsc->drm.bits_per_component;
+ 
+ 	DPU_REG_WRITE(c, DSC_ENC, data);
+ 
+@@ -75,45 +81,37 @@ static void dpu_hw_dsc_config(struct dpu_hw_dsc *hw_dsc,
+ 	data |= dsc->drm.slice_height;
+ 	DPU_REG_WRITE(c, DSC_SLICE, data);
+ 
+-	data = DIV_ROUND_UP(dsc->drm.slice_width * dsc->drm.bits_per_pixel, 8) << 16;
+-
+-	data = 0x021C0000; // XXX
++	data = dsc->drm.slice_chunk_size << 16;
+ 	DPU_REG_WRITE(c, DSC_CHUNK_SIZE, data);
+ 
++
+ 	data = dsc->drm.initial_dec_delay << 16;
+ 	data |= dsc->drm.initial_xmit_delay;
+-	data = 0x020E0200; // XXX
+ 	DPU_REG_WRITE(c, DSC_DELAY, data);
+ 
+ 	data = dsc->drm.initial_scale_value;
+-	data = 0x00000020; // XXX
+ 	DPU_REG_WRITE(c, DSC_SCALE_INITIAL, data);
+ 
+ 	data = dsc->drm.scale_decrement_interval;
+-	data = 0x00000007; // XXX
+ 	DPU_REG_WRITE(c, DSC_SCALE_DEC_INTERVAL, data);
+ 
+-	data = 0x00000184; /* only this value works */
++	data = dsc->drm.scale_increment_interval;
+ 	DPU_REG_WRITE(c, DSC_SCALE_INC_INTERVAL, data);
+ 
+ 	data = dsc->drm.first_line_bpg_offset;
+-	data = 0x0000000C; // XXX
+ 	DPU_REG_WRITE(c, DSC_FIRST_LINE_BPG_OFFSET, data);
+ 
+ 	data = dsc->drm.nfl_bpg_offset << 16;
+ 	data |= dsc->drm.slice_bpg_offset;
+-	data = 0x0667065c; // XXX
+ 	DPU_REG_WRITE(c, DSC_BPG_OFFSET, data);
+ 
+ 	data = dsc->drm.initial_offset << 16;
+ 	data |= dsc->drm.final_offset;
+-	data = 0x180010F0; // XXX
+ 	DPU_REG_WRITE(c, DSC_DSC_OFFSET, data);
+ 
+ 	data = dsc->det_thresh_flatness << 10;
+ 	data |= dsc->drm.flatness_max_qp << 5;
+ 	data |= dsc->drm.flatness_min_qp;
+-	data = 0x00001d83;
+ 	DPU_REG_WRITE(c, DSC_FLATNESS, data);
+ 
+ 	data = dsc->drm.rc_model_size;
+diff --git a/drivers/gpu/drm/msm/dsi/dsi_host.c b/drivers/gpu/drm/msm/dsi/dsi_host.c
+index 7fc7002eda78a..7279d88728643 100644
+--- a/drivers/gpu/drm/msm/dsi/dsi_host.c
++++ b/drivers/gpu/drm/msm/dsi/dsi_host.c
+@@ -30,6 +30,8 @@
+ 
+ #define DSI_RESET_TOGGLE_DELAY_MS 20
+ 
++static int dsi_populate_dsc_params(struct msm_display_dsc_config *dsc);
++
+ static int dsi_get_version(const void __iomem *base, u32 *major, u32 *minor)
+ {
+ 	u32 ver;
+@@ -940,6 +942,27 @@ static void dsi_ctrl_config(struct msm_dsi_host *msm_host, bool enable,
+ 	dsi_write(msm_host, REG_DSI_CTRL, data);
+ }
+ 
++static int dsi_dsc_update_pic_dim(struct msm_display_dsc_config *dsc,
++				  int pic_width, int pic_height)
++{
++	if (!dsc || !pic_width || !pic_height) {
++		pr_err("DSI: invalid input: pic_width: %d pic_height: %d\n", pic_width, pic_height);
++		return -EINVAL;
++	}
++
++	if ((pic_width % dsc->drm.slice_width) || (pic_height % dsc->drm.slice_height)) {
++		pr_err("DSI: pic_dim %dx%d has to be multiple of slice %dx%d\n",
++		       pic_width, pic_height, dsc->drm.slice_width, dsc->drm.slice_height);
++		return -EINVAL;
++	}
++
++	dsc->drm.pic_width = pic_width;
++	dsc->drm.pic_height = pic_height;
++
++	return 0;
++}
++
++
+ static void dsi_timing_setup(struct msm_dsi_host *msm_host, bool is_dual_dsi)
+ {
+ 	struct drm_display_mode *mode = msm_host->mode;
+@@ -977,8 +1000,13 @@ static void dsi_timing_setup(struct msm_dsi_host *msm_host, bool is_dual_dsi)
+ 		struct msm_display_dsc_config *dsc = msm_host->dsc;
+ 
+ 		/* update dsc params with timing params */
+-		dsc->drm.pic_width = mode->hdisplay;
+-		dsc->drm.pic_height = mode->vdisplay;
++		dsi_dsc_update_pic_dim(dsc, mode->hdisplay, mode->vdisplay);
++		DBG("Mode Width- %d x Height %d\n", dsc->drm.pic_width, dsc->drm.pic_height);
++
++		/* we do the calculations for dsc parameters here so that
++		 * panel can use these parameters
++		 */
++		dsi_populate_dsc_params(dsc);
+ 
+ 		/* Divide the display by 3 but keep back/font porch and
+ 		 * pulse width same
+@@ -1864,10 +1892,19 @@ static char bpg_offset[DSC_NUM_BUF_RANGES] = {
+ 
+ static int dsi_populate_dsc_params(struct msm_display_dsc_config *dsc)
+ {
++	int mux_words_size;
++	int groups_per_line, groups_total;
++	int min_rate_buffer_size;
++	int hrd_delay;
++	int pre_num_extra_mux_bits, num_extra_mux_bits;
++	int slice_bits;
++	int target_bpp_x16;
++	int data;
++	int final_value, final_scale;
+ 	int i;
+ 
+ 	dsc->drm.rc_model_size = 8192;
+-	dsc->drm.first_line_bpg_offset = 15;
++	dsc->drm.first_line_bpg_offset = 12;
+ 	dsc->drm.rc_edge_factor = 6;
+ 	dsc->drm.rc_tgt_offset_high = 3;
+ 	dsc->drm.rc_tgt_offset_low = 3;
+@@ -1885,7 +1922,14 @@ static int dsi_populate_dsc_params(struct msm_display_dsc_config *dsc)
+ 		dsc->drm.rc_range_params[i].range_bpg_offset = bpg_offset[i];
+ 	}
+ 
+-	dsc->drm.initial_offset = 6144;
++	dsc->drm.initial_offset = 6144; /* Not bpp 12 */
++	if (dsc->drm.bits_per_pixel != 8)
++		dsc->drm.initial_offset = 2048;	/* bpp = 12 */
++
++	mux_words_size = 48;		/* bpc == 8/10 */
++	if (dsc->drm.bits_per_component == 12)
++		mux_words_size = 64;
++
+ 	dsc->drm.initial_xmit_delay = 512;
+ 	dsc->drm.initial_scale_value = 32;
+ 	dsc->drm.first_line_bpg_offset = 12;
+@@ -1894,7 +1938,7 @@ static int dsi_populate_dsc_params(struct msm_display_dsc_config *dsc)
+ 	/* bpc 8 */
+ 	dsc->drm.flatness_min_qp = 3;
+ 	dsc->drm.flatness_max_qp = 12;
+-	dsc->det_thresh_flatness = 7;
++	dsc->det_thresh_flatness = 7 + 2 * (dsc->drm.bits_per_component - 8);
+ 	dsc->drm.rc_quant_incr_limit0 = 11;
+ 	dsc->drm.rc_quant_incr_limit1 = 11;
+ 	dsc->drm.mux_word_size = DSC_MUX_WORD_SIZE_8_10_BPC;
+@@ -1902,24 +1946,58 @@ static int dsi_populate_dsc_params(struct msm_display_dsc_config *dsc)
+ 	/* FIXME: need to call drm_dsc_compute_rc_parameters() so that rest of
+ 	 * params are calculated
+ 	 */
++	dsc->slice_last_group_size = 3 - (dsc->drm.slice_width % 3);
++	groups_per_line = DIV_ROUND_UP(dsc->drm.slice_width, 3);
++	dsc->drm.slice_chunk_size = dsc->drm.slice_width * dsc->drm.bits_per_pixel / 8;
++	if ((dsc->drm.slice_width * dsc->drm.bits_per_pixel) % 8)
++		dsc->drm.slice_chunk_size++;
+ 
+-	i = dsc->drm.slice_width % 3;
+-	switch (i) {
+-	case 0:
+-		dsc->slice_last_group_size = 2;
+-		break;
++	/* rbs-min */
++	min_rate_buffer_size =  dsc->drm.rc_model_size - dsc->drm.initial_offset +
++				dsc->drm.initial_xmit_delay * dsc->drm.bits_per_pixel +
++				groups_per_line * dsc->drm.first_line_bpg_offset;
+ 
+-	case 1:
+-		dsc->slice_last_group_size = 0;
+-		break;
++	hrd_delay = DIV_ROUND_UP(min_rate_buffer_size, dsc->drm.bits_per_pixel);
+ 
+-	case 2:
+-		dsc->slice_last_group_size = 0;
+-		break;
++	dsc->drm.initial_dec_delay = hrd_delay - dsc->drm.initial_xmit_delay;
+ 
+-	default:
+-		break;
+-	}
++	dsc->drm.initial_scale_value = 8 * dsc->drm.rc_model_size /
++				       (dsc->drm.rc_model_size - dsc->drm.initial_offset);
++
++	slice_bits = 8 * dsc->drm.slice_chunk_size * dsc->drm.slice_height;
++
++	groups_total = groups_per_line * dsc->drm.slice_height;
++
++	data = dsc->drm.first_line_bpg_offset * 2048;
++
++	dsc->drm.nfl_bpg_offset = DIV_ROUND_UP(data, (dsc->drm.slice_height - 1));
++
++	pre_num_extra_mux_bits = 3 * (mux_words_size + (4 * dsc->drm.bits_per_component + 4) - 2);
++
++	num_extra_mux_bits = pre_num_extra_mux_bits - (mux_words_size -
++			     ((slice_bits - pre_num_extra_mux_bits) % mux_words_size));
++
++	data = 2048 * (dsc->drm.rc_model_size - dsc->drm.initial_offset + num_extra_mux_bits);
++	dsc->drm.slice_bpg_offset = DIV_ROUND_UP(data, groups_total);
++
++	/* bpp * 16 + 0.5 */
++	data = dsc->drm.bits_per_pixel * 16;
++	data *= 2;
++	data++;
++	data /= 2;
++	target_bpp_x16 = data;
++
++	data = (dsc->drm.initial_xmit_delay * target_bpp_x16) / 16;
++	final_value =  dsc->drm.rc_model_size - data + num_extra_mux_bits;
++	dsc->drm.final_offset = final_value;
++
++	final_scale = 8 * dsc->drm.rc_model_size / (dsc->drm.rc_model_size - final_value);
++
++
++	data = (final_scale - 9) * (dsc->drm.nfl_bpg_offset + dsc->drm.slice_bpg_offset);
++	dsc->drm.scale_increment_interval = (2048 * dsc->drm.final_offset) / data;
++
++	dsc->drm.scale_decrement_interval = groups_per_line / (dsc->drm.initial_scale_value - 8);
+ 
+ 	return 0;
+ }
+@@ -1995,8 +2073,6 @@ static int dsi_host_parse_dsc(struct msm_dsi_host *msm_host,
+ 	dsc->drm.block_pred_enable = of_property_read_bool(np,
+ 			 "qcom,mdss-block-prediction-enable");
+ 
+-	dsi_populate_dsc_params(dsc);
+-
+ 	msm_host->dsc = dsc;
+ 
+ 	return 0;
+diff --git a/drivers/gpu/drm/panel/panel-lg-sw43408.c b/drivers/gpu/drm/panel/panel-lg-sw43408.c
+index 932bf36ae7da6..41cb1449ec67b 100644
+--- a/drivers/gpu/drm/panel/panel-lg-sw43408.c
++++ b/drivers/gpu/drm/panel/panel-lg-sw43408.c
+@@ -413,9 +413,10 @@ static int lg_panel_enable(struct drm_panel *panel)
+ 	if (panel->dsc) {
+ 		/* this panel uses DSC so send the pps */
+ 		drm_dsc_dsi_pps_header_init(&pps.dsc_header);
+-		drm_dsc_compute_rc_parameters(panel->dsc);
+ 		drm_dsc_pps_payload_pack(&pps.pps_payload, panel->dsc);
+-		pr_err("VK: in %s doing pps write now\n", __func__);
++		print_hex_dump(KERN_DEBUG, "DSC params:", DUMP_PREFIX_NONE,
++                               16, 1, &pps, sizeof(pps), false);
++
+ 		ret = mipi_dsi_dcs_write(pinfo->link,
+ 					 MIPI_DSI_PICTURE_PARAMETER_SET,
+ 					 &pps, 135);
+-- 
+2.29.2
+
