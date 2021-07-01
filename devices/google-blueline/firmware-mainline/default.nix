@@ -42,6 +42,7 @@ runCommandNoCC "google-blueline-firmware" {
   cp -vt $out/lib/firmware/qcom ${vendor-firmware-files}/lib/firmware/*a630*
   cp -vt $out/lib/firmware/qcom/sdm845 ${vendor-firmware-files}/lib/firmware/*adsp*
   cp -vt $out/lib/firmware/qcom/sdm845 ${vendor-firmware-files}/lib/firmware/*cdsp*
+  cp -vt $out/lib/firmware/ ${vendor-firmware-files}/lib/firmware/ftm5*.ftb
 
   # Firmware we can get from upstream
   for firmware in \
