@@ -1,21 +1,22 @@
 {
   mobile-nixos
-, fetchFromGitHub
+, fetchurl
 , fetchpatch
 , ...
 }:
 
+let
+  major = "5.13";
+  minor = "0";
+  downloadVersion = major;
+in
 mobile-nixos.kernel-builder rec {
-  version = "5.13.0-rc2";
+  version = "${major}.${minor}";
   configfile = ./config.aarch64;
 
-  # FIXME: apply patchsets directly on top of mainline
-  src = fetchFromGitHub {
-    # Mirror of http://git.linaro.org/people/vinod.koul/kernel.git/commit/?h=pixel/gpi_i2c_touch&id=1b3424a2994b82ac38fdf16e2136e7811548fea4
-    owner = "samueldr";
-    repo = "linux";
-    rev = "1b3424a2994b82ac38fdf16e2136e7811548fea4";
-    sha256 = "1ml9br4p88z1whgqfmbv9vc0jn94mgy6jyg1p69nmn05h3wzim63";
+  src = fetchurl {
+    url = "mirror://kernel/linux/kernel/v5.x/linux-${downloadVersion}.tar.xz";
+    sha256 = "1nc9didbjlycs9h8xahny1gwl8m8clylybnza6gl663myfbslsrz";
   };
 
   patches = [
