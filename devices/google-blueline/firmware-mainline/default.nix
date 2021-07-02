@@ -9,10 +9,21 @@ runCommandNoCC "google-blueline-firmware" {
   src = firmwareLinuxNonfree;
 } ''
   # Firmware from the vendor image
-  mkdir -p $out/lib/firmware/qcom/sdm845
-  cp -vt $out/lib/firmware/qcom ${vendor-firmware-files}/lib/firmware/*a630*
-  cp -vt $out/lib/firmware/qcom/sdm845 ${vendor-firmware-files}/lib/firmware/*adsp*
-  cp -vt $out/lib/firmware/qcom/sdm845 ${vendor-firmware-files}/lib/firmware/*cdsp*
+  mkdir -p $out/lib/firmware/qcom/sdm845/blueline
+
+  find ${vendor-firmware-files}
+
+  cp -vt $out/lib/firmware/qcom/sdm845/blueline ${vendor-firmware-files}/lib/firmware/*adsp*
+  cp -vt $out/lib/firmware/qcom/sdm845/blueline ${vendor-firmware-files}/lib/firmware/*cdsp*
+
+  # GPU (mainly)
+  cp -vt $out/lib/firmware/qcom/sdm845/blueline ${vendor-firmware-files}/lib/firmware/*a630*
+
+  # Modem stuff
+  cp -vt $out/lib/firmware/qcom/sdm845/blueline ${vendor-firmware-files}/lib/firmware/*mba*
+  cp -vt $out/lib/firmware/qcom/sdm845/blueline ${vendor-firmware-files}/lib/firmware/*modem*
+
+  # Touch panel
   cp -vt $out/lib/firmware/ ${vendor-firmware-files}/lib/firmware/ftm5*.ftb
 
   # Firmware we can get from upstream
