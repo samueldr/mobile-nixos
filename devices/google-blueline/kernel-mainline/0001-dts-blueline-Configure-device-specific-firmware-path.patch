@@ -1,0 +1,50 @@
+From c0ea50ae116f3ffee9fe1a6c7f90d07652085822 Mon Sep 17 00:00:00 2001
+From: Samuel Dionne-Riel <samuel@dionne-riel.com>
+Date: Thu, 1 Jul 2021 21:11:59 -0400
+Subject: [PATCH] dts: blueline: Configure device-specific firmware paths
+
+---
+ arch/arm64/boot/dts/qcom/sdm845-blueline.dts | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/boot/dts/qcom/sdm845-blueline.dts b/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
+index 62b6296b6a04a..fc430b7c575ef 100644
+--- a/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
++++ b/arch/arm64/boot/dts/qcom/sdm845-blueline.dts
+@@ -196,7 +196,7 @@ config {
+ &adsp_pas {
+ 	status = "okay";
+ 
+-	firmware-name = "qcom/sdm845/adsp.mdt";
++	firmware-name = "qcom/sdm845/blueline/adsp.mbn";
+ };
+ 
+ &apps_rsc {
+@@ -356,7 +356,7 @@ vreg_bob: bob {
+ 
+ &cdsp_pas {
+ 	status = "okay";
+-	firmware-name = "qcom/sdm845/cdsp.mdt";
++	firmware-name = "qcom/sdm845/blueline/cdsp.mbn";
+ };
+ 
+ &gcc {
+@@ -629,13 +629,13 @@ pinconf-rx {
+ &gpu {
+ 	zap-shader {
+ 		memory-region = <&gpu_mem>;
+-		//firmware-name = "qcom/sdm845/a630_zap.mbn";
++		firmware-name = "qcom/sdm845/blueline/a630_zap.mbn";
+ 	};
+ };
+ 
+ &mss_pil {
+ 	status = "okay";
+-	firmware-name = "qcom/sdm845/mba.mbn", "qcom/sdm845/modem.mbn";
++	firmware-name = "qcom/sdm845/blueline/mba.mbn", "qcom/sdm845/blueline/modem.mbn";
+ };
+ 
+ &dsi0 {
+-- 
+2.29.2
+
