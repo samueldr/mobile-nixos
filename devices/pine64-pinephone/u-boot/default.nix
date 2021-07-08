@@ -22,11 +22,28 @@ let
     name = "pine64-${rev}.patch";
     url = "https://gitlab.com/pine64-org/u-boot/-/commit/${rev}.patch";
   };
+
+  crustATFPatch = rev: sha256: fetchpatch {
+    inherit sha256;
+    name = "arm-trusted-firmware-patch-${rev}.patch";
+    url = "https://github.com/crust-firmware/arm-trusted-firmware/commit/${rev}.patch";
+  };
+
+  crustATF = armTrustedFirmwareAllwinner.overrideAttrs(old: rec {
+    patches = [
+      # "allwinner: Choose PSCI states to avoid translation"
+      # https://github.com/crust-firmware/arm-trusted-firmware/commit/981a0f37f9c2d8e9cdff5bf34c80c3dd7e1128ae
+      (crustATFPatch "981a0f37f9c2d8e9cdff5bf34c80c3dd7e1128ae" "1d6xq22bgr5w8v1zhr94c0zymizkz20wxicgf469jl7vspirj6pb")
+      # "allwinner: Simplify CPU_SUSPEND power state encoding"
+      # https://github.com/crust-firmware/arm-trusted-firmware/commit/d6ebf5dab2daab8d94c5505704473f3bab3ec4ff
+      (crustATFPatch "d6ebf5dab2daab8d94c5505704473f3bab3ec4ff" "043gxv0s0nx0g9099s0hbijwcjyjbsdf50nakwhs6ndcmrcc6k67")
+    ];
+  });
 in
 (buildUBoot {
   defconfig = "pinephone_defconfig";
   extraMeta.platforms = ["aarch64-linux"];
-  BL31 = "${armTrustedFirmwareAllwinner}/bl31.bin";
+  BL31 = "${crustATF}/bl31.bin";
   SCP = "${crustFirmware}/scp.bin";
 
   extraPatches = [
