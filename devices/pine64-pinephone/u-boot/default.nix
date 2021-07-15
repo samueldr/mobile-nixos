@@ -23,16 +23,21 @@ let
     url = "https://gitlab.com/pine64-org/u-boot/-/commit/${rev}.patch";
   };
 
-  # use a version of ATF that has all the Crust goodies in it
+  crustATFPatch = rev: sha256: fetchpatch {
+    inherit sha256;
+    name = "arm-trusted-firmware-patch-${rev}.patch";
+    url = "https://github.com/crust-firmware/arm-trusted-firmware/commit/${rev}.patch";
+  };
+
   crustATF = armTrustedFirmwareAllwinner.overrideAttrs(old: rec {
-    name = "arm-trusted-firmware-crust-${version}";
-    version = "2.4";
-    src = fetchFromGitHub {
-      owner = "crust-firmware";
-      repo = "arm-trusted-firmware";
-      rev = "42b9ab0cbe6c1d687fe331c547d28489e12260c3";
-      sha256 = "13q0946qk2brda1ci3bsri359ly8zhz76f2d1svnlh45rrrfn984";
-    };
+    patches = [
+      # "allwinner: Choose PSCI states to avoid translation"
+      # https://github.com/crust-firmware/arm-trusted-firmware/commit/981a0f37f9c2d8e9cdff5bf34c80c3dd7e1128ae
+      (crustATFPatch "981a0f37f9c2d8e9cdff5bf34c80c3dd7e1128ae" "1d6xq22bgr5w8v1zhr94c0zymizkz20wxicgf469jl7vspirj6pb")
+      # "allwinner: Simplify CPU_SUSPEND power state encoding"
+      # https://github.com/crust-firmware/arm-trusted-firmware/commit/d6ebf5dab2daab8d94c5505704473f3bab3ec4ff
+      (crustATFPatch "d6ebf5dab2daab8d94c5505704473f3bab3ec4ff" "043gxv0s0nx0g9099s0hbijwcjyjbsdf50nakwhs6ndcmrcc6k67")
+    ];
   });
 in
 (buildUBoot {
