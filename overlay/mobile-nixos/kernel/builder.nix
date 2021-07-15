@@ -35,6 +35,8 @@
 , dtbTool-exynos
 , ufdt-apply-overlay
 
+, lz4
+
 , cpio
 , elfutils
 , libelf
@@ -126,6 +128,15 @@ in
 , isModular ? true
 , kernelPatches ? []
 
+# User as `.file` on the package to know the kernel image filename.
+, kernelFile ? kernelTarget + optionalString isImageGzDtb "-dtb"
+
+# Used to provide the default kernelFile
+, kernelFileExtension ? if isCompressed != false then ".${isCompressed}" else ""
+, kernelTarget ? if platform.linux-kernel.target == "Image"
+    then "${platform.linux-kernel.target}${kernelFileExtension}"
+    else platform.linux-kernel.target
+
 , ...
 } @ inputArgs:
 
@@ -153,10 +164,6 @@ let
   '';
 
   hasDTB = platform.linux-kernel ? DTB && platform.linux-kernel.DTB;
-  kernelFileExtension = if isCompressed != false then ".${isCompressed}" else "";
-  kernelTarget = if platform.linux-kernel.target == "Image"
-    then "${platform.linux-kernel.target}${kernelFileExtension}"
-    else platform.linux-kernel.target;
 in
 
 # This `let` block allows us to have a self-reference to this derivation.
@@ -182,6 +189,7 @@ stdenv.mkDerivation (inputArgs // {
     ++ optionals (lib.versionAtLeast version "4.16") [ bison flex ]
     ++ optional  (lib.versionAtLeast version "5.2")  cpio
     ++ optional  (lib.versionAtLeast version "5.8")  elfutils
+    ++ optional  (isCompressed == "lz4") lz4
     # Mobile NixOS inputs.
     # While some kernels might not need those, most will.
     ++ [ dtc ]
@@ -352,7 +360,10 @@ stdenv.mkDerivation (inputArgs // {
   buildPhase = if enableCombiningBuildAndInstallQuirk then ":" else null;
 
   installTargets =
-    if isCompressed != false then [ "zinstall" ] else [ "install" ]
+    # zinstall only deals with `Image.gz`
+    # install will install the uncompressed kernel only...
+    # Though it's not an issue as we copy it ourselves anyway.
+    if isCompressed == "gz" then [ "zinstall" ] else [ "install" ]
     ++ installTargets
   ;
 
@@ -447,7 +458,7 @@ stdenv.mkDerivation (inputArgs // {
     inherit isQcdt isExynosDT;
 
     # Used by consumers to refer to the kernel build product.
-    file = kernelTarget + optionalString isImageGzDtb "-dtb";
+    file = kernelFile;
 
     # Derivation with the as-built normalized kernel config
     normalizedConfig = kernelDerivation.overrideAttrs({ ... }: {

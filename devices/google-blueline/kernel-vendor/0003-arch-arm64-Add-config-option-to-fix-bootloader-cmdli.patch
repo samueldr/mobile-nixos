@@ -1,0 +1,79 @@
+From 5ce717535e07b8904a598dc93bc362abfe7453e6 Mon Sep 17 00:00:00 2001
+From: Alexey Min <alexey.min@gmail.com>
+Date: Wed, 11 Sep 2019 21:51:40 +0300
+Subject: [PATCH 3/3] arch: arm64: Add config option to fix bootloader cmdline
+ args
+
+Android bootloader passes some arguments in kernel command
+line, that make booting custom OSes harder:
+
+ * skip_initramfs
+ * root=PARTUUID=...
+ * init=/init
+
+Those parameters override default boot partition to hardcoded,
+set init binary to /init, disable booting from initramfs.
+
+If enabled, those parameters will be erased from bootloader's
+command line, and custom OS can boot the way it likes.
+---
+ arch/arm64/Kconfig | 17 +++++++++++++++++
+ drivers/of/fdt.c   | 14 ++++++++++++++
+ 2 files changed, 31 insertions(+)
+
+diff --git a/arch/arm64/Kconfig b/arch/arm64/Kconfig
+index 2829edba6aa5..bd9f05f83c7e 100644
+--- a/arch/arm64/Kconfig
++++ b/arch/arm64/Kconfig
+@@ -1125,6 +1125,23 @@ config CMDLINE_FORCE
+ 	  command-line options your boot loader passes to the kernel.
+ endchoice
+ 
++config CMDLINE_DROP_DANGEROUS_ANDROID_OPTIONS
++	bool "Drop certain dangerous options from cmdline"
++	default n
++	help
++	  Android bootloader passes some arguments in kernel command
++	  line, that make booting custom OSes harder:
++	  
++	    * skip_initramfs
++	    * root=PARTUUID=...
++	    * init=/init
++	  
++	  Those parameters override default boot partition to hardcoded,
++	  set init binary to /init, disable booting from initramfs.
++	  
++	  If enabled, those parameters will be erased from bootloader's
++	  command line, and custom OS can boot the way it likes.
++
+ config EFI_STUB
+ 	bool
+ 
+diff --git a/drivers/of/fdt.c b/drivers/of/fdt.c
+index ca175710c4c8..fd8257589648 100644
+--- a/drivers/of/fdt.c
++++ b/drivers/of/fdt.c
+@@ -1012,6 +1012,20 @@ int __init early_init_dt_scan_chosen(unsigned long node, const char *uname,
+ 
+ 	pr_debug("Command line is: %s\n", (char*)data);
+ 
++#ifdef CONFIG_CMDLINE_DROP_DANGEROUS_ANDROID_OPTIONS
++	pr_err("Replacing dangerous cmdline options...");
++	cmdline = strstr((const char *)data, "skip_initramfs");
++	if (cmdline)
++		*cmdline = '_';
++	cmdline = strstr((const char *)data, "root=");
++	if (cmdline)
++		*cmdline = '_';
++	cmdline = strstr((const char *)data, "init=");
++	if (cmdline)
++		*cmdline = '_';
++	pr_err("Command line now is: %s\n", (char*)data);
++#endif
++
+ 	/* break now */
+ 	return 1;
+ }
+-- 
+2.21.0
+
