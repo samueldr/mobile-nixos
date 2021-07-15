@@ -2,15 +2,24 @@
 , overpass
 , roboto
 , font-awesome_4
+, nodePackages
 }:
 
 let
   artwork = ../../../artwork;
 in
-runCommandNoCC "gui-assets" { } ''
+runCommandNoCC "gui-assets" {
+  nativeBuildInputs = [
+    nodePackages.svgo
+  ];
+} ''
 mkdir -p $out
-cp ${artwork + "/app-background.svg"} $out/app-background.svg
-cp ${artwork + "/logo/logo.white.svg"} $out/logo.svg
+cp --no-preserve=mode ${artwork + "/app-background.svg"} $out/app-background.svg
+cp --no-preserve=mode ${artwork + "/logo/logo.white.svg"} $out/logo.svg
+(
+  cd $out
+  for f in *.svg; do svgo $f; done
+)
 mkdir -p $out/fonts
 cp -t $out/fonts \
   ${roboto}/share/fonts/truetype/Roboto-Regular.ttf \
