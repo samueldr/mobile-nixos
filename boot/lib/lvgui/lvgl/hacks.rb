@@ -12,13 +12,16 @@ module LVGL::FFI
     [:uint8_t, :once],
   ] # }}}
 
-  extern "void hal_init()"
+  extern "void hal_init(const char*)"
 
   # TODO: begin/rescue DLError and assume failing is we're not in simulator.
   if lv_introspection_is_simulator
     global!("int", "monitor_width")
     global!("int", "monitor_height")
   end
+
+  global!("int", "mn_hal_default_dpi")
+  global!("void *", "mn_hal_default_font")
 
   extern "void lv_task_handler()"
 
@@ -41,13 +44,31 @@ end
 module LVGL::FFI
   # lv_lib_nanosvg/lv_nanosvg.h
   extern "void lv_nanosvg_init()"
-  extern "void lv_nanosvg_resize_next_width(int)"
-  extern "void lv_nanosvg_resize_next_height(int)"
 end
 
 module LVGL::Hacks
-  def self.init()
-    LVGL::FFI.hal_init()
+  FONTS = {}
+  @@assets_path = nil
+
+  # +assets_path+ will be relative to an XDG data dir. E.g. /usr/share/
+  def self.init(assets_path:)
+    data_dir = [
+      # First look in the `share` directory neighboring `libexec` where the
+      # running mrb applet runs from.
+      File.join(File.dirname(File.dirname($0)), "share"),
+      # Then any XDG data dirs
+      XDG.data_dirs,
+    ]
+      .flatten()
+      .map { |dir| File.join(dir, assets_path) }
+      .find { |dir| File.exists?(dir) }
+
+    # Fallback to a probably non-existent dir
+    # (So things don't crash too hard)
+    data_dir ||= File.join(XDG.data_dirs.first, assets_path)
+    LVGL::Hacks.set_assets_path(data_dir)
+
+    LVGL::FFI.hal_init(get_asset_path(""))
     LVGL::FFI.lv_nanosvg_init()
   end
 
@@ -61,9 +82,42 @@ module LVGL::Hacks
       LVGL::FFI.monitor_width = v
     end
   end
-  def self.theme_night(hue)
+  def self.dpi()
+      LVGL::FFI.mn_hal_default_dpi
+  end
+  def self.default_font()
+      LVGL::FFI.mn_hal_default_font
+  end
+
+  def self.theme_night()
     LVGL::FFI.lv_theme_set_current(
-      LVGL::FFI.lv_theme_night_init(hue, 0)
+      LVGL::FFI.lv_theme_night_init(205, 0)
+    )
+  end
+
+  def self.theme_nixos(font = 0, button_font = 0)
+    LVGL::FFI.lv_theme_set_current(
+      LVGL::FFI.lv_theme_nixos_init(font, button_font)
+    )
+  end
+
+  def self.get_asset_path(asset_path)
+    File.join(@@assets_path, asset_path)
+  end
+
+  def self.set_assets_path(path)
+    @@assets_path = path
+  end
+
+  def self.get_font(file, size)
+    id = [file, size].join("@")
+
+    return (
+      if FONTS[id]
+        FONTS[id]
+      else
+        FONTS[id] = LVGL::FFI.lvgui_get_font(get_asset_path(file), size)
+      end
     )
   end
 
@@ -90,17 +144,6 @@ module LVGL::Hacks
       #$stderr.puts "-> handle_tasks"
       LVGL::FFI.lv_task_handler()
       #$stderr.puts "<- handle_tasks"
-    end
-  end
-end
-
-module LVGL::Hacks
-  module LVNanoSVG
-    def self.resize_next_width(width)
-      LVGL::FFI.lv_nanosvg_resize_next_width(width)
-    end
-    def self.resize_next_height(height)
-      LVGL::FFI.lv_nanosvg_resize_next_height(height)
     end
   end
 end

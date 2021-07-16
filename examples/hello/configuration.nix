@@ -3,9 +3,10 @@
 let
   inherit (lib.strings) makeBinPath;
 
+  app = pkgs.callPackage ./app {};
   hello-gui = pkgs.mobile-nixos.stage-1.script-loader.wrap {
     name = "hello-gui";
-    applet = "${pkgs.callPackage ./app {}}/libexec/app.mrb";
+    applet = "${app}/libexec/app.mrb";
     env = {
       PATH = "${makeBinPath (with pkgs;[
         systemd     # journalctl
@@ -121,7 +122,7 @@ in
   '';
 
   system.build = {
-    app-simulator = pkgs.callPackage ./app/simulator.nix {};
+    app-simulator = app.simulator;
   };
 
   # Override stage-0 support for this example app.

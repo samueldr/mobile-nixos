@@ -14,11 +14,13 @@ module LVGUI
     def initialize()
       super()
       # Initializes LVGUI things if required...
-      LVGUI.init
+      LVGUI.init(theme: :nixos)
 
       # Preps a basic display
       @screen = Screen.new()
-      @header = Header.new(@screen)
+      on_background_init()
+      @status_bar = StatusBar.new(@screen)
+      on_header_init()
       @toolbar = Toolbar.new(@screen)
       @container = Page.new(@screen)
 
@@ -32,6 +34,8 @@ module LVGUI
       self.class.class_variable_get(:@@_after_initialize_callback).each do |cb|
         instance_eval &cb
       end
+
+      on_initialization_finished()
     end
 
     # Adds an object to the focus group list, and add it to the
@@ -67,7 +71,32 @@ module LVGUI
       on_present
     end
 
+    # Hooking point for custom behaviour on present
     def on_present()
+    end
+
+    # Hooking point to customize header building
+    def on_header_init()
+    end
+
+    # Hooking point to customize initialization
+    def on_initialization_finished()
+    end
+
+    # Hook point to customize the background
+    def on_background_init()
+      background_path = LVGL::Hacks.get_asset_path("app-background.svg")
+      if File.exist?(background_path)
+
+        @background = LVGL::LVImage.new(@screen).tap do |el|
+          el.set_protect(LVGL::PROTECT::POS)
+          el.set_height(@screen.get_height())
+          el.set_width(@screen.get_width())
+          el.set_x(0)
+          el.set_y(LVGUI.pixel_scale(0))
+          el.set_src("#{background_path}?height=#{el.get_height()}")
+        end
+      end
     end
   end
 end

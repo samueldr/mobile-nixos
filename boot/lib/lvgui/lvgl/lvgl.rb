@@ -2,6 +2,7 @@ module LVGL
   [
     :ANIM,
     :BTN_STYLE,
+    :BORDER,
     :CONT_STYLE,
     :CURSOR,
     :EVENT,
@@ -13,6 +14,8 @@ module LVGL
     :LABEL_STYLE,
     :LAYOUT,
     :PAGE_STYLE,
+    :PROTECT,
+    :SHADOW,
     :SW_STYLE,
     :TASK_PRIO,
     :TA_STYLE,
@@ -112,7 +115,6 @@ module LVGL
       end
       register_userdata
       unless parent or pointer
-        $stderr.puts("[HACK] Creating #{self.class.name} as screen. (Switching lv_disp_load_scr!)")
         LVGL::FFI.lv_disp_load_scr(@self_pointer)
       end
     end
@@ -246,6 +248,11 @@ module LVGL
       # Prevents the object from being collected
       @style = style
       LVGL.ffi_call!(self.class, :set_style, @self_pointer, type, style.lv_style_pointer)
+    end
+
+    def get_style(style_type)
+      style = LVGL.ffi_call!(self.class, :get_style, @self_pointer, style_type)
+      LVGL::LVStyle.from_pointer(style)
     end
 
     def focus(obj, anim)

@@ -134,14 +134,18 @@ in
 
       autoport = callPackage ./mobile-nixos/autoport {};
 
-      boot-recovery-menu-simulator = callPackage ../boot/recovery-menu/simulator.nix {};
-      boot-splash-simulator = callPackage ../boot/splash/simulator.nix {};
+      boot-recovery-menu-simulator = self.mobile-nixos.stage-1.boot-recovery-menu.simulator;
+      boot-splash-simulator = self.mobile-nixos.stage-1.boot-splash.simulator;
 
       fdt-forward = callPackage ./mobile-nixos/fdt-forward {};
+
+      gui-assets = callPackage ./mobile-nixos/gui-assets {};
 
       make-flashable-zip = callPackage ./mobile-nixos/android-flashable-zip/make-flashable-zip.nix {};
 
       map-dtbs = callPackage ./mobile-nixos/map-dtbs {};
+
+      mkLVGUIApp = callPackage ./mobile-nixos/lvgui {};
 
       cross-canary-test = callPackage ./mobile-nixos/cross-canary/test.nix {};
       cross-canary-test-static = self.pkgsStatic.callPackage ./mobile-nixos/cross-canary/test.nix {};

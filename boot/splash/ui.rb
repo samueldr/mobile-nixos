@@ -16,7 +16,7 @@ class UI
   attr_reader :ask_identifier
 
   # As this is not using BaseWindow, LVGUI::init isn't handled for us.
-  LVGUI.init()
+  LVGUI.init(theme: :night, assets_path: "boot-splash/assets")
 
   def initialize()
     add_screen
@@ -49,18 +49,14 @@ class UI
   end
 
   def add_logo()
-    # Try to find the logo, but don't fail if there isn't one.
-    file = nil
-    file = "/etc/logo.svg" if File.exist?("/etc/logo.svg")
-    file = "./logo.svg" if File.exist?("./logo.svg")
-    return unless file
+    file = LVGL::Hacks.get_asset_path("logo.svg")
 
     if @page.get_height > @page.get_width
       # 80% of the width
-      LVGL::Hacks::LVNanoSVG.resize_next_width((@page.get_width * 0.8).to_i)
+      file = "#{file}?width=#{(@page.get_width * 0.8).to_i}"
     else
       # 15% of the height
-      LVGL::Hacks::LVNanoSVG.resize_next_height((@page.get_height * 0.15).to_i)
+      file = "#{file}?height=#{(@page.get_height * 0.15).to_i}"
     end
 
     @logo = LVGL::LVImage.new(@page)

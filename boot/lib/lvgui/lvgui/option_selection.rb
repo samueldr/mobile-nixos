@@ -78,7 +78,7 @@ class LVGUI::OptionSelection < LVGUI::Widget
     }
 
     # Defaults to full width
-    self.set_width(parent.get_width())
+    self.set_width(parent.get_width_fit())
   end
 
   # Like the parent function.
@@ -87,10 +87,9 @@ class LVGUI::OptionSelection < LVGUI::Widget
     super(width)
 
     # Resize the label container to fill, working around segfault.
-    container_padding = get_style(LVGL::BTN_STYLE::REL).body_padding_right
-    @label_container.set_width(self.get_width_fit - @icon.get_width - container_padding*2)
-    @main_label.set_width(@label_container.get_width)
-    @chosen_option_label.set_width(@label_container.get_width)
+    @label_container.set_width(self.get_width_fit - @icon.get_width - LVGUI.col_padding()*2)
+    @main_label.set_width(@label_container.get_width_fit)
+    @chosen_option_label.set_width(@label_container.get_width_fit)
   end
 
   # Sets the main label, optionally hiding it.
@@ -172,7 +171,7 @@ class LVGUI::OptionSelection::FlatishButtonBase < LVGUI::Widget
       :INA,
     ].each do |sym|
       get_style(LVGL::BTN_STYLE.const_get(sym)).dup.tap do |style|
-        style.body_radius = 0
+        style.body_radius = LVGUI.pixel_scale(16)
 
         ## Button paddings are quite harsh by default
         style.body_padding_left = LVGUI::OptionSelection.container_style.body_padding_inner
@@ -186,8 +185,6 @@ class LVGUI::OptionSelection::FlatishButtonBase < LVGUI::Widget
 
     get_style(LVGL::BTN_STYLE::REL).dup.tap do |style|
       main_color = LVGUI::OptionSelection.container_style.body_main_color
-      style.body_grad_color = LVGL::LVColor.mix(style.body_grad_color, main_color, LVGL::OPA.scale(30))
-      style.body_main_color = LVGL::LVColor.mix(style.body_main_color, main_color, LVGL::OPA.scale(30))
       set_style(LVGL::BTN_STYLE::REL, style)
     end
 
@@ -360,7 +357,7 @@ class LVGUI::OptionSelection::Overlay < LVGUI::Widget
     @dummy = LVGUI::Dummy.new(linked_select)
 
     # Fill the parent with this background overlay
-    set_width(parent.get_width())
+    set_width(parent.get_width_fit())
     set_height(parent.get_height())
     set_x(0)
     set_y(0)

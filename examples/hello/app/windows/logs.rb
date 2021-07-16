@@ -7,7 +7,7 @@ module GUI
     end
 
     def on_present()
-      set_text(`journalctl -b0 | tail -n #{LOG_LINES}`)
+      set_text(`journalctl -b0 -n #{LOG_LINES}`)
     end
   end
 end

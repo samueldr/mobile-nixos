@@ -13,8 +13,9 @@ module GUI
         label.set_width(@toolbar.get_width_fit)
         label.set_text(explanation)
       end
-      @container.refresh
+      @container.inner_padding = 0
       @container.set_scrl_layout(LVGL::LAYOUT::COL_R)
+      @container.refresh
     end
 
     def set_text(text)
