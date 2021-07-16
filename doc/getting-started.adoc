@@ -156,6 +156,41 @@ system configuration. It is recommended to copy and edit the configuration
 files from the `examples` directories if you are basing your configuration off
 of an example.
 
+== Usage with flakes ==
+
+Mobile NixOS is flake compatible, simply import the matching module:
+
+```nix
+# flake.nix
+{
+  description = "Mobile NixOS config with flakes";
+
+  inputs = {
+      nixpkgs.url = "nixpkgs/nixpkgs-unstable";
+      mobile-nixos.url = "github:NixOS/mobile-nixos";
+  };
+
+  outputs = inputs@{ self, nixpkgs, mobile-nixos }:
+  {
+    nixosConfigurations.<your-hostname> = nixpkgs.lib.nixosSystem {
+      # ...
+      modules = [
+        # import the module matching your device
+        mobile-nixos.nixosModules.pine64-pinephone
+        # ...
+      ];
+    };
+  };
+}
+```
+
+Image builder tasks can now be accessed via:
+
+```
+$ nix build ".#nixosConfigurations.<your-hostname>.config.system.build.disk-image"
+# or build.boot-partition, build.u-boot, etc.
+```
+
 
 == Contributing
 
