@@ -1,0 +1,52 @@
+From e4e4f1f704b97a57edbbe471962729e2efd04fd6 Mon Sep 17 00:00:00 2001
+From: rishabhrao <admin@rishabhrao.net>
+Date: Sun, 5 Feb 2017 07:44:00 +0000
+Subject: [PATCH] s2: Fix Kernel Standalone Building Errors
+
+Change-Id: Ia54b1b5e3ba950a8ac0db689275dd760455cdfad
+Signed-off-by: rishabhrao <admin@rishabhrao.net>
+---
+ arch/arm64/Makefile      | 7 ++++---
+ arch/arm64/boot/Makefile | 2 +-
+ 2 files changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm64/Makefile b/arch/arm64/Makefile
+index 153e8545587..bdc365eb4d6 100644
+--- a/arch/arm64/Makefile
++++ b/arch/arm64/Makefile
+@@ -61,6 +61,7 @@ KBUILD_DTBS	:= dtbs
+ 
+ all:	$(KBUILD_IMAGE) $(KBUILD_DTBS)
+ 
++boot32 := arch/arm/boot
+ boot := arch/arm64/boot
+ 
+ Image Image.gz: vmlinux
+@@ -70,11 +71,11 @@ zinstall install: vmlinux
+ 	$(Q)$(MAKE) $(build)=$(boot) $@
+ 
+ %.dtb: scripts
+-	$(Q)$(MAKE) $(build)=$(boot)/dts $(boot)/dts/$@
++	$(Q)$(MAKE) $(build)=$(boot32)/dts $(boot32)/dts/$@
+ 
+ dtbs: scripts
+-	$(Q)$(MAKE) $(build)=$(boot)/dts dtbs
+-	$(Q)$(MAKE) $(build)=$(boot)/dts/qcom dtbs
++	$(Q)$(MAKE) $(build)=$(boot32)/dts dtbs
++	$(Q)$(MAKE) $(build)=$(boot32)/dts/qcom dtbs
+ 
+ PHONY += vdso_install
+ vdso_install:
+diff --git a/arch/arm64/boot/Makefile b/arch/arm64/boot/Makefile
+index ad85404a64d..b49defdf14a 100644
+--- a/arch/arm64/boot/Makefile
++++ b/arch/arm64/boot/Makefile
+@@ -24,7 +24,7 @@ DTB_LIST := $(addsuffix .dtb,$(DTB_NAMES))
+ else
+ DTB_LIST := $(dtb-y)
+ endif
+-DTB_OBJS := $(addprefix $(obj)/dts/,$(DTB_LIST))
++DTB_OBJS := $(addprefix $(srctree)/arch/arm/boot/dts/,$(DTB_LIST))
+ 
+ $(obj)/Image: vmlinux FORCE
+ 	$(call if_changed,objcopy)

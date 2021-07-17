@@ -1,0 +1,26 @@
+= Asus Zenwatch 2 WI501Q
+include::_support/common.inc[]
+
+== Device-specific notes
+
+=== Boot modes
+
+Recovery and bootloader (fastboot) modes are unusual to enter into compared to
+phones.
+
+When the watch boots, as early as possible when the display is turned on, do
+one of the following to enter a given boot mode:
+
+* recovery: swipe from the top right towards the bottom left
+* bootloader: swipe from the top left towards the bottom right
+
+== Factory images
+
+It seems there are no official factory images for the Zenwatch 2.
+
+However, OTA update files can be used to re-install Wear OS. Using the OTA 
+update files re-install is out of scope for this document.
+
+One arbitrary known OTA update package:
+
+* https://android.googleapis.com/packages/ota-api/asus_sparrow_sparrow/f0095b7e9162d37af8f00140aea38d7922887a0a.zip
