@@ -1,4 +1,4 @@
-From 71bc2e8b772695c00b2ed550565724afddd6fb7e Mon Sep 17 00:00:00 2001
+From f36e1d9ea6b34ae1ed2bd481e56ce93174652061 Mon Sep 17 00:00:00 2001
 From: Samuel Dionne-Riel <samuel@dionne-riel.com>
 Date: Thu, 29 Aug 2019 15:11:04 -0400
 Subject: [PATCH 2/2] make_ext4fs: allow setting a specific UUID
@@ -37,7 +37,7 @@ index d6416a7..68f5cb1 100644
  
  int ext4_parse_sb(struct ext4_super_block *sb, struct fs_info *info);
 diff --git a/ext4_utils.c b/ext4_utils.c
-index 1a886d7..e8e60fb 100644
+index 1a886d7..7d3fd43 100644
 --- a/ext4_utils.c
 +++ b/ext4_utils.c
 @@ -221,7 +221,13 @@ void ext4_fill_in_sb()
@@ -60,7 +60,7 @@ index 1a886d7..e8e60fb 100644
  		printf("    Inode size: %d\n", info.inode_size);
  		printf("    Label: %s\n", info.label);
 +		if (info.with_uuid) {
-+			char uuid[UUID_STR_LEN] = "";
++			char uuid[UUID_STR_LEN] = { 0 };
 +			uuid_to_string(info.uuid, uuid);
 +			printf("    UUID: %s\n", uuid);
 +		}
@@ -68,7 +68,7 @@ index 1a886d7..e8e60fb 100644
  		printf("    Block groups: %d\n", aux_info.groups);
  		printf("    Reserved block group size: %d\n", info.bg_desc_reserve_blocks);
 diff --git a/make_ext4fs.c b/make_ext4fs.c
-index 051052b..ac38d15 100644
+index 051052b..f486eed 100644
 --- a/make_ext4fs.c
 +++ b/make_ext4fs.c
 @@ -451,6 +451,11 @@ int make_ext4fs_internal(int fd, const char *_directory,
@@ -76,7 +76,7 @@ index 051052b..ac38d15 100644
  	printf("    Journal blocks: %d\n", info.journal_blocks);
  	printf("    Label: %s\n", info.label);
 +	if (info.with_uuid) {
-+		char uuid[UUID_STR_LEN] = "";
++		char uuid[UUID_STR_LEN] = { 0 };
 +		uuid_to_string(info.uuid, uuid);
 +		printf("    UUID: %s\n", uuid);
 +	}
@@ -125,5 +125,5 @@ index 88254c3..e957a03 100644
  			force = 1;
  			break;
 -- 
-2.19.2
+2.25.3
 
