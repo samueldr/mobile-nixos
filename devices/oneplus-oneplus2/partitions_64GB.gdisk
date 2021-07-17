@@ -1,0 +1,187 @@
+ $ gdisk -l /dev/sda
+GPT fdisk (gdisk) version 1.0.4
+
+Partition table scan:
+  MBR: protective
+  BSD: not present
+  APM: not present
+  GPT: present
+
+Found valid GPT with protective MBR; using GPT.
+Disk /dev/sda: 14145536 sectors, 54.0 GiB
+Model: KLUCG4J1CB-B0B1 
+Sector size (logical/physical): 4096/16384 bytes
+Disk identifier (GUID): 98101B32-BBE2-4BF2-A06E-2BB33D000C20
+Partition table holds up to 16 entries
+Main partition table begins at sector 2 and ends at sector 2
+First usable sector is 6, last usable sector is 14145530
+Partitions will be aligned on 2-sector boundaries
+Total free space is 0 sectors (0 bytes)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1               6               7   8.0 KiB     A02C  ssd
+   2               8            8199   32.0 MiB    A026  persist
+   3            8200           73735   256.0 MiB   A039  cache
+   4           73736           73991   1024.0 KiB  A01F  misc
+   5           73992           74119   512.0 KiB   A02D  keystore
+   6           74120           74151   128.0 KiB   FFFF  devcfg
+   7           74152           74183   128.0 KiB   FFFF  devcfgbak
+   8           74184           74311   512.0 KiB   FFFF  frp
+   9           74312           76871   10.0 MiB    FFFF  oem_dycnvbk
+  10           76872           79431   10.0 MiB    FFFF  oem_stanvbk
+  11           79432           79687   1024.0 KiB  FFFF  param
+  12           79688           81711   7.9 MiB     FFFF  reserve1
+  13           81712           85759   15.8 MiB    FFFF  reserve2
+  14           85760           85887   512.0 KiB   FFFF  config
+  15           85888        14145530   53.6 GiB    A03A  userdata
+ $ gdisk -l /dev/sdb
+GPT fdisk (gdisk) version 1.0.4
+
+Partition table scan:
+  MBR: protective
+  BSD: not present
+  APM: not present
+  GPT: present
+
+Found valid GPT with protective MBR; using GPT.
+Disk /dev/sdb: 1024 sectors, 4.0 MiB
+Model: KLUCG4J1CB-B0B1 
+Sector size (logical/physical): 4096/16384 bytes
+Disk identifier (GUID): 98101B32-BBE2-4BF2-A06E-2BB33D000C20
+Partition table holds up to 4 entries
+Main partition table begins at sector 2 and ends at sector 2
+First usable sector is 6, last usable sector is 1018
+Partitions will be aligned on 2-sector boundaries
+Total free space is 0 sectors (0 bytes)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1               6            1018   4.0 MiB     A012  xbl
+ $ gdisk -l /dev/sdc
+GPT fdisk (gdisk) version 1.0.4
+
+Partition table scan:
+  MBR: protective
+  BSD: not present
+  APM: not present
+  GPT: present
+
+Found valid GPT with protective MBR; using GPT.
+Disk /dev/sdc: 1024 sectors, 4.0 MiB
+Model: KLUCG4J1CB-B0B1 
+Sector size (logical/physical): 4096/16384 bytes
+Disk identifier (GUID): 98101B32-BBE2-4BF2-A06E-2BB33D000C20
+Partition table holds up to 4 entries
+Main partition table begins at sector 2 and ends at sector 2
+First usable sector is 6, last usable sector is 1018
+Partitions will be aligned on 2-sector boundaries
+Total free space is 0 sectors (0 bytes)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1               6            1018   4.0 MiB     A012  xblbak
+ $ gdisk -l /dev/sdd
+GPT fdisk (gdisk) version 1.0.4
+
+Partition table scan:
+  MBR: protective
+  BSD: not present
+  APM: not present
+  GPT: present
+
+Found valid GPT with protective MBR; using GPT.
+Disk /dev/sdd: 32768 sectors, 128.0 MiB
+Model: KLUCG4J1CB-B0B1 
+Sector size (logical/physical): 4096/16384 bytes
+Disk identifier (GUID): 98101B32-BBE2-4BF2-A06E-2BB33D000C20
+Partition table holds up to 4 entries
+Main partition table begins at sector 2 and ends at sector 2
+First usable sector is 6, last usable sector is 32762
+Partitions will be aligned on 1-sector boundaries
+Total free space is 32492 sectors (126.9 MiB)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1               6              13   32.0 KiB    FFFF  reserve
+   2              14              14   4.0 KiB     A01B  cdt
+   3              15             270   1024.0 KiB  A01A  ddr
+   4             271           32762   126.9 MiB   FFFF  last_parti
+ $ gdisk -l /dev/sde
+GPT fdisk (gdisk) version 1.0.4
+
+Partition table scan:
+  MBR: protective
+  BSD: not present
+  APM: not present
+  GPT: present
+
+Found valid GPT with protective MBR; using GPT.
+Disk /dev/sde: 1048576 sectors, 4.0 GiB
+Model: KLUCG4J1CB-B0B1 
+Sector size (logical/physical): 4096/16384 bytes
+Disk identifier (GUID): 98101B32-BBE2-4BF2-A06E-2BB33D000C20
+Partition table holds up to 36 entries
+Main partition table begins at sector 2 and ends at sector 3
+First usable sector is 6, last usable sector is 1048570
+Partitions will be aligned on 1-sector boundaries
+Total free space is 172235 sectors (672.8 MiB)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1               6             133   512.0 KiB   A018  rpm
+   2             134             261   512.0 KiB   A018  rpmbak
+   3             262             773   2.0 MiB     A016  tz
+   4             774            1285   2.0 MiB     A016  tzbak
+   5            1286            1413   512.0 KiB   A017  hyp
+   6            1414            1541   512.0 KiB   A017  hypbak
+   7            1542            2053   2.0 MiB     A02A  fsg
+   8            2054            2057   16.0 KiB    A01D  sec
+   9            2058            2185   512.0 KiB   A01E  pmic
+  10            2186            2313   512.0 KiB   A01E  pmicbak
+  11            2314           26633   95.0 MiB    0700  modem
+  12           26634           30729   16.0 MiB    FFFF  dsp
+  13           30730           30985   1024.0 KiB  FFFF  dip
+  14           30986           39177   32.0 MiB    FFFF  mdtp
+  15           39178           41225   8.0 MiB     A015  aboot
+  16           41226           43273   8.0 MiB     A015  abootbak
+  17           43274           47369   16.0 MiB    FFFF  LOGO
+  18           47370           63753   64.0 MiB    A036  boot
+  19           63754           80137   64.0 MiB    FFFF  boot_aging
+  20           80138          850185   2.9 GiB     A038  system
+  21          850186          866569   64.0 MiB    A025  recovery
+  22          866570          866570   4.0 KiB     A021  devinfo
+  23          866571          866826   1024.0 KiB  FFFF  bluetooth
+  24          866827          866954   512.0 KiB   FFFF  keymaster
+  25          866955          867082   512.0 KiB   FFFF  keymasterbak
+  26          867083          867146   256.0 KiB   FFFF  cmnlib
+  27          867147          867210   256.0 KiB   FFFF  cmnlibbak
+  28          867211          867274   256.0 KiB   FFFF  cmnlib64
+  29          867275          867338   256.0 KiB   FFFF  cmnlib64bak
+  30          867339          867402   256.0 KiB   A022  apdp
+  31          867403          867466   256.0 KiB   A023  msadp
+  32          867467          867467   4.0 KiB     A024  dpo
+  33          867468          875823   32.6 MiB    FFFF  splash
+  34          875824          876335   2.0 MiB     FFFF  sti
+  35          876336         1048570   672.8 MiB   FFFF  last_parti
+ $ gdisk -l /dev/sdf
+GPT fdisk (gdisk) version 1.0.4
+
+Partition table scan:
+  MBR: protective
+  BSD: not present
+  APM: not present
+  GPT: present
+
+Found valid GPT with protective MBR; using GPT.
+Disk /dev/sdf: 393216 sectors, 1.5 GiB
+Model: KLUCG4J1CB-B0B1 
+Sector size (logical/physical): 4096/16384 bytes
+Disk identifier (GUID): 98101B32-BBE2-4BF2-A06E-2BB33D000C20
+Partition table holds up to 8 entries
+Main partition table begins at sector 2 and ends at sector 2
+First usable sector is 6, last usable sector is 393210
+Partitions will be aligned on 1-sector boundaries
+Total free space is 392052 sectors (1.5 GiB)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1               6             517   2.0 MiB     A027  modemst1
+   2             518            1029   2.0 MiB     A028  modemst2
+   3            1030            1030   4.0 KiB     A029  fsc
+   4            1031            1158   512.0 KiB   FFFF  md5
+   5            1159          393210   1.5 GiB     FFFF  last_parti

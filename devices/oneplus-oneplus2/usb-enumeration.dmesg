@@ -1,0 +1,7 @@
+[536030.265487] usb 2-1: new high-speed USB device number 87 using xhci_hcd
+[536030.421932] usb 2-1: New USB device found, idVendor=18d1, idProduct=4ee2, bcdDevice= 3.10
+[536030.421944] usb 2-1: New USB device strings: Mfr=1, Product=2, SerialNumber=3
+[536030.421948] usb 2-1: Product: Android
+[536030.421952] usb 2-1: Manufacturer: OnePlus
+[536030.421956] usb 2-1: SerialNumber: REDACTED
+[536031.780781] usb 2-1: USB disconnect, device number 87
