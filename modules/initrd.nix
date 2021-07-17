@@ -171,6 +171,10 @@ let
         inherit udev;
       in
         ''
+          # Copy modprobe.
+          copy_bin_and_libs ${pkgs.kmod}/bin/kmod
+          ln -sf kmod $out/bin/modprobe
+
           # Copy udev.
           copy_bin_and_libs ${udev}/bin/udevadm
           for BIN in ${udev}/lib/udev/*_id; do
