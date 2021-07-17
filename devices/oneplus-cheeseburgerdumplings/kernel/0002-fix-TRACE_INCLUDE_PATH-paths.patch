@@ -1,0 +1,63 @@
+--- a/drivers/soc/qcom/tracer_pkt_private.h	2020-01-24 02:18:04.799436834 +0100
++++ b/drivers/soc/qcom/tracer_pkt_private.h	2020-01-24 02:18:30.447648864 +0100
+@@ -15,7 +15,7 @@
+ #undef TRACE_SYSTEM
+ #define TRACE_SYSTEM tracer_pkt
+ #undef TRACE_INCLUDE_PATH
+-#define TRACE_INCLUDE_PATH .
++#define TRACE_INCLUDE_PATH ../../drivers/soc/qcom/
+ #undef TRACE_INCLUDE_FILE
+ #define TRACE_INCLUDE_FILE tracer_pkt_private
+
+--- a/drivers/gpu/msm/kgsl_trace.h	2020-01-23 22:06:01.002819509 +0200
++++ b/drivers/gpu/msm/kgsl_trace.h	2020-01-23 22:05:04.823362000 +0200
+@@ -17,7 +17,7 @@
+ #undef TRACE_SYSTEM
+ #define TRACE_SYSTEM kgsl
+ #undef TRACE_INCLUDE_PATH
+-#define TRACE_INCLUDE_PATH .
++#define TRACE_INCLUDE_PATH ../../drivers/gpu/msm/
+ #undef TRACE_INCLUDE_FILE
+ #define TRACE_INCLUDE_FILE kgsl_trace
+
+--- a/drivers/gpu/msm/adreno_trace.h	2020-01-24 00:56:45.902926755 +0100
++++ b/drivers/gpu/msm/adreno_trace.h	2020-01-24 00:57:09.916960611 +0100
+@@ -17,7 +18,7 @@
+ #undef TRACE_SYSTEM
+ #define TRACE_SYSTEM kgsl
+ #undef TRACE_INCLUDE_PATH
+-#define TRACE_INCLUDE_PATH .
++#define TRACE_INCLUDE_PATH ../../drivers/gpu/msm/
+ #undef TRACE_INCLUDE_FILE
+ #define TRACE_INCLUDE_FILE adreno_trace
+
+--- a/drivers/net/ethernet/msm/rndis_ipa_trace.h	2020-01-24 01:40:34.419235401 +0100
++++ b/drivers/net/ethernet/msm/rndis_ipa_trace.h	2020-01-24 01:40:58.437416148 +0100
+@@ -77,5 +77,5 @@
+ 
+ /* This part must be outside protection */
+ #undef TRACE_INCLUDE_PATH
+-#define TRACE_INCLUDE_PATH .
++#define TRACE_INCLUDE_PATH ../../drivers/net/ethernet/msm/
+ #include <trace/define_trace.h>
+
+--- a/drivers/platform/msm/ipa/ipa_v2/ipa_trace.h	2020-01-24 01:49:33.418902755 +0100
++++ b/drivers/platform/msm/ipa/ipa_v2/ipa_trace.h	2020-01-24 01:50:00.366988223 +0100
+@@ -148,5 +148,5 @@
+ 
+ /* This part must be outside protection */
+ #undef TRACE_INCLUDE_PATH
+-#define TRACE_INCLUDE_PATH .
++#define TRACE_INCLUDE_PATH ../../drivers/platform/msm/ipa/ipa_v2/
+ #include <trace/define_trace.h>
+
+--- a/drivers/platform/msm/ipa/ipa_v3/ipa_trace.h	2020-01-24 01:56:50.608078447 +0100
++++ b/drivers/platform/msm/ipa/ipa_v3/ipa_trace.h	2020-01-24 01:57:10.986641093 +0100
+@@ -149,5 +149,5 @@
+ 
+ /* This part must be outside protection */
+ #undef TRACE_INCLUDE_PATH
+-#define TRACE_INCLUDE_PATH .
++#define TRACE_INCLUDE_PATH ../../drivers/platform/msm/ipa/ipa_v3/
+ #include <trace/define_trace.h>
+

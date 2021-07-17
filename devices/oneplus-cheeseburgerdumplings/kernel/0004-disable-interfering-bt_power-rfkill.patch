@@ -1,0 +1,23 @@
+--- a/drivers/bluetooth/Makefile
++++ b/drivers/bluetooth/Makefile
+@@ -43,4 +43,4 @@ hci_uart-$(CONFIG_BT_HCIUART_BCM)	+= hci_bcm.o
+ hci_uart-$(CONFIG_BT_HCIUART_QCA)	+= hci_qca.o
+ hci_uart-objs				:= $(hci_uart-y)
+ 
+-ccflags-y += -D__CHECK_ENDIAN__
++ccflags-y += -D__CHECK_ENDIAN__ -Wno-unused-function
+diff --git a/drivers/bluetooth/bluetooth-power.c b/drivers/bluetooth/bluetooth-power.c
+index 99c18e3d66d7..51d53048e629 100644
+--- a/drivers/bluetooth/bluetooth-power.c
++++ b/drivers/bluetooth/bluetooth-power.c
+@@ -643,8 +643,8 @@ static int bt_power_probe(struct platform_device *pdev)
+ 		goto free_pdata;
+ 	}
+ 
+-	if (bluetooth_power_rfkill_probe(pdev) < 0)
+-		goto free_pdata;
++//	if (bluetooth_power_rfkill_probe(pdev) < 0)
++//		goto free_pdata;
+ 
+ 	btpdev = pdev;
+ 

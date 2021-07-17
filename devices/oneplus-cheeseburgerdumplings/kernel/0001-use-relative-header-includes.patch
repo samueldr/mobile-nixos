@@ -1,0 +1,139 @@
+--- a/fs/pstore/device_info.c	2020-01-22 19:43:33.879654000 +0200
++++ b/fs/pstore/device_info.c	2020-01-23 21:08:48.319122681 +0200
+@@ -7,7 +7,7 @@
+ 
+ #include <linux/pstore.h>
+ 
+-#include <device_info.h>
++#include "device_info.h"
+ 
+ static int __init device_info_init(void)
+ {
+
+--- a/sound/soc/msm/msm8998.c	2020-01-23 21:18:04.830519000 +0200
++++ b/sound/soc/msm/msm8998.c	2020-01-23 21:26:22.285763367 +0200
+@@ -33,7 +33,7 @@
+ #include <sound/q6core.h>
+ #include <sound/pcm_params.h>
+ #include <sound/info.h>
+-#include <device_event.h>
++#include "device_event.h"
+ #include <linux/qdsp6v2/audio_notifier.h>
+ #include "qdsp6v2/msm-pcm-routing-v2.h"
+ #include "../codecs/wcd9335.h"
+
+--- a/drivers/platform/msm/mhi/mhi_ssr.c	2020-01-24 02:07:33.413036728 +0100
++++ b/drivers/platform/msm/mhi/mhi_ssr.c	2020-01-24 02:08:34.830325714 +0100
+@@ -11,8 +11,8 @@
+  */
+ 
+ #include <linux/pm_runtime.h>
+-#include <mhi_sys.h>
+-#include <mhi.h>
++#include "mhi_sys.h"
++#include "mhi.h"
+ #include <soc/qcom/subsystem_restart.h>
+ #include <soc/qcom/subsystem_notif.h>
+ #include <linux/esoc_client.h>
+
+--- a/drivers/bluetooth/btfm_slim.c	2020-01-23 23:45:03.405515180 +0100
++++ b/drivers/bluetooth/btfm_slim.c	2020-01-23 23:45:55.417442853 +0100
+@@ -23,8 +23,8 @@
+ #include <sound/soc.h>
+ #include <sound/soc-dapm.h>
+ #include <sound/tlv.h>
+-#include <btfm_slim.h>
+-#include <btfm_slim_wcn3990.h>
++#include "btfm_slim.h"
++#include "btfm_slim_wcn3990.h"
+ #include <linux/bluetooth-power.h>
+ 
+ int btfm_slim_write(struct btfmslim *btfmslim,
+
+--- a/drivers/bluetooth/btfm_slim_codec.c	2020-01-23 21:18:02.426522000 +0200
++++ b/drivers/bluetooth/btfm_slim_codec.c	2020-01-23 21:37:17.088570259 +0200
+@@ -24,7 +24,7 @@
+ #include <sound/soc.h>
+ #include <sound/soc-dapm.h>
+ #include <sound/tlv.h>
+-#include <btfm_slim.h>
++#include "btfm_slim.h"
+ 
+ static int bt_soc_enable_status;
+
+--- a/drivers/bluetooth/btfm_slim_wcn3990.c	2020-01-24 00:11:40.040442166 +0100
++++ b/drivers/bluetooth/btfm_slim_wcn3990.c	2020-01-24 00:11:54.941975248 +0100
+@@ -10,8 +10,8 @@
+  * GNU General Public License for more details.
+  */
+ #include <linux/slimbus/slimbus.h>
+-#include <btfm_slim.h>
+-#include <btfm_slim_wcn3990.h>
++#include "btfm_slim.h"
++#include "btfm_slim_wcn3990.h"
+ 
+ /* WCN3990 Port assignment */
+ struct btfmslim_ch wcn3990_rxport[] = {
+
+--- a/drivers/bluetooth/btfm_slim_wcn3990.h	2020-01-23 21:18:02.426522000 +0200
++++ b/drivers/bluetooth/btfm_slim_wcn3990.h	2020-01-23 21:51:49.594615771 +0200
+@@ -12,7 +12,7 @@
+ #ifndef BTFM_SLIM_WCN3990_H
+ #define BTFM_SLIM_WCN3990_H
+ #ifdef CONFIG_BTFM_SLIM_WCN3990
+-#include <btfm_slim.h>
++#include "btfm_slim.h"
+ 
+ /* Registers Address */
+ #define CHRK_SB_COMP_TEST			0x00000000
+
+--- a/drivers/gpu/msm/kgsl_events.c	2020-01-23 21:18:02.704522000 +0200
++++ b/drivers/gpu/msm/kgsl_events.c	2020-01-23 22:14:17.217486601 +0200
+@@ -15,7 +15,7 @@
+ #include <linux/list.h>
+ #include <linux/workqueue.h>
+ #include <linux/debugfs.h>
+-#include <kgsl_device.h>
++#include "kgsl_device.h"
+ 
+ #include "kgsl_debugfs.h"
+ #include "kgsl_trace.h"
+
+--- a/drivers/media/platform/msm/camera_v2/common/cam_smmu_api.c	2020-01-23 21:18:02.976521000 +0200
++++ b/drivers/media/platform/msm/camera_v2/common/cam_smmu_api.c	2020-01-23 22:14:16.217491467 +0200
+@@ -27,7 +27,7 @@
+ #include <linux/sizes.h>
+ #include <soc/qcom/scm.h>
+ #include <soc/qcom/secure_buffer.h>
+-#include <msm_camera_tz_util.h>
++#include "msm_camera_tz_util.h"
+ #include "cam_smmu_api.h"
+ 
+ #define SCRATCH_ALLOC_START SZ_128K
+
+--- a/include/trace/events/msm_cam.h	2020-01-24 01:14:53.582424952 +0100
++++ b/include/trace/events/msm_cam.h	2020-01-24 01:15:20.314509531 +0100
+@@ -16,7 +16,7 @@
+ #if !defined(_TRACE_MSM_VFE_H) || defined(TRACE_HEADER_MULTI_READ)
+ #define _TRACE_MSM_VFE_H
+ 
+-#include "msm_isp.h"
++#include "../../../drivers/media/platform/msm/camera_v2/isp/msm_isp.h"
+ #include <linux/types.h>
+ #include <linux/tracepoint.h>
+ 
+--- a/drivers/media/platform/msm/camera_v2/sensor/msm_sensor.h	2020-01-24 01:28:19.902539500 +0100
++++ b/drivers/media/platform/msm/camera_v2/sensor/msm_sensor.h	2020-01-24 01:31:17.934342582 +0100
+@@ -31,9 +31,9 @@
+ #include <media/msm_cam_sensor.h>
+ #include <media/v4l2-subdev.h>
+ #include <media/v4l2-ioctl.h>
+-#include "msm_camera_i2c.h"
+-#include "msm_camera_dt_util.h"
+-#include "msm_sd.h"
++#include "io/msm_camera_i2c.h"
++#include "io/msm_camera_dt_util.h"
++#include "../msm_sd.h"
+ 
+ #define DEFINE_MSM_MUTEX(mutexname) \
+ 	static struct mutex mutexname = __MUTEX_INITIALIZER(mutexname)

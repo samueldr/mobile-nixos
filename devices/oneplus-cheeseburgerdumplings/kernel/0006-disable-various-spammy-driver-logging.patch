@@ -1,0 +1,59 @@
+--- a/drivers/input/touchscreen/synaptics_driver_s3320.c
++++ b/drivers/input/touchscreen/synaptics_driver_s3320.c
+@@ -1344,7 +1344,7 @@ static void gesture_judge(struct synaptics_ts_data *ts)
+ }
+ #endif
+ /***************end****************/
+-static char prlog_count;
++//static char prlog_count;
+ #ifdef REPORT_2D_PRESSURE
+ static unsigned char pres_value;
+ #endif
+@@ -1540,8 +1540,8 @@ void int_touch(void)
+ 	last_status = current_status & 0x02;
+ 
+ 	if (finger_num == 0/* && last_status && (check_key <= 1)*/) {
+-		if (3 == (++prlog_count % 6))
+-			TPD_ERR("all finger up\n");
++//		if (3 == (++prlog_count % 6))
++//			TPD_ERR("all finger up\n");
+ 		input_report_key(ts->input_dev, BTN_TOOL_FINGER, 0);
+ #ifndef TYPE_B_PROTOCOL
+ 		input_mt_sync(ts->input_dev);
+--- a/drivers/rtc/qpnp-rtc.c
++++ b/drivers/rtc/qpnp-rtc.c
+@@ -88,9 +88,9 @@ static int qpnp_write_wrapper(struct qpnp_rtc *rtc_dd, u8 *rtc_val,
+ {
+ 	int rc;
+ 
+-	if (base == (rtc_dd->alarm_base + REG_OFFSET_ALARM_CTRL1)) {
+-		dev_info(rtc_dd->rtc_dev, "write ALARM_CTRL1=0x%x\n", *rtc_val);
+-	}
++//	if (base == (rtc_dd->alarm_base + REG_OFFSET_ALARM_CTRL1)) {
++//		dev_info(rtc_dd->rtc_dev, "write ALARM_CTRL1=0x%x\n", *rtc_val);
++//	}
+ 
+ 	rc = regmap_bulk_write(rtc_dd->regmap, base, rtc_val, count);
+ 	if (rc) {
+@@ -314,8 +314,8 @@ qpnp_rtc_set_alarm(struct device *dev, struct rtc_wkalrm *alarm)
+ 	value[1] = (secs >> 8) & 0xFF;
+ 	value[2] = (secs >> 16) & 0xFF;
+ 	value[3] = (secs >> 24) & 0xFF;
+-	dev_info(dev, "val[0] = 0x%x, val[1] = 0x%x, val[2] = 0x%x, val[3] = 0x%x\n",
+-					value[0], value[1], value[2], value[3]);
++//	dev_info(dev, "val[0] = 0x%x, val[1] = 0x%x, val[2] = 0x%x, val[3] = 0x%x\n",
++//					value[0], value[1], value[2], value[3]);
+ 
+ 	spin_lock_irqsave(&rtc_dd->alarm_ctrl_lock, irq_flags);
+ 
+--- a/drivers/scsi/ufs/ufshcd.c
++++ b/drivers/scsi/ufs/ufshcd.c
+@@ -7876,7 +7876,7 @@ static int ufshcd_ioctl(struct scsi_device *dev, int cmd, void __user *buffer)
+ 
+ 	BUG_ON(!hba);
+ 	if (!buffer) {
+-		dev_err(hba->dev, "%s: User buffer is NULL!\n", __func__);
++//		dev_err(hba->dev, "%s: User buffer is NULL!\n", __func__);
+ 		return -EINVAL;
+ 	}
+ 
