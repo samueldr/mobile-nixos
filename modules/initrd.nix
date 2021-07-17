@@ -83,7 +83,7 @@ let
     (optionals (stage-1 ? contents) (flatten stage-1.contents))
     ++ [
       # Populate /bin/sh to stay POSIXLY compliant.
-      { object = "${extraUtils}/bin/sh"; symlink = "/bin/sh"; }
+      { suffix="/bin/sh"; object = extraUtils; symlink = "/bin/sh"; }
 
       # The mostly device-specific configuration for the bootloader.
       { object = bootConfigFile; symlink = "/etc/boot/config"; }
@@ -92,9 +92,9 @@ let
       { object = udevRules; symlink = "/etc/udev/rules.d"; }
 
       # Init components
-      { object = "${extraUtils}/bin/loader"; symlink = "/loader"; }
+      { suffix="/bin/loader"; object = extraUtils; symlink = "/loader"; }
       { object = initWrapper; symlink = "/init"; }
-      { object = "${mobile-nixos-init}/libexec/init.mrb"; symlink = "/init.mrb"; }
+      { suffix="/libexec/init.mrb"; object = mobile-nixos-init; symlink = "/init.mrb"; }
     ]
   ;
 
@@ -288,7 +288,7 @@ in
           Additional shell commands to run before the actual init.
 
           Prefer writing a task. This should be used mainly to redirect logging,
-          or do setup that is otherwise impossible in the init, like running it 
+          or do setup that is otherwise impossible in the init, like running it
           against strace.
         '';
         internal = true;
