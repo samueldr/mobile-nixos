@@ -4,30 +4,43 @@
 , ...
 }:
 
-mobile-nixos.kernel-builder-gcc6 {
-  version = "3.4.113";
+mobile-nixos.kernel-builder rec {
+  version = "5.13.0-rc5-next-20210608"; # ???? next?? ah... localversion-next
   configfile = ./config.armv7;
 
+  # FIXME: apply patchsets directly on top of mainline
   src = fetchFromGitHub {
-    owner = "LineageOS";
-    repo = "android_kernel_google_msm";
-    rev = "a4b9cf707b9acf6e5f6089d1121ae973efe399b0";
-    sha256 = "0q88sqmcd09m0wq27rvzvq588gbk3daji1zp36qpyzl1d66b37v6";
+    owner = "okias";
+    repo = "linux";
+    # https://github.com/okias/linux/commits/flo-v5.13
+    rev = "e50acb2eabbf20837f6e9784c23d222a58529eac";
+    sha256 = "1dcmg13z7l9k8yzw1xllhjji2iy84ig43axv8haiwk1560m7mcm0";
   };
 
-  patches = [
-    ./00_fix_return_address.patch
-    ./02_gpu-msm-fix-gcc5-compile.patch
-    ./03-fix-video-argb-setting.patch
-    ./patch_fsp_detect.patch
-    ./patch_lifebook_detect.patch
-    ./90_dtbs-install.patch
-    ./99_framebuffer.patch
+  # Using the compiled device tree
+  installTargets = [
+    "qcom-apq8064-asus-nexus7-flo.dtb"
   ];
 
-  enableCompilerGcc6Quirk = true;
-  isModular = false;
+  # FIXME: generic mainline build; append per-device...
+  postInstall = ''
+    echo ':: Copying kernel'
+    (PS4=" $ "; set -x
+    cp -v \
+      $buildRoot/arch/arm/boot/zImage \
+      $out/
+    )
 
-  # mv: cannot stat 'arch/arm/boot/compressed/.misc.o.tmp': No such file or directory
-  enableCombiningBuildAndInstallQuirk = false;
+    echo ':: Appending DTB'
+    (PS4=" $ "; set -x
+    cat \
+      $buildRoot/arch/arm/boot/zImage \
+      $buildRoot/arch/arm/boot/dts/qcom-apq8064-asus-nexus7-flo.dtb \
+      > $out/zImage-dtb
+    )
+  '';
+
+  isModular = false;
+  isCompressed = "gz";
+  kernelFile = "zImage-dtb";
 }

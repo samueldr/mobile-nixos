@@ -110,6 +110,10 @@ in
 # The usual mkDerivation option
 , enableParallelBuilding ? true
 
+# File name for the final kernel file
+# Generally left null, a sane default is used.
+, kernelFile ? null
+
 # Usual stdenv arguments we are also setting.
 # Use the ones given by the user for composition.
 , nativeBuildInputs ? []
@@ -447,7 +451,7 @@ stdenv.mkDerivation (inputArgs // {
     inherit isQcdt isExynosDT;
 
     # Used by consumers to refer to the kernel build product.
-    file = kernelTarget + optionalString isImageGzDtb "-dtb";
+    file = if kernelFile != null then kernelFile else  kernelTarget + optionalString isImageGzDtb "-dtb";
 
     # Derivation with the as-built normalized kernel config
     normalizedConfig = kernelDerivation.overrideAttrs({ ... }: {

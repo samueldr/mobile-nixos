@@ -47,4 +47,17 @@
   ];
 
   mobile.system.type = "android";
+
+  # Mainline kernel uses gadgetfs!
+  mobile.usb.mode = "gadgetfs";
+
+  # Google
+  mobile.usb.idVendor = "18D1";
+  # "Nexus 4"
+  mobile.usb.idProduct = "D001";
+
+  mobile.usb.gadgetfs.functions = {
+    rndis = "rndis.usb0";
+    adb = "ffs.adb";
+  };
 }
