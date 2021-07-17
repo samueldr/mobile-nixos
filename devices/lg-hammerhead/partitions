@@ -1,0 +1,39 @@
+Disk /dev/mmcblk1: 30777344 sectors, 14.7 GiB
+Sector size (logical/physical): 512/512 bytes
+Disk identifier (GUID): 98101B32-BBE2-4BF2-A06E-2BB33D000C20
+Partition table holds up to 32 entries
+Main partition table begins at sector 2 and ends at sector 9
+First usable sector is 34, last usable sector is 30777310
+Partitions will be aligned on 4-sector boundaries
+Total free space is 990 sectors (495.0 KiB)
+
+Number  Start (sector)    End (sector)  Size       Code  Name
+   1            1024          132095   64.0 MiB    0700  modem
+   2          132096          134143   1024.0 KiB  A012  sbl1
+   3          134144          135167   512.0 KiB   A018  rpm
+   4          135168          136191   512.0 KiB   A016  tz
+   5          136192          137215   512.0 KiB   A019  sdi
+   6          137216          138239   512.0 KiB   A015  aboot
+   7          138240          142335   2.0 MiB     0700  pad
+   8          142336          144383   1024.0 KiB  FFFF  sbl1b
+   9          144384          145407   512.0 KiB   FFFF  tzb
+  10          145408          146431   512.0 KiB   FFFF  rpmb
+  11          146432          147455   512.0 KiB   FFFF  abootb
+  12          147456          153599   3.0 MiB     A027  modemst1
+  13          153600          159743   3.0 MiB     A028  modemst2
+  14          159744          160767   512.0 KiB   8301  metadata
+  15          160768          193535   16.0 MiB    FFFF  misc
+  16          193536          226303   16.0 MiB    8300  persist
+  17          226304          232447   3.0 MiB     FFFF  imgdata
+  18          232448          277503   22.0 MiB    A03B  laf
+  19          277504          322559   22.0 MiB    A036  boot
+  20          322560          367615   22.0 MiB    A036  recovery
+  21          367616          373759   3.0 MiB     A02A  fsg
+  22          373760          374783   512.0 KiB   A029  fsc
+  23          374784          375807   512.0 KiB   A02C  ssd
+  24          375808          376831   512.0 KiB   A01A  DDR
+  25          376832         2473983   1024.0 MiB  0700  system
+  26         2473984         2535423   30.0 MiB    FFFF  crypto
+  27         2535424         3969023   700.0 MiB   0700  cache
+  28         3969024        30777299   12.8 GiB    0700  userdata
+  29        30777300        30777310   5.5 KiB     0700  grow

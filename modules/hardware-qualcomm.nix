@@ -27,6 +27,11 @@ in
       default = false;
       description = "enable when SOC is msm8939";
     };
+    hardware.socs.qualcomm-msm8974.enable = mkOption {
+      type = types.bool;
+      default = false;
+      description = "enable when SOC is msm8974";
+    };
     hardware.socs.qualcomm-msm8996.enable = mkOption {
       type = types.bool;
       default = false;
@@ -71,6 +76,11 @@ in
       mobile = mkIf cfg.qualcomm-msm8953.enable {
         system.system = "aarch64-linux";
         quirks.fb-refresher.enable = true;
+      };
+    }
+    {
+      mobile = mkIf cfg.qualcomm-msm8974.enable {
+        system.system = "armv7l-linux";
       };
     }
     {
