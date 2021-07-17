@@ -29,11 +29,11 @@
   #
   # If you want it to be disabled by default on boot, use:
   #
-  #     systemd.services.modem-control.wantedBy = lib.mkForce [ "sys-devices-platform-soc-1c1b000.usb-usb3-3\\x2d1-3\\x2d1:1.4-net-wwan0.device" ];
+  #     systemd.services.modem-control.wantedBy = lib.mkForce [ "sys-subsystem-net-devices-wwan0.device" ];
   #
   systemd.services =
     let
-      dotDeviceName = "sys-devices-platform-soc-1c1b000.usb-usb3-3\\x2d1-3\\x2d1:1.4-net-wwan0.device";
+      dotDeviceName = "sys-subsystem-net-devices-wwan0.device";
     in {
     "modem-control" = {
       bindsTo = [ dotDeviceName ];
