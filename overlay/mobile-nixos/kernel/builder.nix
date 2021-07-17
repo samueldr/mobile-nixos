@@ -169,6 +169,8 @@ stdenv.mkDerivation (inputArgs // {
   inherit qcdt_dtbs exynos_dtbs exynos_platform exynos_subtype;
   inherit enableParallelBuilding;
 
+  outputs = [ "out" "dev" ];
+
   # Allows disabling the kernel config normalization.
   # Set to false when normalizing the kernel config.
   forceNormalizedConfig = true;
@@ -373,6 +375,10 @@ stdenv.mkDerivation (inputArgs // {
     echo ":: Running postBuild hook before postInstall (combined build/install quirk)"
     runHook postBuild
 
+  '' + ''
+    echo ":: Installing header files"
+    echo make $makeFlags "''${makeFlagsArray[@]}"  INSTALL_HDR_PATH=$out/ headers_install
+    make $makeFlags "''${makeFlagsArray[@]}"  INSTALL_HDR_PATH=$out/ headers_install
   '' + ''
     echo ":: Copying configuration file"
     # Helpful in cases where the kernel isn't built with /proc/config.gz
