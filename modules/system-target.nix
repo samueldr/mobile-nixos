@@ -16,6 +16,7 @@ in
         "aarch64-linux"
         "armv7l-linux"
         "x86_64-linux"
+        "i686-linux"
       ];
       description = ''
         Defines the kind of target architecture system the device is.
@@ -28,7 +29,7 @@ in
   config = {
     assertions = [
       {
-        assertion = pkgs.targetPlatform.system == cfg.system;
+        assertion = (cfg.system == "i686-linux" && pkgs.targetPlatform.system == "x86_64-linux") || pkgs.targetPlatform.system == cfg.system;
         message = "pkgs.targetPlatform.system expected to be `${cfg.system}`, is `${pkgs.targetPlatform.system}`";
       }
     ];
@@ -36,10 +37,14 @@ in
     nixpkgs.crossSystem = lib.mkIf
       (
         let
-          result = selectedPlatform.system != localSystem.system;
+          # i686 on x86_64 can be built "natively", see pkgsi686.
+          # None of the other combinations can be mixed.
+          result = !(selectedPlatform.system == "i686-linux" && localSystem.system == "x86_64-linux")
+            && selectedPlatform.system != localSystem.system
+          ;
         in
         builtins.trace
-        "Building with crossSystem?: ${selectedPlatform.system} != ${localSystem.system} → ${if result then "we are" else "we're not"}."
+        "Building with crossSystem?: [selected: ${selectedPlatform.system}] on [local: ${localSystem.system}] → ${if result then "using crossSystem" else "building natively"}."
         result
       )
       (
@@ -48,5 +53,8 @@ in
         selectedPlatform
       )
     ;
+
+    # i686 on x86_64 can be built "natively", see pkgsi686.
+    nixpkgs.system = lib.mkIf (selectedPlatform.system == "i686-linux") "i686-linux";
   };
 }

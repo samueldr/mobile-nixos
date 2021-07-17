@@ -7,6 +7,12 @@ in
 {
   options.mobile.hardware.socs = {
     # Please don't use `generic-*` SoCs in specific devices.
+    generic-i686.enable = mkOption {
+      type = types.bool;
+      default = false;
+      description = "Enable when system is a generic i686";
+      internal = true;
+    };
     generic-x86_64.enable = mkOption {
       type = types.bool;
       default = false;
@@ -29,6 +35,7 @@ in
 
   config = {
     mobile.system.system = mkMerge [
+      (lib.mkIf cfg.generic-i686.enable "i686-linux")
       (lib.mkIf cfg.generic-x86_64.enable "x86_64-linux")
       (lib.mkIf cfg.generic-armv7l.enable "armv7l-linux")
       (lib.mkIf cfg.generic-aarch64.enable "aarch64-linux")
