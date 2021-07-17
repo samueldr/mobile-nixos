@@ -41,6 +41,35 @@ U-Boot can be built and then flashed the usual way for Allwinner platforms.
  $ dd if=result/u-boot-sunxi-with-spl.bin of=/dev/mmcblkX bs=1024 seek=8
 ```
 
+=== Building a full disk image with custom rootfs (Using a pre-built `system.img`)
+
+The rootfs that is found as the second partition in the full disk image is only the most bare version of NixOS and is unusable in this case.
+A more complete prebuilt rootfs can be found link:https://hydra.nixos.org/job/mobile-nixos/unstable/examples-demo.aarch64-linux.rootfs[here].
+
+Replace the second partition of the full disk image with the prebuild rootfs.
+It's also possible to create a new DOS partion table on the disk and adding the boot partition with boot flag and root partition manualy.
+
+```
+ $ fdisk /dev/mmcblkX
+   : o  # New dos table
+   : n  # New partition (boot)
+     p  # Primary partition
+     1  # Partition number 1
+     ⏎  # First sector (select default)
+     +128M  # Set size to 128mb
+   : a  # Toggle bootable
+     1  # for boot partition
+   : n  # New partition (root)
+     p  # Primary partition
+     2  # Partition number 2
+     ⏎  # First sector (select default)
+     ⏎  # Set size to the rest of the drive (select default)
+   : w  # write changes
+ # Burn boot partition, see "Building the boot partition"
+ # Burn the rootfs:
+ $ dd if=system.img of=/dev/mmcblkXp2 bs=8M oflag=sync,direct status=progress
+```
+
 === Usage notes
 
 ==== LED
