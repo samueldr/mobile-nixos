@@ -1,0 +1,20 @@
+diff --git a/drivers/usb/serial/kl5kusb105.c b/drivers/usb/serial/kl5kusb105.c
+index cd03225..83c823d 100644
+--- a/drivers/usb/serial/kl5kusb105.c
++++ b/drivers/usb/serial/kl5kusb105.c
+@@ -192,10 +192,11 @@
+ 			     status_buf, KLSI_STATUSBUF_LEN,
+ 			     10000
+ 			     );
+-	if (rc < 0)
+-		dev_err(&port->dev, "Reading line status failed (error = %d)\n",
+-			rc);
+-	else {
++	if (rc != KLSI_STATUSBUF_LEN) {
++		dev_err(&port->dev, "reading line status failed: %d\n", rc);
++		if (rc >= 0)
++			rc = -EIO;
++	} else {
+ 		status = get_unaligned_le16(status_buf);
+ 
+ 		dev_info(&port->serial->dev->dev, "read status %x %x\n",

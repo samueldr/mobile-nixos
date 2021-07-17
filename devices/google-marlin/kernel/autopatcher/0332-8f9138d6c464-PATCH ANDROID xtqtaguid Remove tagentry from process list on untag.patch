@@ -1,0 +1,56 @@
+From 8f9138d6c464a60f37f1b293bc61ccbcce6210f6 Mon Sep 17 00:00:00 2001
+From: Kalesh Singh <kaleshsingh@google.com>
+Date: Mon, 11 Jan 2021 01:26:18 -0500
+Subject: [PATCH] ANDROID: xt_qtaguid: Remove tag_entry from process list on untag
+
+A sock_tag_entry can only be part of one process's
+pqd_entry->sock_tag_list. Retagging the socket only updates
+sock_tag_entry->tag, and does not add the tag entry to the current
+process's pqd_entry list, nor update sock_tag_entry->pid.
+So the sock_tag_entry is only ever present in the
+pqd_entry list of the process that initially tagged the socket.
+
+A sock_tag_entry can also get created and not be added to any process's
+pqd_entry list. This happens if the process that initially tags the
+socket has not opened /dev/xt_qtaguid.
+
+ctrl_cmd_untag() supports untagging from a context other than the
+process that initially tagged the socket. Currently, the sock_tag_entry is
+only removed from its containing pqd_entry->sock_tag_list if the
+process that does the untagging has opened /dev/xt_qtaguid. However, the
+tag entry should always be deleted from its pqd entry list (if present).
+
+Bug: 176919394
+Signed-off-by: Kalesh Singh <kaleshsingh@google.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@google.com>
+Change-Id: I5b6f0c36c0ebefd98cc6873a4057104c7d885ccc
+---
+
+diff --git a/net/netfilter/xt_qtaguid.c b/net/netfilter/xt_qtaguid.c
+index ae5f310..3f2f0aa 100644
+--- a/net/netfilter/xt_qtaguid.c
++++ b/net/netfilter/xt_qtaguid.c
+@@ -2416,15 +2416,20 @@
+ 	 * At first, we want to catch user-space code that is not
+ 	 * opening the /dev/xt_qtaguid.
+ 	 */
+-	if (IS_ERR_OR_NULL(pqd_entry) || !sock_tag_entry->list.next) {
++	if (IS_ERR_OR_NULL(pqd_entry))
+ 		pr_warn_once("qtaguid: %s(): "
+ 			     "User space forgot to open /dev/xt_qtaguid? "
+ 			     "pid=%u tgid=%u sk_pid=%u, uid=%u\n", __func__,
+ 			     current->pid, current->tgid, sock_tag_entry->pid,
+ 			     from_kuid(&init_user_ns, current_fsuid()));
+-	} else {
++	/*
++	 * This check is needed because tagging from a process that
++	 * didn’t open /dev/xt_qtaguid still adds the sock_tag_entry
++	 * to sock_tag_tree.
++	 */
++	if (sock_tag_entry->list.next)
+ 		list_del(&sock_tag_entry->list);
+-	}
++
+ 	spin_unlock_bh(&uid_tag_data_tree_lock);
+ 	/*
+ 	 * We don't free tag_ref from the utd_entry here,

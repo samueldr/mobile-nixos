@@ -1,0 +1,22 @@
+From 4022d3d1c52e2c7e1addc3fe576eb9a83568d06e Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Sun, 26 Mar 2017 16:24:45 -0400
+Subject: [PATCH] panic on !PageSlab && !PageCompound in ksize
+
+---
+ mm/slub.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/slub.c b/mm/slub.c
+index c47eeb8b75e..709fa088091 100644
+--- a/mm/slub.c
++++ b/mm/slub.c
+@@ -3531,7 +3531,7 @@ static size_t __ksize(const void *object)
+ 	page = virt_to_head_page(object);
+ 
+ 	if (unlikely(!PageSlab(page))) {
+-		WARN_ON(!PageCompound(page));
++		BUG_ON(!PageCompound(page));
+ 		return PAGE_SIZE << compound_order(page);
+ 	}
+ 

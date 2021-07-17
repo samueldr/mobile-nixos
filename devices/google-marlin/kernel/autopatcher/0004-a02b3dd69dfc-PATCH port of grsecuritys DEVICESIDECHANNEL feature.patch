@@ -1,0 +1,144 @@
+From a02b3dd69dfc489a8cdc50d391acdbd3c957206d Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Thu, 23 Jun 2016 17:05:09 -0400
+Subject: [PATCH] port of grsecurity's DEVICE_SIDECHANNEL feature
+
+---
+ fs/stat.c                  | 20 ++++++++++++++++----
+ include/linux/capability.h |  2 ++
+ include/linux/fs.h         |  6 ++++++
+ include/linux/fsnotify.h   |  6 ++++++
+ kernel/capability.c        | 21 +++++++++++++++++++++
+ 5 files changed, 51 insertions(+), 4 deletions(-)
+
+diff --git a/fs/stat.c b/fs/stat.c
+index ae0c3cef992..9ee641cc165 100644
+--- a/fs/stat.c
++++ b/fs/stat.c
+@@ -28,8 +28,13 @@ void generic_fillattr(struct inode *inode, struct kstat *stat)
+ 	stat->gid = inode->i_gid;
+ 	stat->rdev = inode->i_rdev;
+ 	stat->size = i_size_read(inode);
+-	stat->atime = inode->i_atime;
+-	stat->mtime = inode->i_mtime;
++	if (is_sidechannel_device(inode) && !capable_nolog(CAP_MKNOD)) {
++		stat->atime = inode->i_ctime;
++		stat->mtime = inode->i_ctime;
++	} else {
++		stat->atime = inode->i_atime;
++		stat->mtime = inode->i_mtime;
++	}
+ 	stat->ctime = inode->i_ctime;
+ 	stat->blksize = (1 << inode->i_blkbits);
+ 	stat->blocks = inode->i_blocks;
+@@ -52,9 +57,16 @@ EXPORT_SYMBOL(generic_fillattr);
+ int vfs_getattr_nosec(struct path *path, struct kstat *stat)
+ {
+ 	struct inode *inode = path->dentry->d_inode;
++	int retval;
+ 
+-	if (inode->i_op->getattr)
+-		return inode->i_op->getattr(path->mnt, path->dentry, stat);
++	if (inode->i_op->getattr) {
++		retval = inode->i_op->getattr(path->mnt, path->dentry, stat);
++		if (!retval && is_sidechannel_device(inode) && !capable_nolog(CAP_MKNOD)) {
++			stat->atime = stat->ctime;
++			stat->mtime = stat->ctime;
++		}
++		return retval;
++	}
+ 
+ 	generic_fillattr(inode, stat);
+ 	return 0;
+diff --git a/include/linux/capability.h b/include/linux/capability.h
+index c2eb39ff1a5..9d0ad67ba14 100644
+--- a/include/linux/capability.h
++++ b/include/linux/capability.h
+@@ -210,7 +210,9 @@ extern bool has_capability_noaudit(struct task_struct *t, int cap);
+ extern bool has_ns_capability_noaudit(struct task_struct *t,
+ 				      struct user_namespace *ns, int cap);
+ extern bool capable(int cap);
++extern bool capable_nolog(int cap);
+ extern bool ns_capable(struct user_namespace *ns, int cap);
++extern bool ns_capable_nolog(struct user_namespace *ns, int cap);
+ extern bool capable_wrt_inode_uidgid(const struct inode *inode, int cap);
+ extern bool file_ns_capable(const struct file *file, struct user_namespace *ns, int cap);
+ 
+diff --git a/include/linux/fs.h b/include/linux/fs.h
+index b742504a954..63661be3dd0 100644
+--- a/include/linux/fs.h
++++ b/include/linux/fs.h
+@@ -2857,4 +2857,10 @@ static inline bool dir_relax(struct inode *inode)
+ 	return !IS_DEADDIR(inode);
+ }
+ 
++static inline bool is_sidechannel_device(const struct inode *inode)
++{
++	umode_t mode = inode->i_mode;
++	return ((S_ISCHR(mode) || S_ISBLK(mode)) && (mode & (S_IROTH | S_IWOTH)));
++}
++
+ #endif /* _LINUX_FS_H */
+diff --git a/include/linux/fsnotify.h b/include/linux/fsnotify.h
+index a7789559078..87570f8642a 100644
+--- a/include/linux/fsnotify.h
++++ b/include/linux/fsnotify.h
+@@ -197,6 +197,9 @@ static inline void fsnotify_access(struct file *file)
+ 	struct inode *inode = file_inode(file);
+ 	__u32 mask = FS_ACCESS;
+ 
++	if (is_sidechannel_device(inode))
++		return;
++
+ 	if (S_ISDIR(inode->i_mode))
+ 		mask |= FS_ISDIR;
+ 
+@@ -215,6 +218,9 @@ static inline void fsnotify_modify(struct file *file)
+ 	struct inode *inode = file_inode(file);
+ 	__u32 mask = FS_MODIFY;
+ 
++	if (is_sidechannel_device(inode))
++		return;
++
+ 	if (S_ISDIR(inode->i_mode))
+ 		mask |= FS_ISDIR;
+ 
+diff --git a/kernel/capability.c b/kernel/capability.c
+index 989f5bfc57d..55aaae16f6c 100644
+--- a/kernel/capability.c
++++ b/kernel/capability.c
+@@ -386,6 +386,21 @@ bool ns_capable(struct user_namespace *ns, int cap)
+ }
+ EXPORT_SYMBOL(ns_capable);
+ 
++bool ns_capable_nolog(struct user_namespace *ns, int cap)
++{
++	if (unlikely(!cap_valid(cap))) {
++		printk(KERN_CRIT "capable_nolog() called with invalid cap=%u\n", cap);
++		BUG();
++	}
++
++	if (security_capable_noaudit(current_cred(), ns, cap) == 0) {
++		current->flags |= PF_SUPERPRIV;
++		return true;
++	}
++	return false;
++}
++EXPORT_SYMBOL(ns_capable_nolog);
++
+ /**
+  * file_ns_capable - Determine if the file's opener had a capability in effect
+  * @file:  The file we want to check
+@@ -427,6 +442,12 @@ bool capable(int cap)
+ }
+ EXPORT_SYMBOL(capable);
+ 
++bool capable_nolog(int cap)
++{
++	return ns_capable_nolog(&init_user_ns, cap);
++}
++EXPORT_SYMBOL(capable_nolog);
++
+ /**
+  * capable_wrt_inode_uidgid - Check nsown_capable and uid and gid mapped
+  * @inode: The inode in question

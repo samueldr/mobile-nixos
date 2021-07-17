@@ -1,0 +1,36 @@
+From 51bda2bca53b265715ca1852528f38dc67429d9a Mon Sep 17 00:00:00 2001
+From: Al Viro <viro@zeniv.linux.org.uk>
+Date: Fri, 19 Dec 2014 06:20:57 +0000
+Subject: Bluetooth: hidp_connection_add() unsafe use of l2cap_pi()
+
+it's OK after we'd verified the sockets, but not before that.
+
+Signed-off-by: Al Viro <viro@zeniv.linux.org.uk>
+Signed-off-by: Marcel Holtmann <marcel@holtmann.org>
+---
+ net/bluetooth/hidp/core.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/net/bluetooth/hidp/core.c b/net/bluetooth/hidp/core.c
+index cc25d0b74b36..07348e142f16 100644
+--- a/net/bluetooth/hidp/core.c
++++ b/net/bluetooth/hidp/core.c
+@@ -1314,13 +1314,14 @@ int hidp_connection_add(struct hidp_connadd_req *req,
+ {
+ 	struct hidp_session *session;
+ 	struct l2cap_conn *conn;
+-	struct l2cap_chan *chan = l2cap_pi(ctrl_sock->sk)->chan;
++	struct l2cap_chan *chan;
+ 	int ret;
+ 
+ 	ret = hidp_verify_sockets(ctrl_sock, intr_sock);
+ 	if (ret)
+ 		return ret;
+ 
++	chan = l2cap_pi(ctrl_sock->sk)->chan;
+ 	conn = NULL;
+ 	l2cap_chan_lock(chan);
+ 	if (chan->conn)
+-- 
+cgit 1.2-0.3.lf.el7
+

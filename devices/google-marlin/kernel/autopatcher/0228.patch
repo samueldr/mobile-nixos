@@ -1,0 +1,30 @@
+diff --git a/fs/ext4/namei.c b/fs/ext4/namei.c
+index 9ed5d80..b0ecf95 100644
+--- a/fs/ext4/namei.c
++++ b/fs/ext4/namei.c
+@@ -3023,19 +3023,18 @@
+ 	if (IS_DIRSYNC(dir))
+ 		ext4_handle_sync(handle);
+ 
+-	if (!inode->i_nlink) {
+-		ext4_warning(inode->i_sb,
+-			     "Deleting nonexistent file (%lu), %d",
+-			     inode->i_ino, inode->i_nlink);
+-		set_nlink(inode, 1);
+-	}
+ 	retval = ext4_delete_entry(handle, dir, de, bh);
+ 	if (retval)
+ 		goto end_unlink;
+ 	dir->i_ctime = dir->i_mtime = ext4_current_time(dir);
+ 	ext4_update_dx_flag(dir);
+ 	ext4_mark_inode_dirty(handle, dir);
+-	drop_nlink(inode);
++	if (!inode->i_nlink)
++		ext4_warning(inode->i_sb,
++			     "Deleting nonexistent file (%lu), %d",
++			     inode->i_ino, inode->i_nlink);
++	else
++		drop_nlink(inode);
+ 	if (!inode->i_nlink)
+ 		ext4_orphan_add(handle, inode);
+ 	inode->i_ctime = ext4_current_time(inode);

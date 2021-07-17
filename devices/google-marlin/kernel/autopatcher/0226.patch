@@ -1,0 +1,19 @@
+diff --git a/fs/btrfs/tests/btrfs-tests.c b/fs/btrfs/tests/btrfs-tests.c
+index 9626252..49dce70 100644
+--- a/fs/btrfs/tests/btrfs-tests.c
++++ b/fs/btrfs/tests/btrfs-tests.c
+@@ -48,7 +48,13 @@
+ 
+ struct inode *btrfs_new_test_inode(void)
+ {
+-	return new_inode(test_mnt->mnt_sb);
++	struct inode *inode;
++
++	inode = new_inode(test_mnt->mnt_sb);
++	if (inode)
++		inode_init_owner(inode, NULL, S_IFREG);
++
++	return inode;
+ }
+ 
+ int btrfs_init_test_fs(void)

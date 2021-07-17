@@ -1,0 +1,34 @@
+diff --git a/drivers/block/rbd.c b/drivers/block/rbd.c
+index 9e97f34..aaab1fb 100644
+--- a/drivers/block/rbd.c
++++ b/drivers/block/rbd.c
+@@ -3946,6 +3946,9 @@
+ 	struct rbd_device *rbd_dev = dev_to_rbd_dev(dev);
+ 	int ret;
+ 
++	if (!capable(CAP_SYS_ADMIN))
++		return -EPERM;
++
+ 	ret = rbd_dev_refresh(rbd_dev);
+ 	if (ret)
+ 		return ret;
+@@ -5410,6 +5413,9 @@
+ 	bool read_only;
+ 	int rc = -ENOMEM;
+ 
++	if (!capable(CAP_SYS_ADMIN))
++		return -EPERM;
++
+ 	if (!try_module_get(THIS_MODULE))
+ 		return -ENODEV;
+ 
+@@ -5553,6 +5559,9 @@
+ 	bool already = false;
+ 	int ret;
+ 
++	if (!capable(CAP_SYS_ADMIN))
++		return -EPERM;
++
+ 	ret = kstrtoul(buf, 10, &ul);
+ 	if (ret)
+ 		return ret;

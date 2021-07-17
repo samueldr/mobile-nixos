@@ -1,0 +1,36 @@
+From abbb184989c4ecafa080837deb30721b2e69b3fe Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Tue, 26 Sep 2017 14:16:32 -0400
+Subject: [PATCH] wcnss: fix 3 byte buffer overflow on MAC change
+
+Change-Id: I0c47844e47d0396e4f241d4472e904b1ee7dc1bc
+---
+ drivers/net/wireless/wcnss/wcnss_wlan.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/net/wireless/wcnss/wcnss_wlan.c b/drivers/net/wireless/wcnss/wcnss_wlan.c
+index 0177d9367f4..b8451f8011e 100644
+--- a/drivers/net/wireless/wcnss/wcnss_wlan.c
++++ b/drivers/net/wireless/wcnss/wcnss_wlan.c
+@@ -191,7 +191,7 @@ static DEFINE_SPINLOCK(reg_spinlock);
+ #define WCNSS_USR_HAS_CAL_DATA    (WCNSS_USR_CTRL_MSG_START + 2)
+ #define WCNSS_USR_WLAN_MAC_ADDR   (WCNSS_USR_CTRL_MSG_START + 3)
+ 
+-#define MAC_ADDRESS_STR "%02x:%02x:%02x:%02x:%02x:%02x"
++#define MAC_ADDRESS_STR "%02hhx:%02hhx:%02hhx:%02hhx:%02hhx:%02hhx"
+ 
+ /* message types */
+ #define WCNSS_CTRL_MSG_START	0x01000000
+@@ -434,9 +434,9 @@ static ssize_t wcnss_wlan_macaddr_store(struct device *dev,
+ 	pr_debug("%s: Receive MAC Addr From user space: %s\n", __func__, buf);
+ 
+ 	if (WLAN_MAC_ADDR_SIZE != sscanf(buf, MAC_ADDRESS_STR,
+-		 (int *)&macAddr[0], (int *)&macAddr[1],
+-		 (int *)&macAddr[2], (int *)&macAddr[3],
+-		 (int *)&macAddr[4], (int *)&macAddr[5])) {
++		 &macAddr[0], &macAddr[1],
++		 &macAddr[2], &macAddr[3],
++		 &macAddr[4], &macAddr[5])) {
+ 
+ 		pr_err("%s: Failed to Copy MAC\n", __func__);
+ 		return -EINVAL;

@@ -1,0 +1,59 @@
+From 2bf336ed7ff29768b63fcf0d9528dd129f516643 Mon Sep 17 00:00:00 2001
+From: Siena Richard <sienar@codeaurora.org>
+Date: Tue, 31 Jan 2017 12:21:38 -0800
+Subject: ASoC: msm: qdsp6v2: return error when copy from userspace fails
+
+A copy_from_user is not always expected to succeed. Therefore, check
+for an error before operating on the buffer post copy.
+
+CRs-Fixed: 1116070
+Change-Id: I21032719e6e85f280ca0cda875c84ac8dee8916b
+Signed-off-by: Siena Richard <sienar@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c | 17 +++++++++++------
+ 1 file changed, 11 insertions(+), 6 deletions(-)
+
+diff --git a/sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c b/sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c
+index c444a27..b2387a7 100644
+--- a/sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c
++++ b/sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c
+@@ -1,4 +1,4 @@
+-/* Copyright (c) 2012-2016, The Linux Foundation. All rights reserved.
++/* Copyright (c) 2012-2017, The Linux Foundation. All rights reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 and
+@@ -814,20 +814,25 @@ static int msm_pcm_playback_copy(struct snd_pcm_substream *substream, int a,
+ 			if (prtd->mode == MODE_PCM) {
+ 				ret = copy_from_user(&buf_node->frame.voc_pkt,
+ 							buf, count);
++				if (ret) {
++					pr_err("%s: copy from user failed %d\n",
++					       __func__, ret);
++					return -EFAULT;
++				}
+ 				buf_node->frame.pktlen = count;
+ 			} else {
+ 				ret = copy_from_user(&buf_node->frame,
+ 							buf, count);
++				if (ret) {
++					pr_err("%s: copy from user failed %d\n",
++					       __func__, ret);
++					return -EFAULT;
++				}
+ 				if (buf_node->frame.pktlen >= count)
+ 					buf_node->frame.pktlen = count -
+ 					(sizeof(buf_node->frame.frm_hdr) +
+ 					 sizeof(buf_node->frame.pktlen));
+ 			}
+-			if (ret) {
+-				pr_err("%s: copy from user failed %d\n",
+-				       __func__, ret);
+-				return -EFAULT;
+-			}
+ 			spin_lock_irqsave(&prtd->dsp_lock, dsp_flags);
+ 			list_add_tail(&buf_node->list, &prtd->in_queue);
+ 			spin_unlock_irqrestore(&prtd->dsp_lock, dsp_flags);
+-- 
+cgit v1.1
+

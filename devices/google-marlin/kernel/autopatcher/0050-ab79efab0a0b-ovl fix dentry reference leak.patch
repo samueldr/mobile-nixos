@@ -1,0 +1,52 @@
+From ab79efab0a0ba01a74df782eb7fa44b044dae8b5 Mon Sep 17 00:00:00 2001
+From: David Howells <dhowells@redhat.com>
+Date: Fri, 18 Sep 2015 11:45:22 +0100
+Subject: ovl: fix dentry reference leak
+
+In ovl_copy_up_locked(), newdentry is leaked if the function exits through
+out_cleanup as this just to out after calling ovl_cleanup() - which doesn't
+actually release the ref on newdentry.
+
+The out_cleanup segment should instead exit through out2 as certainly
+newdentry leaks - and possibly upper does also, though this isn't caught
+given the catch of newdentry.
+
+Without this fix, something like the following is seen:
+
+	BUG: Dentry ffff880023e9eb20{i=f861,n=#ffff880023e82d90} still in use (1) [unmount of tmpfs tmpfs]
+	BUG: Dentry ffff880023ece640{i=0,n=bigfile}  still in use (1) [unmount of tmpfs tmpfs]
+
+when unmounting the upper layer after an error occurred in copyup.
+
+An error can be induced by creating a big file in a lower layer with
+something like:
+
+	dd if=/dev/zero of=/lower/a/bigfile bs=65536 count=1 seek=$((0xf000))
+
+to create a large file (4.1G).  Overlay an upper layer that is too small
+(on tmpfs might do) and then induce a copy up by opening it writably.
+
+Reported-by: Ulrich Obergfell <uobergfe@redhat.com>
+Signed-off-by: David Howells <dhowells@redhat.com>
+Signed-off-by: Miklos Szeredi <miklos@szeredi.hu>
+Cc: <stable@vger.kernel.org> # v3.18+
+---
+ fs/overlayfs/copy_up.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/fs/overlayfs/copy_up.c b/fs/overlayfs/copy_up.c
+index b1990ac8fa09..871fcb67be97 100644
+--- a/fs/overlayfs/copy_up.c
++++ b/fs/overlayfs/copy_up.c
+@@ -267,7 +267,7 @@ out:
+ 
+ out_cleanup:
+ 	ovl_cleanup(wdir, newdentry);
+-	goto out;
++	goto out2;
+ }
+ 
+ /*
+-- 
+cgit 1.2-0.3.lf.el7
+

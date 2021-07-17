@@ -1,0 +1,32 @@
+From 5f06117f6ede53c65d5337bc2e158267450ad7ff Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Mon, 22 May 2017 06:58:55 -0400
+Subject: [PATCH] arm64: move ET_DYN base lower in the address space
+
+Signed-off-by: Daniel Micay <danielmicay@gmail.com>
+---
+ arch/arm64/include/asm/elf.h | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/include/asm/elf.h b/arch/arm64/include/asm/elf.h
+index 79298ba3ae9..487c1591e2d 100644
+--- a/arch/arm64/include/asm/elf.h
++++ b/arch/arm64/include/asm/elf.h
+@@ -126,7 +126,7 @@ typedef struct user_fpsimd_state elf_fpregset_t;
+  * the loader.  We need to make sure that it is out of the way of the program
+  * that it will "exec", and that there is sufficient room for the brk.
+  */
+-#define ELF_ET_DYN_BASE	(2 * TASK_SIZE_64 / 3)
++#define ELF_ET_DYN_BASE	(U32_MAX)
+ 
+ /*
+  * When the program starts, a1 contains a pointer to a function to be
+@@ -169,7 +169,7 @@ extern unsigned long arch_randomize_brk(struct mm_struct *mm);
+ #define COMPAT_ELF_PLATFORM		("v8l")
+ #endif
+ 
+-#define COMPAT_ELF_ET_DYN_BASE		(2 * TASK_SIZE_32 / 3)
++#define COMPAT_ELF_ET_DYN_BASE		(0x10000000UL)
+ 
+ /* AArch32 registers. */
+ #define COMPAT_ELF_NGREG		18

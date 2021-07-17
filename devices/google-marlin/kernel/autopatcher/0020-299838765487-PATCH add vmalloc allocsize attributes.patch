@@ -1,0 +1,43 @@
+From 299838765487e7c1bea79c7718bd4e1004efbdc0 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Wed, 19 Apr 2017 12:00:54 -0400
+Subject: [PATCH] add vmalloc alloc_size attributes
+
+---
+ include/linux/vmalloc.h | 20 ++++++++++----------
+ 1 file changed, 10 insertions(+), 10 deletions(-)
+
+diff --git a/include/linux/vmalloc.h b/include/linux/vmalloc.h
+index 4ef619b594b..61efa2f4cdb 100644
+--- a/include/linux/vmalloc.h
++++ b/include/linux/vmalloc.h
+@@ -68,19 +68,19 @@ static inline void vmalloc_init(void)
+ }
+ #endif
+ 
+-extern void *vmalloc(unsigned long size);
+-extern void *vzalloc(unsigned long size);
+-extern void *vmalloc_user(unsigned long size);
+-extern void *vmalloc_node(unsigned long size, int node);
+-extern void *vzalloc_node(unsigned long size, int node);
+-extern void *vmalloc_exec(unsigned long size);
+-extern void *vmalloc_32(unsigned long size);
+-extern void *vmalloc_32_user(unsigned long size);
+-extern void *__vmalloc(unsigned long size, gfp_t gfp_mask, pgprot_t prot);
++extern void *vmalloc(unsigned long size) __attribute__((alloc_size(1)));
++extern void *vzalloc(unsigned long size) __attribute__((alloc_size(1)));
++extern void *vmalloc_user(unsigned long size) __attribute__((alloc_size(1)));
++extern void *vmalloc_node(unsigned long size, int node) __attribute__((alloc_size(1)));
++extern void *vzalloc_node(unsigned long size, int node) __attribute__((alloc_size(1)));
++extern void *vmalloc_exec(unsigned long size) __attribute__((alloc_size(1)));
++extern void *vmalloc_32(unsigned long size) __attribute__((alloc_size(1)));
++extern void *vmalloc_32_user(unsigned long size) __attribute__((alloc_size(1)));
++extern void *__vmalloc(unsigned long size, gfp_t gfp_mask, pgprot_t prot) __attribute__((alloc_size(1)));
+ extern void *__vmalloc_node_range(unsigned long size, unsigned long align,
+ 			unsigned long start, unsigned long end, gfp_t gfp_mask,
+ 			pgprot_t prot, unsigned long vm_flags, int node,
+-			const void *caller);
++			const void *caller) __attribute__((alloc_size(1)));
+ 
+ extern void vfree(const void *addr);
+ 

@@ -1,0 +1,31 @@
+diff --git a/drivers/net/can/usb/kvaser_usb.c b/drivers/net/can/usb/kvaser_usb.c
+index a50b32b..f00dc02 100644
+--- a/drivers/net/can/usb/kvaser_usb.c
++++ b/drivers/net/can/usb/kvaser_usb.c
+@@ -580,7 +580,7 @@
+ 		return -ENOMEM;
+ 	}
+ 
+-	buf = kmalloc(sizeof(struct kvaser_msg), GFP_ATOMIC);
++	buf = kzalloc(sizeof(struct kvaser_msg), GFP_ATOMIC);
+ 	if (!buf) {
+ 		usb_free_urb(urb);
+ 		return -ENOMEM;
+@@ -1114,7 +1114,7 @@
+ 	struct kvaser_msg *msg;
+ 	int rc;
+ 
+-	msg = kmalloc(sizeof(*msg), GFP_KERNEL);
++	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+ 	if (!msg)
+ 		return -ENOMEM;
+ 
+@@ -1227,7 +1227,7 @@
+ 	struct kvaser_msg *msg;
+ 	int rc;
+ 
+-	msg = kmalloc(sizeof(*msg), GFP_KERNEL);
++	msg = kzalloc(sizeof(*msg), GFP_KERNEL);
+ 	if (!msg)
+ 		return -ENOMEM;
+ 

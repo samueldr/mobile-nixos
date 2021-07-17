@@ -1,0 +1,63 @@
+diff --git a/drivers/media/usb/gspca/stv06xx/stv06xx.c b/drivers/media/usb/gspca/stv06xx/stv06xx.c
+index 49d209b..66a0072 100644
+--- a/drivers/media/usb/gspca/stv06xx/stv06xx.c
++++ b/drivers/media/usb/gspca/stv06xx/stv06xx.c
+@@ -293,6 +293,9 @@
+ 		return -EIO;
+ 	}
+ 
++	if (alt->desc.bNumEndpoints < 1)
++		return -ENODEV;
++
+ 	packet_size = le16_to_cpu(alt->endpoint[0].desc.wMaxPacketSize);
+ 	err = stv06xx_write_bridge(sd, STV_ISO_SIZE_L, packet_size);
+ 	if (err < 0)
+@@ -317,11 +320,21 @@
+ 
+ static int stv06xx_isoc_init(struct gspca_dev *gspca_dev)
+ {
++	struct usb_interface_cache *intfc;
+ 	struct usb_host_interface *alt;
+ 	struct sd *sd = (struct sd *) gspca_dev;
+ 
++	intfc = gspca_dev->dev->actconfig->intf_cache[0];
++
++	if (intfc->num_altsetting < 2)
++		return -ENODEV;
++
++	alt = &intfc->altsetting[1];
++
++	if (alt->desc.bNumEndpoints < 1)
++		return -ENODEV;
++
+ 	/* Start isoc bandwidth "negotiation" at max isoc bandwidth */
+-	alt = &gspca_dev->dev->actconfig->intf_cache[0]->altsetting[1];
+ 	alt->endpoint[0].desc.wMaxPacketSize =
+ 		cpu_to_le16(sd->sensor->max_packet_size[gspca_dev->curr_mode]);
+ 
+@@ -334,6 +347,10 @@
+ 	struct usb_host_interface *alt;
+ 	struct sd *sd = (struct sd *) gspca_dev;
+ 
++	/*
++	 * Existence of altsetting and endpoint was verified in
++	 * stv06xx_isoc_init()
++	 */
+ 	alt = &gspca_dev->dev->actconfig->intf_cache[0]->altsetting[1];
+ 	packet_size = le16_to_cpu(alt->endpoint[0].desc.wMaxPacketSize);
+ 	min_packet_size = sd->sensor->min_packet_size[gspca_dev->curr_mode];
+diff --git a/drivers/media/usb/gspca/stv06xx/stv06xx_pb0100.c b/drivers/media/usb/gspca/stv06xx/stv06xx_pb0100.c
+index 8d785ed..cc88c059 100644
+--- a/drivers/media/usb/gspca/stv06xx/stv06xx_pb0100.c
++++ b/drivers/media/usb/gspca/stv06xx/stv06xx_pb0100.c
+@@ -198,6 +198,10 @@
+ 	alt = usb_altnum_to_altsetting(intf, sd->gspca_dev.alt);
+ 	if (!alt)
+ 		return -ENODEV;
++
++	if (alt->desc.bNumEndpoints < 1)
++		return -ENODEV;
++
+ 	packet_size = le16_to_cpu(alt->endpoint[0].desc.wMaxPacketSize);
+ 
+ 	/* If we don't have enough bandwidth use a lower framerate */

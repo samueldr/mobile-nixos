@@ -1,0 +1,18 @@
+diff --git a/net/key/af_key.c b/net/key/af_key.c
+index 43fc684..e803012 100644
+--- a/net/key/af_key.c
++++ b/net/key/af_key.c
+@@ -1871,6 +1871,13 @@
+ 	if (ext_hdrs[SADB_X_EXT_FILTER - 1]) {
+ 		struct sadb_x_filter *xfilter = ext_hdrs[SADB_X_EXT_FILTER - 1];
+ 
++		if ((xfilter->sadb_x_filter_splen >=
++			(sizeof(xfrm_address_t) << 3)) ||
++		    (xfilter->sadb_x_filter_dplen >=
++			(sizeof(xfrm_address_t) << 3))) {
++			mutex_unlock(&pfk->dump_lock);
++			return -EINVAL;
++		}
+ 		filter = kmalloc(sizeof(*filter), GFP_KERNEL);
+ 		if (filter == NULL) {
+ 			mutex_unlock(&pfk->dump_lock);

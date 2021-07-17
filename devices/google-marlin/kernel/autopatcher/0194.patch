@@ -1,0 +1,13 @@
+diff --git a/net/xfrm/xfrm_user.c b/net/xfrm/xfrm_user.c
+index 83730d6..129e452 100644
+--- a/net/xfrm/xfrm_user.c
++++ b/net/xfrm/xfrm_user.c
+@@ -1321,7 +1321,7 @@
+ 	ret = verify_policy_dir(p->dir);
+ 	if (ret)
+ 		return ret;
+-	if (p->index && ((p->index & XFRM_POLICY_MAX) != p->dir))
++	if (p->index && (xfrm_policy_id2dir(p->index) != p->dir))
+ 		return -EINVAL;
+ 
+ 	return 0;

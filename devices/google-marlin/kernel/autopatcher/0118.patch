@@ -1,0 +1,13 @@
+diff --git a/drivers/media/usb/cx231xx/cx231xx-cards.c b/drivers/media/usb/cx231xx/cx231xx-cards.c
+index d2e240e..8881b4a 100644
+--- a/drivers/media/usb/cx231xx/cx231xx-cards.c
++++ b/drivers/media/usb/cx231xx/cx231xx-cards.c
+@@ -1514,7 +1514,7 @@
+ 	nr = dev->devno;
+ 
+ 	assoc_desc = udev->actconfig->intf_assoc[0];
+-	if (assoc_desc->bFirstInterface != ifnum) {
++	if (!assoc_desc || assoc_desc->bFirstInterface != ifnum) {
+ 		cx231xx_err(DRIVER_NAME ": Not found "
+ 			    "matching IAD interface\n");
+ 		retval = -ENODEV;

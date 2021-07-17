@@ -1,0 +1,156 @@
+From 665b0c10e9cf93b7346d12ac546776d3affa5d35 Mon Sep 17 00:00:00 2001
+From: Liam Mark <lmark@codeaurora.org>
+Date: Thu, 6 Sep 2018 16:15:41 -0700
+Subject: ion: Ensure non-HLOS memory cannot be mapped by CPU
+
+Currently it is possible for an ION client to allocate non-HLOS memory
+(ie memory which isn't assigned to the HLOS vmid), map this memory, and
+then attempt to access this memory from the CPU.
+Attempting to access non-HLOS memory from the CPU will cause a
+stage-2 fault.
+
+Fix ION so that non-HLOS memory cannot be mapped by the CPU.
+
+Change-Id: Ifb51de2eabc076cddc744c13f01ef97b4a7c6874
+Signed-off-by: Liam Mark <lmark@codeaurora.org>
+---
+ drivers/staging/android/ion/ion_cma_heap.c    | 27 +++++++++++++++++++++++++--
+ drivers/staging/android/ion/ion_system_heap.c | 12 ++++++++++++
+ drivers/staging/android/ion/msm/msm_ion.c     | 17 ++++++++++++++++-
+ drivers/staging/android/ion/msm/msm_ion.h     |  7 +++++++
+ 4 files changed, 60 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/staging/android/ion/ion_cma_heap.c b/drivers/staging/android/ion/ion_cma_heap.c
+index e8d89d0..b5263b8 100644
+--- a/drivers/staging/android/ion/ion_cma_heap.c
++++ b/drivers/staging/android/ion/ion_cma_heap.c
+@@ -312,14 +312,37 @@ err:
+ 	return ret;
+ }
+ 
++static void *ion_secure_cma_map_kernel(struct ion_heap *heap,
++				       struct ion_buffer *buffer)
++{
++	if (!is_buffer_hlos_assigned(buffer)) {
++		pr_info("%s: Mapping non-HLOS accessible buffer disallowed\n",
++			__func__);
++		return NULL;
++	}
++	return ion_cma_map_kernel(heap, buffer);
++}
++
++static int ion_secure_cma_map_user(struct ion_heap *mapper,
++				   struct ion_buffer *buffer,
++				   struct vm_area_struct *vma)
++{
++	if (!is_buffer_hlos_assigned(buffer)) {
++		pr_info("%s: Mapping non-HLOS accessible buffer disallowed\n",
++			__func__);
++		return -EINVAL;
++	}
++	return ion_cma_mmap(mapper, buffer, vma);
++}
++
+ static struct ion_heap_ops ion_secure_cma_ops = {
+ 	.allocate = ion_secure_cma_allocate,
+ 	.free = ion_secure_cma_free,
+ 	.map_dma = ion_cma_heap_map_dma,
+ 	.unmap_dma = ion_cma_heap_unmap_dma,
+ 	.phys = ion_cma_phys,
+-	.map_user = ion_cma_mmap,
+-	.map_kernel = ion_cma_map_kernel,
++	.map_user = ion_secure_cma_map_user,
++	.map_kernel = ion_secure_cma_map_kernel,
+ 	.unmap_kernel = ion_cma_unmap_kernel,
+ 	.print_debug = ion_cma_print_debug,
+ };
+diff --git a/drivers/staging/android/ion/ion_system_heap.c b/drivers/staging/android/ion/ion_system_heap.c
+index 735f5f2..ef72701 100644
+--- a/drivers/staging/android/ion/ion_system_heap.c
++++ b/drivers/staging/android/ion/ion_system_heap.c
+@@ -72,6 +72,11 @@ struct page_info {
+ 	struct list_head list;
+ };
+ 
++static int ion_heap_is_system_heap_type(enum ion_heap_type type)
++{
++	return type == ((enum ion_heap_type)ION_HEAP_TYPE_SYSTEM);
++}
++
+ static struct page *alloc_buffer_page(struct ion_system_heap *heap,
+ 				      struct ion_buffer *buffer,
+ 				      unsigned long order,
+@@ -223,6 +228,13 @@ static int ion_system_heap_allocate(struct ion_heap *heap,
+ 	unsigned int sz;
+ 	int vmid = get_secure_vmid(buffer->flags);
+ 
++	if (ion_heap_is_system_heap_type(buffer->heap->type) &&
++	    is_secure_vmid_valid(vmid)) {
++		pr_info("%s: System heap doesn't support secure allocations\n",
++			__func__);
++		return -EINVAL;
++	}
++
+ 	if (align > PAGE_SIZE)
+ 		return -EINVAL;
+ 
+diff --git a/drivers/staging/android/ion/msm/msm_ion.c b/drivers/staging/android/ion/msm/msm_ion.c
+index e112a4f..8f4eb27 100644
+--- a/drivers/staging/android/ion/msm/msm_ion.c
++++ b/drivers/staging/android/ion/msm/msm_ion.c
+@@ -1,4 +1,4 @@
+-/* Copyright (c) 2011-2017, The Linux Foundation. All rights reserved.
++/* Copyright (c) 2011-2018, The Linux Foundation. All rights reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 and
+@@ -650,6 +650,21 @@ int get_secure_vmid(unsigned long flags)
+ 		return VMID_CP_APP;
+ 	return -EINVAL;
+ }
++
++bool is_buffer_hlos_assigned(struct ion_buffer *buffer)
++{
++	bool is_hlos = false;
++
++	if (buffer->heap->type == (enum ion_heap_type)ION_HEAP_TYPE_HYP_CMA &&
++	    (buffer->flags & ION_FLAG_CP_HLOS))
++		is_hlos = true;
++
++	if (get_secure_vmid(buffer->flags) <= 0)
++		is_hlos = true;
++
++	return is_hlos;
++}
++
+ /* fix up the cases where the ioctl direction bits are incorrect */
+ static unsigned int msm_ion_ioctl_dir(unsigned int cmd)
+ {
+diff --git a/drivers/staging/android/ion/msm/msm_ion.h b/drivers/staging/android/ion/msm/msm_ion.h
+index d8677b2..7359194 100644
+--- a/drivers/staging/android/ion/msm/msm_ion.h
++++ b/drivers/staging/android/ion/msm/msm_ion.h
+@@ -157,6 +157,8 @@ int ion_handle_get_size(struct ion_client *client, struct ion_handle *handle,
+ int msm_ion_do_cache_op(struct ion_client *client, struct ion_handle *handle,
+ 			void *vaddr, unsigned long len, unsigned int cmd);
+ 
++bool is_buffer_hlos_assigned(struct ion_buffer *buffer);
++
+ #else
+ static inline struct ion_client *msm_ion_client_create(const char *name)
+ {
+@@ -176,6 +178,11 @@ static inline int msm_ion_do_cache_op(struct ion_client *client,
+ 	return -ENODEV;
+ }
+ 
++static bool is_buffer_hlos_assigned(struct ion_buffer *buffer)
++{
++	return true;
++}
++
+ #endif /* CONFIG_ION */
+ 
+ #endif
+-- 
+cgit v1.1
+

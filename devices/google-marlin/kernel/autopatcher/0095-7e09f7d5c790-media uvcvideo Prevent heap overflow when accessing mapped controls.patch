@@ -1,0 +1,42 @@
+From 7e09f7d5c790278ab98e5f2c22307ebe8ad6e8ba Mon Sep 17 00:00:00 2001
+From: Guenter Roeck <linux@roeck-us.net>
+Date: Tue, 8 Aug 2017 08:56:21 -0400
+Subject: media: uvcvideo: Prevent heap overflow when accessing mapped controls
+
+The size of uvc_control_mapping is user controlled leading to a
+potential heap overflow in the uvc driver. This adds a check to verify
+the user provided size fits within the bounds of the defined buffer
+size.
+
+Originally-from: Richard Simmons <rssimmo@amazon.com>
+
+Cc: stable@vger.kernel.org
+Signed-off-by: Guenter Roeck <linux@roeck-us.net>
+Reviewed-by: Laurent Pinchart <laurent.pinchart@ideasonboard.com>
+Signed-off-by: Hans Verkuil <hans.verkuil@cisco.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@s-opensource.com>
+---
+ drivers/media/usb/uvc/uvc_ctrl.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/media/usb/uvc/uvc_ctrl.c b/drivers/media/usb/uvc/uvc_ctrl.c
+index c2ee6e39fd0ca..20397aba6849e 100644
+--- a/drivers/media/usb/uvc/uvc_ctrl.c
++++ b/drivers/media/usb/uvc/uvc_ctrl.c
+@@ -2002,6 +2002,13 @@ int uvc_ctrl_add_mapping(struct uvc_video_chain *chain,
+ 		goto done;
+ 	}
+ 
++	/* Validate the user-provided bit-size and offset */
++	if (mapping->size > 32 ||
++	    mapping->offset + mapping->size > ctrl->info.size * 8) {
++		ret = -EINVAL;
++		goto done;
++	}
++
+ 	list_for_each_entry(map, &ctrl->info.mappings, list) {
+ 		if (mapping->id == map->id) {
+ 			uvc_trace(UVC_TRACE_CONTROL, "Can't add mapping '%s', "
+-- 
+cgit 1.2.3-1.el7
+

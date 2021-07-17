@@ -1,0 +1,34 @@
+From b2d624743de45b07bffc53224fa8987dd7199fae Mon Sep 17 00:00:00 2001
+From: Karthick Shanmugham <kartshan@codeaurora.org>
+Date: Mon, 5 Oct 2020 18:46:14 +0530
+Subject: crypto: Fix possible stack out of bound error
+
+Adding fix to check the upper limit on the length
+of the destination array while copying elements from
+source address to avoid stack out of bound error.
+
+Signed-off-by: Karthick Shanmugham <kartshan@codeaurora.org>
+Change-Id: I01cfc1ec1776a00010800846becc0b6ece17b9c8
+---
+ drivers/crypto/msm/qce.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/crypto/msm/qce.c b/drivers/crypto/msm/qce.c
+index 4cf95b9..e204dcc 100644
+--- a/drivers/crypto/msm/qce.c
++++ b/drivers/crypto/msm/qce.c
+@@ -768,6 +768,11 @@ static int _ce_setup(struct qce_device *pce_dev, struct qce_req *q_req,
+ 	switch (q_req->alg) {
+ 	case CIPHER_ALG_DES:
+ 		if (q_req->mode !=  QCE_MODE_ECB) {
++			if (ivsize > MAX_IV_LENGTH) {
++				pr_err("%s: error: Invalid length parameter\n",
++					 __func__);
++				return -EINVAL;
++			}
+ 			_byte_stream_to_net_words(enciv32, q_req->iv, ivsize);
+ 			writel_relaxed(enciv32[0], pce_dev->iobase +
+ 						CRYPTO_CNTR0_IV0_REG);
+-- 
+cgit v1.1
+

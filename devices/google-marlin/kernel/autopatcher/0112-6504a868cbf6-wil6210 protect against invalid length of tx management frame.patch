@@ -1,0 +1,51 @@
+From 6504a868cbf63f969ba0ef437210613c8f00fff6 Mon Sep 17 00:00:00 2001
+From: Hamad Kadmany <hkadmany@codeaurora.org>
+Date: Tue, 20 Jun 2017 13:55:07 +0300
+Subject: wil6210: protect against invalid length of tx management frame
+
+Validate buffer length has the minimum needed size
+when sending management frame to protect against
+possible buffer overrun.
+
+Change-Id: Ib5aed79694100597d7f71a9e8d4e8dba91be538a
+Signed-off-by: Hamad Kadmany <hkadmany@codeaurora.org>
+---
+ drivers/net/wireless/ath/wil6210/cfg80211.c | 3 +++
+ drivers/net/wireless/ath/wil6210/debugfs.c  | 6 +++++-
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/net/wireless/ath/wil6210/cfg80211.c b/drivers/net/wireless/ath/wil6210/cfg80211.c
+index b20f564..e0aebd3 100644
+--- a/drivers/net/wireless/ath/wil6210/cfg80211.c
++++ b/drivers/net/wireless/ath/wil6210/cfg80211.c
+@@ -696,6 +696,9 @@ int wil_cfg80211_mgmt_tx(struct wiphy *wiphy, struct wireless_dev *wdev,
+ 	wil_dbg_misc(wil, "%s()\n", __func__);
+ 	print_hex_dump_bytes("mgmt tx frame ", DUMP_PREFIX_OFFSET, buf, len);
+ 
++	if (len < sizeof(struct ieee80211_mgmt))
++		return -EINVAL;
++
+ 	cmd = kmalloc(sizeof(*cmd) + len, GFP_KERNEL);
+ 	if (!cmd) {
+ 		rc = -ENOMEM;
+diff --git a/drivers/net/wireless/ath/wil6210/debugfs.c b/drivers/net/wireless/ath/wil6210/debugfs.c
+index 63d5c28..81a85da 100644
+--- a/drivers/net/wireless/ath/wil6210/debugfs.c
++++ b/drivers/net/wireless/ath/wil6210/debugfs.c
+@@ -807,8 +807,12 @@ static ssize_t wil_write_file_txmgmt(struct file *file, const char __user *buf,
+ 	struct wireless_dev *wdev = wil_to_wdev(wil);
+ 	struct cfg80211_mgmt_tx_params params;
+ 	int rc;
+-	void *frame = kmalloc(len, GFP_KERNEL);
++	void *frame;
+ 
++	if (!len)
++		return -EINVAL;
++
++	frame = kmalloc(len, GFP_KERNEL);
+ 	if (!frame)
+ 		return -ENOMEM;
+ 
+-- 
+cgit v1.1
+

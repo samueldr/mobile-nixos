@@ -1,0 +1,69 @@
+From 4d40559e59663e2bd985bc1486fa13bd4ab84703 Mon Sep 17 00:00:00 2001
+From: Govindaraj Rajagopal <grajagop@codeaurora.org>
+Date: Fri, 13 Dec 2019 16:15:51 +0530
+Subject: [PATCH] msm: vidc: remove additional checks in response_handler
+
+possibility of OOB access on device->response_pkt in
+__response_handler. for e.x if msg queue contains 1000
+messages and all 1000 were read and queue is empty.
+So __get_q_size api will return zero and _iface_msgq_read
+will go in an infinite loop, even if packet_count
+== max_packets.
+
+Change-Id: I3c0fb095feff0ba5d4d6dab65ed9d5111f1b6f05
+Signed-off-by: Govindaraj Rajagopal <grajagop@codeaurora.org>
+CVE-2020-3625
+Signed-off-by: Kevin F. Haggerty <haggertk@lineageos.org>
+---
+ drivers/media/platform/msm/vidc/venus_hfi.c | 31 +--------------------
+ 1 file changed, 1 insertion(+), 30 deletions(-)
+
+diff --git a/drivers/media/platform/msm/vidc/venus_hfi.c b/drivers/media/platform/msm/vidc/venus_hfi.c
+index c4c271dc1347..6e953919411b 100644
+--- a/drivers/media/platform/msm/vidc/venus_hfi.c
++++ b/drivers/media/platform/msm/vidc/venus_hfi.c
+@@ -2369,34 +2369,6 @@ static int venus_hfi_core_release(void *dev)
+ 	return rc;
+ }
+ 
+-static int __get_q_size(struct venus_hfi_device *dev, unsigned int q_index)
+-{
+-	struct hfi_queue_header *queue;
+-	struct vidc_iface_q_info *q_info;
+-	u32 write_ptr, read_ptr;
+-
+-	if (q_index >= VIDC_IFACEQ_NUMQ) {
+-		dprintk(VIDC_ERR, "Invalid q index: %d\n", q_index);
+-		return -ENOENT;
+-	}
+-
+-	q_info = &dev->iface_queues[q_index];
+-	if (!q_info) {
+-		dprintk(VIDC_ERR, "cannot read shared Q's\n");
+-		return -ENOENT;
+-	}
+-
+-	queue = (struct hfi_queue_header *)q_info->q_hdr;
+-	if (!queue) {
+-		dprintk(VIDC_ERR, "queue not present\n");
+-		return -ENOENT;
+-	}
+-
+-	write_ptr = (u32)queue->qhdr_write_idx;
+-	read_ptr = (u32)queue->qhdr_read_idx;
+-	return read_ptr - write_ptr;
+-}
+-
+ static void __core_clear_interrupt(struct venus_hfi_device *device)
+ {
+ 	u32 intr_status = 0;
+@@ -3639,8 +3611,7 @@ static int __response_handler(struct venus_hfi_device *device)
+ 			*session_id = session->session_id;
+ 		}
+ 
+-		if (packet_count >= max_packets &&
+-				__get_q_size(device, VIDC_IFACEQ_MSGQ_IDX)) {
++		if (packet_count >= max_packets) {
+ 			dprintk(VIDC_WARN,
+ 					"Too many packets in message queue to handle at once, deferring read\n");
+ 			break;

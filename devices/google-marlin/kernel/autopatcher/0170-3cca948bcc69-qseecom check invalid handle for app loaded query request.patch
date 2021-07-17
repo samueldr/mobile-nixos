@@ -1,0 +1,36 @@
+From 3cca948bcc6939f1fffab09d1062ffa8ebe9a9c4 Mon Sep 17 00:00:00 2001
+From: Zhen Kong <zkong@codeaurora.org>
+Date: Fri, 30 Aug 2019 10:50:25 -0700
+Subject: qseecom: check invalid handle for app loaded query request
+
+Check if the handle data type received from userspace is valid
+for app loaded query request to avoid the offset boundary check
+for qseecom_send_modfd_resp is bypassed.
+
+Change-Id: I5f3611a8f830d6904213781c5ba70cfc0ba3e2e0
+Signed-off-by: Zhen Kong <zkong@codeaurora.org>
+---
+ drivers/misc/qseecom.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/drivers/misc/qseecom.c b/drivers/misc/qseecom.c
+index bf87ed2..1d6a992 100644
+--- a/drivers/misc/qseecom.c
++++ b/drivers/misc/qseecom.c
+@@ -7345,6 +7345,13 @@ static inline long qseecom_ioctl(struct file *file,
+ 		break;
+ 	}
+ 	case QSEECOM_IOCTL_APP_LOADED_QUERY_REQ: {
++		if ((data->type != QSEECOM_GENERIC) &&
++			(data->type != QSEECOM_CLIENT_APP)) {
++			pr_err("app loaded query req: invalid handle (%d)\n",
++								data->type);
++			ret = -EINVAL;
++			break;
++		}
+ 		data->type = QSEECOM_CLIENT_APP;
+ 		mutex_lock(&app_access_lock);
+ 		atomic_inc(&data->ioctl_count);
+-- 
+cgit v1.1
+

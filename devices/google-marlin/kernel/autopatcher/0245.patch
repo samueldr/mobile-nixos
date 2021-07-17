@@ -1,0 +1,14 @@
+diff --git a/drivers/media/usb/cpia2/cpia2_v4l.c b/drivers/media/usb/cpia2/cpia2_v4l.c
+index d793c63..05e7edb 100644
+--- a/drivers/media/usb/cpia2/cpia2_v4l.c
++++ b/drivers/media/usb/cpia2/cpia2_v4l.c
+@@ -1248,8 +1248,7 @@
+ 	LOG("%s v%s\n",
+ 	    ABOUT, CPIA_VERSION);
+ 	check_parameters();
+-	cpia2_usb_init();
+-	return 0;
++	return cpia2_usb_init();
+ }
+ 
+ 

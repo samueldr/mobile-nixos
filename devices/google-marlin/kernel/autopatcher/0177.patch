@@ -1,0 +1,22 @@
+diff --git a/drivers/vhost/vhost.c b/drivers/vhost/vhost.c
+index 463c608..f1dc23b 100644
+--- a/drivers/vhost/vhost.c
++++ b/drivers/vhost/vhost.c
+@@ -1174,7 +1174,7 @@
+ 		/* If this is an input descriptor, increment that count. */
+ 		if (desc.flags & VRING_DESC_F_WRITE) {
+ 			*in_num += ret;
+-			if (unlikely(log)) {
++			if (unlikely(log && ret)) {
+ 				log[*log_num].addr = desc.addr;
+ 				log[*log_num].len = desc.len;
+ 				++*log_num;
+@@ -1297,7 +1297,7 @@
+ 			/* If this is an input descriptor,
+ 			 * increment that count. */
+ 			*in_num += ret;
+-			if (unlikely(log)) {
++			if (unlikely(log && ret)) {
+ 				log[*log_num].addr = desc.addr;
+ 				log[*log_num].len = desc.len;
+ 				++*log_num;

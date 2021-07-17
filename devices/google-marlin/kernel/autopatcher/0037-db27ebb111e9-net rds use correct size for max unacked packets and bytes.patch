@@ -1,0 +1,41 @@
+From db27ebb111e9f69efece08e4cb6a34ff980f8896 Mon Sep 17 00:00:00 2001
+From: Sasha Levin <sasha.levin@oracle.com>
+Date: Tue, 3 Feb 2015 08:55:58 -0500
+Subject: net: rds: use correct size for max unacked packets and bytes
+
+Max unacked packets/bytes is an int while sizeof(long) was used in the
+sysctl table.
+
+This means that when they were getting read we'd also leak kernel memory
+to userspace along with the timeout values.
+
+Signed-off-by: Sasha Levin <sasha.levin@oracle.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/rds/sysctl.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/net/rds/sysctl.c b/net/rds/sysctl.c
+index c3b0cd43eb566..c173f69e1479b 100644
+--- a/net/rds/sysctl.c
++++ b/net/rds/sysctl.c
+@@ -71,14 +71,14 @@ static struct ctl_table rds_sysctl_rds_table[] = {
+ 	{
+ 		.procname	= "max_unacked_packets",
+ 		.data		= &rds_sysctl_max_unacked_packets,
+-		.maxlen         = sizeof(unsigned long),
++		.maxlen         = sizeof(int),
+ 		.mode           = 0644,
+ 		.proc_handler   = proc_dointvec,
+ 	},
+ 	{
+ 		.procname	= "max_unacked_bytes",
+ 		.data		= &rds_sysctl_max_unacked_bytes,
+-		.maxlen         = sizeof(unsigned long),
++		.maxlen         = sizeof(int),
+ 		.mode           = 0644,
+ 		.proc_handler   = proc_dointvec,
+ 	},
+-- 
+cgit 1.2.3-1.el7
+

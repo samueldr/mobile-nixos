@@ -1,0 +1,25 @@
+From 1c8468b2d4bdf1f74c34243a2e8998343430ea8d Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Sat, 25 Mar 2017 02:44:05 -0400
+Subject: [PATCH] panic on kmem_cache_free with the wrong cache
+
+---
+ mm/slab.h | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/mm/slab.h b/mm/slab.h
+index d7ef270a192..70f33b276ee 100644
+--- a/mm/slab.h
++++ b/mm/slab.h
+@@ -295,10 +295,8 @@ static inline struct kmem_cache *cache_from_obj(struct kmem_cache *s, void *x)
+ 	if (slab_equal_or_root(cachep, s))
+ 		return cachep;
+ 
+-	pr_err("%s: Wrong slab cache. %s but object is from %s\n",
++	panic("%s: Wrong slab cache. %s but object is from %s\n",
+ 	       __func__, cachep->name, s->name);
+-	WARN_ON_ONCE(1);
+-	return s;
+ }
+ 
+ #ifndef CONFIG_SLOB

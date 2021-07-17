@@ -1,0 +1,34 @@
+From 6997dcb7ade1315474855821e64782205cb0b53a Mon Sep 17 00:00:00 2001
+From: Mohammed Khajapasha <mkhaja@codeaurora.org>
+Date: Tue, 28 Jun 2016 11:55:34 +0530
+Subject: msm-core: use get_user() API to read userspace data/settings
+
+Currently userspace data is getting accessed directly
+and leading to crash, So use get_user() API to copy
+userspace data/settings to kernel space.
+
+Change-Id: I3a75ec9503d8207829640bf88e1c3160bf72c9f0
+Signed-off-by: Mohammed Khajapasha <mkhaja@codeaurora.org>
+---
+ drivers/power/qcom/msm-core.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/power/qcom/msm-core.c b/drivers/power/qcom/msm-core.c
+index 286c89f..8a55fd0 100644
+--- a/drivers/power/qcom/msm-core.c
++++ b/drivers/power/qcom/msm-core.c
+@@ -486,9 +486,9 @@ static long msm_core_ioctl(struct file *file, unsigned int cmd,
+ 		return -EINVAL;
+ 
+ 	get_user(cluster, &argp->cluster);
+-	mpidr = (argp->cluster << (MAX_CORES_PER_CLUSTER *
++	mpidr = (cluster << (MAX_CORES_PER_CLUSTER *
+ 			MAX_NUM_OF_CLUSTERS));
+-	cpumask = argp->cpumask;
++	get_user(cpumask, &argp->cpumask);
+ 
+ 	switch (cmd) {
+ 	case EA_LEAKAGE:
+-- 
+cgit v1.1
+

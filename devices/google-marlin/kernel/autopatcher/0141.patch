@@ -1,0 +1,12 @@
+diff --git a/drivers/net/wireless/rsi/rsi_91x_mac80211.c b/drivers/net/wireless/rsi/rsi_91x_mac80211.c
+index aeaf87b..8e9e1de 100644
+--- a/drivers/net/wireless/rsi/rsi_91x_mac80211.c
++++ b/drivers/net/wireless/rsi/rsi_91x_mac80211.c
+@@ -199,6 +199,7 @@
+ 		ieee80211_stop_queues(hw);
+ 		ieee80211_unregister_hw(hw);
+ 		ieee80211_free_hw(hw);
++		adapter->hw = NULL;
+ 	}
+ 
+ 	rsi_remove_dbgfs(adapter);

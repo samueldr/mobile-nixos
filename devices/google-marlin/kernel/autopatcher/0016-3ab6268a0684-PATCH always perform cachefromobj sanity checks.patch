@@ -1,0 +1,30 @@
+From 3ab6268a068489d4fe7990842d8cb134ebdbdbc4 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Thu, 30 Mar 2017 23:07:09 -0400
+Subject: [PATCH] always perform cache_from_obj sanity checks
+
+---
+ mm/slab.h | 10 ----------
+ 1 file changed, 10 deletions(-)
+
+diff --git a/mm/slab.h b/mm/slab.h
+index cb15a421989..d7ef270a192 100644
+--- a/mm/slab.h
++++ b/mm/slab.h
+@@ -289,16 +289,6 @@ static inline struct kmem_cache *cache_from_obj(struct kmem_cache *s, void *x)
+ 	struct kmem_cache *cachep;
+ 	struct page *page;
+ 
+-	/*
+-	 * When kmemcg is not being used, both assignments should return the
+-	 * same value. but we don't want to pay the assignment price in that
+-	 * case. If it is not compiled in, the compiler should be smart enough
+-	 * to not do even the assignment. In that case, slab_equal_or_root
+-	 * will also be a constant.
+-	 */
+-	if (!memcg_kmem_enabled() && !unlikely(s->flags & SLAB_DEBUG_FREE))
+-		return s;
+-
+ 	page = virt_to_head_page(x);
+ 	BUG_ON(!PageSlab(page));
+ 	cachep = page->slab_cache;

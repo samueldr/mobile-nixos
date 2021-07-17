@@ -1,0 +1,29 @@
+From 4b6fb386eeaa3e16215963c32d27ada762ace428 Mon Sep 17 00:00:00 2001
+From: Vatsal Bucha <vbucha@codeaurora.org>
+Date: Fri, 22 Feb 2019 12:42:46 +0530
+Subject: msm: qdsp6v2: Check size of payload before access
+
+Check size of payload array before access in qdsp_cvp_callback.
+
+Change-Id: Ic5ea6686a1a09df75ddd5e6fdcdfbd74efff83d8
+Signed-off-by: Vatsal Bucha <vbucha@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/q6voice.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/sound/soc/msm/qdsp6v2/q6voice.c b/sound/soc/msm/qdsp6v2/q6voice.c
+index 6918914..1ef94ac 100644
+--- a/sound/soc/msm/qdsp6v2/q6voice.c
++++ b/sound/soc/msm/qdsp6v2/q6voice.c
+@@ -6952,7 +6952,7 @@ static int32_t qdsp_cvp_callback(struct apr_client_data *data, void *priv)
+ 	}
+ 
+ 	if (data->opcode == APR_BASIC_RSP_RESULT) {
+-		if (data->payload_size) {
++		if (data->payload_size >= (2 * sizeof(uint32_t))) {
+ 			ptr = data->payload;
+ 
+ 			pr_debug("%x %x\n", ptr[0], ptr[1]);
+-- 
+cgit v1.1
+

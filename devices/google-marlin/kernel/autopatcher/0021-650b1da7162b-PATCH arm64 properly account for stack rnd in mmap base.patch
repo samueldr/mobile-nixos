@@ -1,0 +1,39 @@
+From 650b1da7162ba5557351e09268e476e9b9cb7faf Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Mon, 22 May 2017 04:56:22 -0400
+Subject: [PATCH] arm64: properly account for stack rnd in mmap base
+
+The stack ASLR base was not included in the gap size for rlimit values
+larger than MIN_GAP, resulting in insufficient space being reserved.
+
+PaX uses an alternate approach where the mmap base is instead offset
+from the actual random stack base, but this works for the time being.
+
+Signed-off-by: Daniel Micay <danielmicay@gmail.com>
+---
+ arch/arm64/mm/mmap.c | 5 ++++-
+ 1 file changed, 4 insertions(+), 1 deletion(-)
+
+diff --git a/arch/arm64/mm/mmap.c b/arch/arm64/mm/mmap.c
+index 4073f5aabf1..021c1702051 100644
+--- a/arch/arm64/mm/mmap.c
++++ b/arch/arm64/mm/mmap.c
+@@ -33,7 +33,7 @@
+  * Leave enough space between the mmap area and the stack to honour ulimit in
+  * the face of randomisation.
+  */
+-#define MIN_GAP (SZ_128M + ((STACK_RND_MASK << PAGE_SHIFT) + 1))
++#define MIN_GAP (SZ_128M)
+ #define MAX_GAP	(STACK_TOP/6*5)
+ 
+ static int mmap_is_legacy(void)
+@@ -65,6 +65,9 @@ unsigned long arch_mmap_rnd(void)
+ static unsigned long mmap_base(unsigned long rnd)
+ {
+ 	unsigned long gap = rlimit(RLIMIT_STACK);
++	unsigned long pad = STACK_RND_MASK << PAGE_SHIFT;
++	if (gap + pad > gap)
++		gap += pad;
+ 
+ 	if (gap < MIN_GAP)
+ 		gap = MIN_GAP;

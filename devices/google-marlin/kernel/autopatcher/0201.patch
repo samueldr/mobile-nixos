@@ -1,0 +1,13 @@
+diff --git a/net/ax25/af_ax25.c b/net/ax25/af_ax25.c
+index 92fbd98..d7c466c 100644
+--- a/net/ax25/af_ax25.c
++++ b/net/ax25/af_ax25.c
+@@ -860,6 +860,8 @@
+ 		break;
+ 
+ 	case SOCK_RAW:
++		if (!capable(CAP_NET_RAW))
++			return -EPERM;
+ 		break;
+ 	default:
+ 		return -ESOCKTNOSUPPORT;

@@ -1,0 +1,14 @@
+diff --git a/drivers/staging/android/binder.c b/drivers/staging/android/binder.c
+index cdfd905..e2fa339 100644
+--- a/drivers/staging/android/binder.c
++++ b/drivers/staging/android/binder.c
+@@ -3219,7 +3219,8 @@
+ 	}
+ 	off_end = (void *)off_start + tr->offsets_size;
+ 	sg_bufp = (u8 *)(PTR_ALIGN(off_end, sizeof(void *)));
+-	sg_buf_end = sg_bufp + extra_buffers_size;
++	sg_buf_end = sg_bufp + extra_buffers_size -
++		ALIGN(secctx_sz, sizeof(u64));
+ 	off_min = 0;
+ 	for (; offp < off_end; offp++) {
+ 		struct binder_object_header *hdr;

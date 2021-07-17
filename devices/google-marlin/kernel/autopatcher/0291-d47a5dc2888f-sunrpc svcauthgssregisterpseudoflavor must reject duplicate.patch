@@ -1,0 +1,46 @@
+From d47a5dc2888fd1b94adf1553068b8dad76cec96c Mon Sep 17 00:00:00 2001
+From: NeilBrown <neilb@suse.de>
+Date: Fri, 22 May 2020 12:01:33 +1000
+Subject: sunrpc: svcauth_gss_register_pseudoflavor must reject duplicate
+ registrations.
+
+There is no valid case for supporting duplicate pseudoflavor
+registrations.
+Currently the silent acceptance of such registrations is hiding a bug.
+The rpcsec_gss_krb5 module registers 2 flavours but does not unregister
+them, so if you load, unload, reload the module, it will happily
+continue to use the old registration which now has pointers to the
+memory were the module was originally loaded.  This could lead to
+unexpected results.
+
+So disallow duplicate registrations.
+
+Link: https://bugzilla.kernel.org/show_bug.cgi?id=206651
+Cc: stable@vger.kernel.org (v2.6.12+)
+Signed-off-by: NeilBrown <neilb@suse.de>
+Signed-off-by: J. Bruce Fields <bfields@redhat.com>
+---
+ net/sunrpc/auth_gss/svcauth_gss.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/net/sunrpc/auth_gss/svcauth_gss.c b/net/sunrpc/auth_gss/svcauth_gss.c
+index 50d93c49ef1a..49bb346a6215 100644
+--- a/net/sunrpc/auth_gss/svcauth_gss.c
++++ b/net/sunrpc/auth_gss/svcauth_gss.c
+@@ -826,9 +826,11 @@ svcauth_gss_register_pseudoflavor(u32 pseudoflavor, char * name)
+ 	new->h.flavour = &svcauthops_gss;
+ 	new->pseudoflavor = pseudoflavor;
+ 
+-	stat = 0;
+ 	test = auth_domain_lookup(name, &new->h);
+-	if (test != &new->h) { /* Duplicate registration */
++	if (test != &new->h) {
++		pr_warn("svc: duplicate registration of gss pseudo flavour %s.\n",
++			name);
++		stat = -EADDRINUSE;
+ 		auth_domain_put(test);
+ 		kfree(new->h.name);
+ 		goto out_free_dom;
+-- 
+cgit 1.2.3-1.el7
+

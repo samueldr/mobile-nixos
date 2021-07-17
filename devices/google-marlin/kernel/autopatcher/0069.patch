@@ -1,0 +1,46 @@
+diff --git a/fs/open.c b/fs/open.c
+index 3e8507c..8af416e 100644
+--- a/fs/open.c
++++ b/fs/open.c
+@@ -851,16 +851,12 @@
+ int vfs_open(const struct path *path, struct file *file,
+ 	     const struct cred *cred)
+ {
+-	struct dentry *dentry = path->dentry;
+-	struct inode *inode = dentry->d_inode;
++	struct inode *inode = vfs_select_inode(path->dentry, file->f_flags);
++
++	if (IS_ERR(inode))
++		return PTR_ERR(inode);
+ 
+ 	file->f_path = *path;
+-	if (dentry->d_flags & DCACHE_OP_SELECT_INODE) {
+-		inode = dentry->d_op->d_select_inode(dentry, file->f_flags);
+-		if (IS_ERR(inode))
+-			return PTR_ERR(inode);
+-	}
+-
+ 	return do_dentry_open(file, inode, NULL, cred);
+ }
+ 
+diff --git a/include/linux/dcache.h b/include/linux/dcache.h
+index cca7e92..64d5930 100644
+--- a/include/linux/dcache.h
++++ b/include/linux/dcache.h
+@@ -538,4 +538,16 @@
+ void take_dentry_name_snapshot(struct name_snapshot *, struct dentry *);
+ void release_dentry_name_snapshot(struct name_snapshot *);
+ 
++static inline struct inode *vfs_select_inode(struct dentry *dentry,
++					     unsigned open_flags)
++{
++	struct inode *inode = d_inode(dentry);
++
++	if (inode && unlikely(dentry->d_flags & DCACHE_OP_SELECT_INODE))
++		inode = dentry->d_op->d_select_inode(dentry, open_flags);
++
++	return inode;
++}
++
++
+ #endif	/* __LINUX_DCACHE_H */

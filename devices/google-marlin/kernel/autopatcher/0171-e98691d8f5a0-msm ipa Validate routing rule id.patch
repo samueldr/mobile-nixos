@@ -1,0 +1,52 @@
+From e98691d8f5a08cf3af5037290767bdf22c9f1eb3 Mon Sep 17 00:00:00 2001
+From: Mohammed Javid <mjavid@codeaurora.org>
+Date: Mon, 6 Aug 2018 12:58:30 +0530
+Subject: msm: ipa: Validate routing rule id
+
+IPA driver expose routing rule id IOCTL's to user space.
+There is a chance of getting invalid routing rule-id.
+Validate it before committing it to IPA hardware.
+
+Change-Id: If80b94d3a055f9212d25aff9a57d1b45001ba586
+Signed-off-by: Mohammed Javid <mjavid@codeaurora.org>
+---
+ drivers/platform/msm/ipa/ipa_v3/ipa_rt.c | 16 ++++++++++++++++
+ 1 file changed, 16 insertions(+)
+
+diff --git a/drivers/platform/msm/ipa/ipa_v3/ipa_rt.c b/drivers/platform/msm/ipa/ipa_v3/ipa_rt.c
+index a0f1f54..dacccbc 100644
+--- a/drivers/platform/msm/ipa/ipa_v3/ipa_rt.c
++++ b/drivers/platform/msm/ipa/ipa_v3/ipa_rt.c
+@@ -908,6 +908,20 @@ static int __ipa_del_rt_tbl(struct ipa3_rt_tbl *entry)
+ 	return 0;
+ }
+ 
++static int __ipa_rt_validate_rule_id(u16 rule_id)
++{
++	if (!rule_id)
++		return 0;
++
++	if ((rule_id < ipahal_get_rule_id_hi_bit()) ||
++		(rule_id >= ((ipahal_get_rule_id_hi_bit()<<1)-1))) {
++		IPAERR_RL("Invalid rule_id provided 0x%x\n",
++			rule_id);
++		return -EPERM;
++	}
++
++	return 0;
++}
+ static int __ipa_rt_validate_hndls(const struct ipa_rt_rule *rule,
+ 				struct ipa3_hdr_entry **hdr,
+ 				struct ipa3_hdr_proc_ctx_entry **proc_ctx)
+@@ -1022,6 +1036,8 @@ static int __ipa_add_rt_rule(enum ipa_ip_type ip, const char *name,
+ 	if (__ipa_rt_validate_hndls(rule, &hdr, &proc_ctx))
+ 		goto error;
+ 
++	if (__ipa_rt_validate_rule_id(rule_id))
++		goto error;
+ 
+ 	tbl = __ipa_add_rt_tbl(ip, name);
+ 	if (tbl == NULL || (tbl->cookie != IPA_RT_TBL_COOKIE)) {
+-- 
+cgit v1.1
+

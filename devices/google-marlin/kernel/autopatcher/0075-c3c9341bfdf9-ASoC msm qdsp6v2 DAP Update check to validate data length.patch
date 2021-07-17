@@ -1,0 +1,35 @@
+From c3c9341bfdf93606983f893a086cb33a487306e5 Mon Sep 17 00:00:00 2001
+From: Ashish Jain <ashishj@codeaurora.org>
+Date: Mon, 18 Jul 2016 16:07:42 +0530
+Subject: ASoC: msm: qdsp6v2: DAP: Update check to validate data length
+
+A big negative data length value can bypass the current check,
+update the condition to ensure that only valid data length is used
+to copy the params.
+
+CRs-Fixed: 1041130
+Change-Id: I6e1a58e901e4c042acfb0ab0a6223dec2949aefe
+Signed-off-by: Ashish Jain <ashishj@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+index 48180cf..ad2f2e9 100644
+--- a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
++++ b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+@@ -1523,8 +1523,9 @@ static int msm_ds2_dap_get_param(u32 cmd, void *arg)
+ 	}
+ 
+ 	/* Return if invalid length */
+-	if (dolby_data->length >
+-	       (DOLBY_MAX_LENGTH_INDIVIDUAL_PARAM - DOLBY_PARAM_PAYLOAD_SIZE)) {
++	if ((dolby_data->length >
++	      (DOLBY_MAX_LENGTH_INDIVIDUAL_PARAM - DOLBY_PARAM_PAYLOAD_SIZE)) ||
++	      (dolby_data->length <= 0)) {
+ 		pr_err("Invalid length %d", dolby_data->length);
+ 		rc = -EINVAL;
+ 		goto end;
+-- 
+cgit v1.1
+

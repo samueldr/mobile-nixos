@@ -1,0 +1,31 @@
+diff --git a/drivers/vhost/net.c b/drivers/vhost/net.c
+index 4f77ac7..14be724 100644
+--- a/drivers/vhost/net.c
++++ b/drivers/vhost/net.c
+@@ -838,11 +838,7 @@
+ 
+ static struct socket *get_raw_socket(int fd)
+ {
+-	struct {
+-		struct sockaddr_ll sa;
+-		char  buf[MAX_ADDR_LEN];
+-	} uaddr;
+-	int uaddr_len = sizeof uaddr, r;
++	int r;
+ 	struct socket *sock = sockfd_lookup(fd, &r);
+ 
+ 	if (!sock)
+@@ -854,12 +850,7 @@
+ 		goto err;
+ 	}
+ 
+-	r = sock->ops->getname(sock, (struct sockaddr *)&uaddr.sa,
+-			       &uaddr_len, 0);
+-	if (r)
+-		goto err;
+-
+-	if (uaddr.sa.sll_family != AF_PACKET) {
++	if (sock->sk->sk_family != AF_PACKET) {
+ 		r = -EPFNOSUPPORT;
+ 		goto err;
+ 	}

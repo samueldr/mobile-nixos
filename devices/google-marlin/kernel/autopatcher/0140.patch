@@ -1,0 +1,12 @@
+diff --git a/block/blk-core.c b/block/blk-core.c
+index d6f74dd..553b44d 100644
+--- a/block/blk-core.c
++++ b/block/blk-core.c
+@@ -747,6 +747,7 @@
+ 
+ fail:
+ 	blk_free_flush_queue(q->fq);
++	q->fq = NULL;
+ 	return NULL;
+ }
+ EXPORT_SYMBOL(blk_init_allocated_queue);

@@ -1,0 +1,30 @@
+diff --git a/fs/nfs/nfs4proc.c b/fs/nfs/nfs4proc.c
+index 61aaf67..898520c 100644
+--- a/fs/nfs/nfs4proc.c
++++ b/fs/nfs/nfs4proc.c
+@@ -4711,8 +4711,6 @@
+ 		return ret;
+ 	if (!(fattr.valid & NFS_ATTR_FATTR_V4_SECURITY_LABEL))
+ 		return -ENOENT;
+-	if (buflen < label.len)
+-		return -ERANGE;
+ 	return 0;
+ }
+ 
+diff --git a/fs/nfs/nfs4xdr.c b/fs/nfs/nfs4xdr.c
+index 6ed24fd..7fa5f3d 100644
+--- a/fs/nfs/nfs4xdr.c
++++ b/fs/nfs/nfs4xdr.c
+@@ -4138,7 +4138,11 @@
+ 			goto out_overflow;
+ 		if (len < NFS4_MAXLABELLEN) {
+ 			if (label) {
+-				memcpy(label->label, p, len);
++				if (label->len) {
++					if (label->len < len)
++						return -ERANGE;
++					memcpy(label->label, p, len);
++				}
+ 				label->len = len;
+ 				label->pi = pi;
+ 				label->lfs = lfs;

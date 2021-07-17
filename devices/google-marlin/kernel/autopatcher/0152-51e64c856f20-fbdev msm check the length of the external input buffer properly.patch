@@ -1,0 +1,48 @@
+From 51e64c856f20ea3140d3d24fdc9e87e4b1cbd4bf Mon Sep 17 00:00:00 2001
+From: raghavendra ambadas <rambad@codeaurora.org>
+Date: Wed, 22 May 2019 17:14:21 +0530
+Subject: fbdev: msm: check the length of the external input buffer properly
+
+dchdr->dlen is a short variable controlled by the user-provided data.
+If the value is negative, loop continues, also increasing the value
+of "len". As a result buffer overflow occurs. So define the len as
+unsigned and check with length of string input from user space.
+
+Change-Id: I8bb9ab33d543c826eb330e16ae116385d823ca98
+Signed-off-by: Raghavendra Ambadas <rambad@codeaurora.org>
+---
+ drivers/video/msm/mdss/mdss_dsi.c | 7 ++++---
+ 1 file changed, 4 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/video/msm/mdss/mdss_dsi.c b/drivers/video/msm/mdss/mdss_dsi.c
+index 986dcec71..f46a682 100644
+--- a/drivers/video/msm/mdss/mdss_dsi.c
++++ b/drivers/video/msm/mdss/mdss_dsi.c
+@@ -1,4 +1,4 @@
+-/* Copyright (c) 2012-2018, The Linux Foundation. All rights reserved.
++/* Copyright (c) 2012-2019, The Linux Foundation. All rights reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 and
+@@ -814,7 +814,8 @@ static ssize_t mdss_dsi_cmd_write(struct file *file, const char __user *p,
+ static int mdss_dsi_cmd_flush(struct file *file, fl_owner_t id)
+ {
+ 	struct buf_data *pcmds = file->private_data;
+-	int blen, len, i;
++	unsigned int len;
++	int blen, i;
+ 	char *buf, *bufp, *bp;
+ 	struct dsi_ctrl_hdr *dchdr;
+ 
+@@ -857,7 +858,7 @@ static int mdss_dsi_cmd_flush(struct file *file, fl_owner_t id)
+ 	while (len >= sizeof(*dchdr)) {
+ 		dchdr = (struct dsi_ctrl_hdr *)bp;
+ 		dchdr->dlen = ntohs(dchdr->dlen);
+-		if (dchdr->dlen > len || dchdr->dlen < 0) {
++		if (dchdr->dlen > (len - sizeof(*dchdr)) || dchdr->dlen < 0) {
+ 			pr_err("%s: dtsi cmd=%x error, len=%d\n",
+ 				__func__, dchdr->dtype, dchdr->dlen);
+ 			kfree(buf);
+-- 
+cgit v1.1
+

@@ -1,0 +1,16 @@
+diff --git a/crypto/af_alg.c b/crypto/af_alg.c
+index 07eabe5..5a1432a 100644
+--- a/crypto/af_alg.c
++++ b/crypto/af_alg.c
+@@ -121,8 +121,10 @@
+ 
+ int af_alg_release(struct socket *sock)
+ {
+-	if (sock->sk)
++	if (sock->sk) {
+ 		sock_put(sock->sk);
++		sock->sk = NULL;
++	}
+ 	return 0;
+ }
+ EXPORT_SYMBOL_GPL(af_alg_release);

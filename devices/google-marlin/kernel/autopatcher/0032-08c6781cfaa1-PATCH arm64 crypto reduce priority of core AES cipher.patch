@@ -1,0 +1,33 @@
+From 08c6781cfaa196d4b257ec043c17e8746d9284e3 Mon Sep 17 00:00:00 2001
+From: Ard Biesheuvel <ard.biesheuvel@linaro.org>
+Date: Mon, 16 Nov 2015 13:12:48 +0100
+Subject: [PATCH] arm64: crypto: reduce priority of core AES cipher
+
+The asynchronous, merged implementations of AES in CBC, CTR and XTS
+modes are preferred when available (i.e., when instantiating ablkciphers
+explicitly). However, the synchronous core AES cipher combined with the
+generic CBC mode implementation will produce a 'cbc(aes)' blkcipher that
+is callable asynchronously as well. To prevent this implementation from
+being used when the accelerated asynchronous implemenation is also
+available, lower its priority to 250 (i.e., below the asynchronous
+module's priority of 300).
+
+Signed-off-by: Ard Biesheuvel <ard.biesheuvel@linaro.org>
+Signed-off-by: Catalin Marinas <catalin.marinas@arm.com>
+---
+ arch/arm64/crypto/aes-ce-cipher.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/arch/arm64/crypto/aes-ce-cipher.c b/arch/arm64/crypto/aes-ce-cipher.c
+index ce47792a983dd..f7bd9bf0bbb39 100644
+--- a/arch/arm64/crypto/aes-ce-cipher.c
++++ b/arch/arm64/crypto/aes-ce-cipher.c
+@@ -237,7 +237,7 @@ EXPORT_SYMBOL(ce_aes_setkey);
+ static struct crypto_alg aes_alg = {
+ 	.cra_name		= "aes",
+ 	.cra_driver_name	= "aes-ce",
+-	.cra_priority		= 300,
++	.cra_priority		= 250,
+ 	.cra_flags		= CRYPTO_ALG_TYPE_CIPHER,
+ 	.cra_blocksize		= AES_BLOCK_SIZE,
+ 	.cra_ctxsize		= sizeof(struct crypto_aes_ctx),

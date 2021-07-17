@@ -1,0 +1,13 @@
+diff --git a/net/nfc/llcp_sock.c b/net/nfc/llcp_sock.c
+index f494f59..1aaab8f 100644
+--- a/net/nfc/llcp_sock.c
++++ b/net/nfc/llcp_sock.c
+@@ -751,6 +751,8 @@
+ 	nfc_llcp_local_put(llcp_sock->local);
+ 
+ 	nfc_llcp_sock_unlink(&local->connecting_sockets, sk);
++	kfree(llcp_sock->service_name);
++	llcp_sock->service_name = NULL;
+ 
+ put_dev:
+ 	nfc_put_device(dev);

@@ -1,0 +1,94 @@
+From 389b185cb2f17fff994dbdf8d4bac003d4b2b6b3 Mon Sep 17 00:00:00 2001
+From: Jim Lin <jilin@nvidia.com>
+Date: Fri, 13 Jan 2017 16:07:58 +0800
+Subject: FROMLIST: CHROMIUM: usb: gadget: configfs: Fix KASAN use-after-free
+
+When gadget is disconnected, running sequence is like this.
+. android_work: sent uevent USB_STATE=DISCONNECTED
+. Call trace:
+  usb_string_copy+0xd0/0x128
+  gadget_config_name_configuration_store+0x4
+  gadget_config_name_attr_store+0x40/0x50
+  configfs_write_file+0x198/0x1f4
+  vfs_write+0x100/0x220
+  SyS_write+0x58/0xa8
+. configfs_composite_unbind
+. configfs_composite_bind
+
+In configfs_composite_bind, it has
+"cn->strings.s = cn->configuration;"
+
+When usb_string_copy is invoked. it would
+allocate memory, copy input string, release previous pointed memory space,
+and use new allocated memory.
+
+When gadget is connected, host sends down request to get information.
+Call trace:
+  usb_gadget_get_string+0xec/0x168
+  lookup_string+0x64/0x98
+  composite_setup+0xa34/0x1ee8
+  android_setup+0xb4/0x140
+
+If gadget is disconnected and connected quickly, in the failed case,
+cn->configuration memory has been released by usb_string_copy kfree but
+configfs_composite_bind hasn't been run in time to assign new allocated
+"cn->configuration" pointer to "cn->strings.s".
+
+When "strlen(s->s) of usb_gadget_get_string is being executed, the dangling
+memory is accessed, "BUG: KASAN: use-after-free" error occurs.
+
+BUG=chrome-os-partner:58412
+TEST=After smaug device was connected to ubuntu PC host, detached and attached
+type-C cable quickly several times without seeing
+"BUG: KASAN: use-after-free in usb_gadget_get_string".
+
+Bug: 31614969
+Change-Id: I58240ee7c55ae8f8fb8597d14f09c5ac07abb032
+Signed-off-by: Jim Lin <jilin@nvidia.com>
+Signed-off-by: Siqi Lin <siqilin@google.com>
+(am from https://chromium-review.googlesource.com/#/c/428059/3)
+---
+ drivers/usb/gadget/configfs.c | 17 ++++++++++++-----
+ 1 file changed, 12 insertions(+), 5 deletions(-)
+
+diff --git a/drivers/usb/gadget/configfs.c b/drivers/usb/gadget/configfs.c
+index c484d9a..f7d8a3d 100644
+--- a/drivers/usb/gadget/configfs.c
++++ b/drivers/usb/gadget/configfs.c
+@@ -130,21 +130,28 @@ struct gadget_config_name {
+ 	struct list_head list;
+ };
+ 
++#define MAX_USB_STRING_LEN	126
++#define MAX_USB_STRING_WITH_NULL_LEN	(MAX_USB_STRING_LEN+1)
++
+ static int usb_string_copy(const char *s, char **s_copy)
+ {
+ 	int ret;
+ 	char *str;
+ 	char *copy = *s_copy;
+ 	ret = strlen(s);
+-	if (ret > 126)
++	if (ret > MAX_USB_STRING_LEN)
+ 		return -EOVERFLOW;
+ 
+-	str = kstrdup(s, GFP_KERNEL);
+-	if (!str)
+-		return -ENOMEM;
++	if (copy) {
++		str = copy;
++	} else {
++		str = kmalloc(MAX_USB_STRING_WITH_NULL_LEN, GFP_KERNEL);
++		if (!str)
++			return -ENOMEM;
++	}
++	strncpy(str, s, MAX_USB_STRING_WITH_NULL_LEN);
+ 	if (str[ret - 1] == '\n')
+ 		str[ret - 1] = '\0';
+-	kfree(copy);
+ 	*s_copy = str;
+ 	return 0;
+ }
+-- 
+cgit v1.1
+

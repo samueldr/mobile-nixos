@@ -1,0 +1,45 @@
+From 961e38553aae8ba9b1af77c7a49acfbb7b0b6f62 Mon Sep 17 00:00:00 2001
+From: Ashish Jain <ashishj@codeaurora.org>
+Date: Thu, 30 Jun 2016 18:28:37 +0530
+Subject: ASoC: msm: qdsp6v2: DAP: Allocate param buffer with correct size
+
+Size of param buffer should be big enough to hold param length
+of data and param payload.
+
+CRs-Fixed: 1033525
+Change-Id: I6fa58f87a7c7df5f0485ea5b368ea090eb8bedb4
+Signed-off-by: Ashish Jain <ashishj@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c | 9 +++++----
+ 1 file changed, 5 insertions(+), 4 deletions(-)
+
+diff --git a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+index 379062e..7bd6ee8 100644
+--- a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
++++ b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+@@ -1554,7 +1554,8 @@ static int msm_ds2_dap_get_param(u32 cmd, void *arg)
+ 	pr_debug("%s: port_id 0x%x, copp_idx %d, dev_map[i].device_id %x\n",
+ 		 __func__, port_id, copp_idx, dev_map[i].device_id);
+ 
+-	params_value = kzalloc(params_length, GFP_KERNEL);
++	params_value = kzalloc(params_length + param_payload_len,
++				GFP_KERNEL);
+ 	if (!params_value) {
+ 		pr_err("%s: params memory alloc failed\n", __func__);
+ 		rc = -ENOMEM;
+@@ -1578,9 +1579,9 @@ static int msm_ds2_dap_get_param(u32 cmd, void *arg)
+ 			rc = -EINVAL;
+ 			goto end;
+ 		} else {
+-			params_length = (ds2_dap_params_length[i] +
+-						DOLBY_PARAM_PAYLOAD_SIZE) *
+-						sizeof(uint32_t);
++			params_length =
++			ds2_dap_params_length[i] * sizeof(uint32_t);
++
+ 			rc = adm_get_params(port_id, copp_idx,
+ 					    DOLBY_BUNDLE_MODULE_ID,
+ 					    ds2_dap_params_id[i],
+-- 
+cgit v1.1
+

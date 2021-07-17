@@ -1,0 +1,80 @@
+From e73a43245a3055182c1352f9886bd0fc5f12af84 Mon Sep 17 00:00:00 2001
+From: Kaustubh Pandey <kapandey@codeaurora.org>
+Date: Tue, 12 Jun 2018 10:09:53 +0530
+Subject: net: core: null pointer derefernce in sockev_client_cb
+
+sockev_client_cb creates a netlink message and populates
+the nlmsg_data using the socket->sock information.
+If socket is closed, while the nlmsg_data is being
+populated, a null pointer dereference occurs.
+
+BUG: KASAN: null-ptr-deref in sockev_client_cb+0x1e4/0x310
+Read of size 2 at addr 0000000000000010 by task syz-executor/9398
+CPU: 6 PID: 9398 Comm: syz-executor Tainted: G W O 4.9.92+ #1
+
+Call trace:
+[<ffffff94e2bebec4>] sockev_client_cb+0x1e4/0x310
+[<ffffff94e14fb20c>] notifier_call_chain+0x94/0xe0
+[<ffffff94e14fb894>] __blocking_notifier_call_chain+0x6c/0xb8
+[<ffffff94e14fb920>] blocking_notifier_call_chain+0x40/0x50
+[<ffffff94e2b727f8>] sockev_notify net/socket.c:180 [inline]
+[<ffffff94e2b727f8>] SYSC_listen net/socket.c:1446 [inline]
+[<ffffff94e2b727f8>] SyS_listen+0x1e0/0x1f8
+[<ffffff94e1483f70>] el0_svc_naked+0x24/0x28
+
+CR's Fixed: 2251042
+Change-Id: Iad9eb58cd05fcdc0b5cc1ed24de56b69abb532b4
+Signed-off-by: Sharath Chandra Vurukala <sharathv@codeaurora.org>
+Signed-off-by: Tejaswi Tanikella <tejaswit@codeaurora.org>
+Signed-off-by: Kaustubh Pandey <kapandey@codeaurora.org>
+Acked-by: Chinmay Agarwal <chinagar@qti.qualcomm.com>
+---
+ net/core/sockev_nlmcast.c | 20 +++++++++++---------
+ 1 file changed, 11 insertions(+), 9 deletions(-)
+
+diff --git a/net/core/sockev_nlmcast.c b/net/core/sockev_nlmcast.c
+index 3d7dabe..bade2d2 100644
+--- a/net/core/sockev_nlmcast.c
++++ b/net/core/sockev_nlmcast.c
+@@ -70,14 +70,17 @@ static int sockev_client_cb(struct notifier_block *nb,
+ 	struct nlmsghdr *nlh;
+ 	struct sknlsockevmsg *smsg;
+ 	struct socket *sock;
++	struct sock *sk;
+ 
+ 	sock = (struct socket *)data;
+-	if (socknlmsgsk == 0)
++	if (!socknlmsgsk || !sock)
+ 		goto done;
+-	if ((socknlmsgsk == NULL) || (sock == NULL) || (sock->sk == NULL))
++
++	sk = sock->sk;
++	if (!sk)
+ 		goto done;
+ 
+-	if (sock->sk->sk_family != AF_INET && sock->sk->sk_family != AF_INET6)
++	if (sk->sk_family != AF_INET && sk->sk_family != AF_INET6)
+ 		goto done;
+ 
+ 	if (event != SOCKEV_BIND && event != SOCKEV_LISTEN)
+@@ -98,12 +101,11 @@ static int sockev_client_cb(struct notifier_block *nb,
+ 	smsg = nlmsg_data(nlh);
+ 	smsg->pid = current->pid;
+ 	_sockev_event(event, smsg->event, sizeof(smsg->event));
+-	smsg->skfamily = sock->sk->sk_family;
+-	smsg->skstate = sock->sk->sk_state;
+-	smsg->skprotocol = sock->sk->sk_protocol;
+-	smsg->sktype = sock->sk->sk_type;
+-	smsg->skflags = sock->sk->sk_flags;
+-
++	smsg->skfamily = sk->sk_family;
++	smsg->skstate = sk->sk_state;
++	smsg->skprotocol = sk->sk_protocol;
++	smsg->sktype = sk->sk_type;
++	smsg->skflags = sk->sk_flags;
+ 	nlmsg_notify(socknlmsgsk, skb, 0, SKNLGRP_SOCKEV, 0, GFP_KERNEL);
+ done:
+ 	return 0;
+-- 
+cgit v1.1
+

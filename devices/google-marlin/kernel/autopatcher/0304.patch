@@ -1,0 +1,46 @@
+diff --git a/fs/block_dev.c b/fs/block_dev.c
+index 8e42e76..24501ef 100644
+--- a/fs/block_dev.c
++++ b/fs/block_dev.c
+@@ -1117,10 +1117,8 @@
+ 	 */
+ 	if (!for_part) {
+ 		ret = devcgroup_inode_permission(bdev->bd_inode, perm);
+-		if (ret != 0) {
+-			bdput(bdev);
++		if (ret != 0)
+ 			return ret;
+-		}
+ 	}
+ 
+  restart:
+@@ -1193,8 +1191,10 @@
+ 				goto out_clear;
+ 			BUG_ON(for_part);
+ 			ret = __blkdev_get(whole, mode, 1);
+-			if (ret)
++			if (ret) {
++				bdput(whole);
+ 				goto out_clear;
++			}
+ 			bdev->bd_contains = whole;
+ 			bdev_inode_switch_bdi(bdev->bd_inode,
+ 				whole->bd_inode->i_data.backing_dev_info);
+@@ -1247,7 +1247,6 @@
+ 	put_disk(disk);
+ 	module_put(owner);
+  out:
+-	bdput(bdev);
+ 
+ 	return ret;
+ }
+@@ -1333,6 +1332,9 @@
+ 		bdput(whole);
+ 	}
+ 
++	if (res)
++		bdput(bdev);
++
+ 	return res;
+ }
+ EXPORT_SYMBOL(blkdev_get);

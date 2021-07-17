@@ -1,0 +1,16 @@
+diff --git a/crypto/crypto_user.c b/crypto/crypto_user.c
+index 06ac059..a717e25 100644
+--- a/crypto/crypto_user.c
++++ b/crypto/crypto_user.c
+@@ -221,8 +221,10 @@
+ 	info.nlmsg_flags = 0;
+ 
+ 	err = crypto_report_alg(alg, &info);
+-	if (err)
++	if (err) {
++		kfree_skb(skb);
+ 		return err;
++	}
+ 
+ 	return nlmsg_unicast(crypto_nlsk, skb, NETLINK_CB(in_skb).portid);
+ }

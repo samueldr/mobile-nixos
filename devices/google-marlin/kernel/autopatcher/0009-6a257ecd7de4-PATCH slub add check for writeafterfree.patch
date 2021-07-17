@@ -1,0 +1,25 @@
+From 6a257ecd7de4aa6249f59a8b83eed8b46b477951 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Sun, 2 Apr 2017 19:45:55 -0400
+Subject: [PATCH] slub: add check for write-after-free
+
+---
+ mm/slub.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/mm/slub.c b/mm/slub.c
+index aa74c17f818..385f544c559 100644
+--- a/mm/slub.c
++++ b/mm/slub.c
+@@ -2531,6 +2531,11 @@ static __always_inline void *slab_alloc_node(struct kmem_cache *s,
+ 		stat(s, ALLOC_FASTPATH);
+ 	}
+ 
++	if (!(s->flags & (SLAB_DESTROY_BY_RCU | SLAB_POISON)) && !s->ctor && object) {
++		size_t offset = s->offset ? 0 : sizeof(void *);
++		BUG_ON(memchr_inv((void *)object + offset, 0, s->object_size - offset));
++	}
++
+ 	if (unlikely(gfpflags & __GFP_ZERO) && object)
+ 		memset(object, 0, s->object_size);
+ 

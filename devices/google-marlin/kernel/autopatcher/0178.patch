@@ -1,0 +1,29 @@
+diff --git a/drivers/net/wireless/mwifiex/sta_ioctl.c b/drivers/net/wireless/mwifiex/sta_ioctl.c
+index 0ed2484..056f086 100644
+--- a/drivers/net/wireless/mwifiex/sta_ioctl.c
++++ b/drivers/net/wireless/mwifiex/sta_ioctl.c
+@@ -223,6 +223,14 @@
+ 			  "11D: skip setting domain info in FW\n");
+ 		return 0;
+ 	}
++
++	if (country_ie_len >
++	    (IEEE80211_COUNTRY_STRING_LEN + MWIFIEX_MAX_TRIPLET_802_11D)) {
++		wiphy_dbg(priv->wdev->wiphy,
++			  "11D: country_ie_len overflow!, deauth AP\n");
++		return -EINVAL;
++	}
++
+ 	memcpy(priv->adapter->country_code, &country_ie[2], 2);
+ 
+ 	domain_info->country_code[0] = country_ie[2];
+@@ -266,7 +274,8 @@
+ 	priv->scan_block = false;
+ 
+ 	if (bss) {
+-		mwifiex_process_country_ie(priv, bss);
++		if (mwifiex_process_country_ie(priv, bss))
++			return -EINVAL;
+ 
+ 		/* Allocate and fill new bss descriptor */
+ 		bss_desc = kzalloc(sizeof(struct mwifiex_bssdescriptor),

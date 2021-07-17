@@ -1,0 +1,36 @@
+From 3ce3b95ae04ba971367b5a1cf279a68946b1d141 Mon Sep 17 00:00:00 2001
+From: Trishansh Bhardwaj <tbhardwa@codeaurora.org>
+Date: Tue, 4 Jul 2017 14:13:15 +0530
+Subject: msm: camera: Unlock rwlock before returning.
+
+put_buf and buf_done are not unlocking rwlock in error case.
+
+Change-Id: Ie10afa15f332cf7bd38be69ea8b99b163b125e66
+Signed-off-by: Trishansh Bhardwaj <tbhardwa@codeaurora.org>
+---
+ drivers/media/platform/msm/camera_v2/msm_vb2/msm_vb2.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/media/platform/msm/camera_v2/msm_vb2/msm_vb2.c b/drivers/media/platform/msm/camera_v2/msm_vb2/msm_vb2.c
+index 834e8fa..e595aa9 100644
+--- a/drivers/media/platform/msm/camera_v2/msm_vb2/msm_vb2.c
++++ b/drivers/media/platform/msm/camera_v2/msm_vb2/msm_vb2.c
+@@ -371,6 +371,7 @@ static int msm_vb2_put_buf(struct vb2_buffer *vb, int session_id,
+ 			pr_err("VB buffer is INVALID vb=%pK, ses_id=%d, str_id=%d\n",
+ 					vb, session_id, stream_id);
+ 			spin_unlock_irqrestore(&stream->stream_lock, flags);
++			read_unlock(&session->stream_rwlock);
+ 			return -EINVAL;
+ 		}
+ 		msm_vb2 =
+@@ -424,6 +425,7 @@ static int msm_vb2_buf_done(struct vb2_buffer *vb, int session_id,
+ 			pr_err("VB buffer is INVALID ses_id=%d, str_id=%d, vb=%pK\n",
+ 				    session_id, stream_id, vb);
+ 			spin_unlock_irqrestore(&stream->stream_lock, flags);
++			read_unlock(&session->stream_rwlock);
+ 			return -EINVAL;
+ 		}
+ 		msm_vb2 =
+-- 
+cgit v1.1
+

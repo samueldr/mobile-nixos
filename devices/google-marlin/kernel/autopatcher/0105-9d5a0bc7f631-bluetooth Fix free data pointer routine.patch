@@ -1,0 +1,45 @@
+From 9d5a0bc7f6318821fddf9fc0ac9a05e58bb00a6b Mon Sep 17 00:00:00 2001
+From: Sungjun Park <sjpark@codeaurora.org>
+Date: Mon, 23 Jan 2017 13:28:44 -0800
+Subject: bluetooth: Fix free data pointer routine
+
+Data pointer has been reused after freed it. So,
+it has been moved to after using the data pointer
+to clean up resource and freed it.
+
+Change-Id: Ibc94e092134ff1f36e896c679ade7f639254a24d
+Signed-off-by: Sungjun Park <sjpark@codeaurora.org>
+---
+ drivers/bluetooth/btfm_slim.c | 5 +++--
+ 1 file changed, 3 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/bluetooth/btfm_slim.c b/drivers/bluetooth/btfm_slim.c
+index 5fb00b9..1c6e256 100644
+--- a/drivers/bluetooth/btfm_slim.c
++++ b/drivers/bluetooth/btfm_slim.c
+@@ -1,4 +1,4 @@
+-/* Copyright (c) 2016, The Linux Foundation. All rights reserved.
++/* Copyright (c) 2017, The Linux Foundation. All rights reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 and
+@@ -509,7 +509,6 @@ static int btfm_slim_remove(struct slim_device *slim)
+ 	BTFMSLIM_DBG("");
+ 	mutex_destroy(&btfm_slim->io_lock);
+ 	mutex_destroy(&btfm_slim->xfer_lock);
+-	kfree(btfm_slim);
+ 	snd_soc_unregister_codec(&slim->dev);
+ 
+ 	BTFMSLIM_DBG("slim_remove_device() - btfm_slim->slim_ifd");
+@@ -517,6 +516,8 @@ static int btfm_slim_remove(struct slim_device *slim)
+ 
+ 	BTFMSLIM_DBG("slim_remove_device() - btfm_slim->slim_pgd");
+ 	slim_remove_device(slim);
++
++	kfree(btfm_slim);
+ 	return 0;
+ }
+ 
+-- 
+cgit v1.1
+

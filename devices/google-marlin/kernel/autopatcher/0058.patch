@@ -1,0 +1,12 @@
+diff --git a/net/rds/recv.c b/net/rds/recv.c
+index f60a704..0456de6 100644
+--- a/net/rds/recv.c
++++ b/net/rds/recv.c
+@@ -548,5 +548,7 @@
+ 		minfo.fport = inc->i_hdr.h_dport;
+ 	}
+ 
++	minfo.flags = 0;
++
+ 	rds_info_copy(iter, &minfo, sizeof(minfo));
+ }

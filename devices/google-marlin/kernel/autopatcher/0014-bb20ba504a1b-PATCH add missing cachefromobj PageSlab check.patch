@@ -1,0 +1,22 @@
+From bb20ba504a1bd5615265a67f151878c7695bb857 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Sun, 22 Jan 2017 22:22:34 -0500
+Subject: [PATCH] add missing cache_from_obj !PageSlab check
+
+Taken from PaX.
+---
+ mm/slab.h | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/mm/slab.h b/mm/slab.h
+index ab019e63e3c..949e14611c1 100644
+--- a/mm/slab.h
++++ b/mm/slab.h
+@@ -300,6 +300,7 @@ static inline struct kmem_cache *cache_from_obj(struct kmem_cache *s, void *x)
+ 		return s;
+ 
+ 	page = virt_to_head_page(x);
++	BUG_ON(!PageSlab(page));
+ 	cachep = page->slab_cache;
+ 	if (slab_equal_or_root(cachep, s))
+ 		return cachep;

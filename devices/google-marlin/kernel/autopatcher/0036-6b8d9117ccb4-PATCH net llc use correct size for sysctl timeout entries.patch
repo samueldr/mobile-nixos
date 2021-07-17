@@ -1,0 +1,52 @@
+From 6b8d9117ccb4f81b1244aafa7bc70ef8fa45fc49 Mon Sep 17 00:00:00 2001
+From: Sasha Levin <sasha.levin@oracle.com>
+Date: Fri, 23 Jan 2015 20:47:00 -0500
+Subject: [PATCH] net: llc: use correct size for sysctl timeout entries
+
+The timeout entries are sizeof(int) rather than sizeof(long), which
+means that when they were getting read we'd also leak kernel memory
+to userspace along with the timeout values.
+
+Signed-off-by: Sasha Levin <sasha.levin@oracle.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ net/llc/sysctl_net_llc.c | 8 ++++----
+ 1 file changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/net/llc/sysctl_net_llc.c b/net/llc/sysctl_net_llc.c
+index 612a5ddaf93b1..799bafc2af39e 100644
+--- a/net/llc/sysctl_net_llc.c
++++ b/net/llc/sysctl_net_llc.c
+@@ -18,28 +18,28 @@ static struct ctl_table llc2_timeout_table[] = {
+ 	{
+ 		.procname	= "ack",
+ 		.data		= &sysctl_llc2_ack_timeout,
+-		.maxlen		= sizeof(long),
++		.maxlen		= sizeof(sysctl_llc2_ack_timeout),
+ 		.mode		= 0644,
+ 		.proc_handler   = proc_dointvec_jiffies,
+ 	},
+ 	{
+ 		.procname	= "busy",
+ 		.data		= &sysctl_llc2_busy_timeout,
+-		.maxlen		= sizeof(long),
++		.maxlen		= sizeof(sysctl_llc2_busy_timeout),
+ 		.mode		= 0644,
+ 		.proc_handler   = proc_dointvec_jiffies,
+ 	},
+ 	{
+ 		.procname	= "p",
+ 		.data		= &sysctl_llc2_p_timeout,
+-		.maxlen		= sizeof(long),
++		.maxlen		= sizeof(sysctl_llc2_p_timeout),
+ 		.mode		= 0644,
+ 		.proc_handler   = proc_dointvec_jiffies,
+ 	},
+ 	{
+ 		.procname	= "rej",
+ 		.data		= &sysctl_llc2_rej_timeout,
+-		.maxlen		= sizeof(long),
++		.maxlen		= sizeof(sysctl_llc2_rej_timeout),
+ 		.mode		= 0644,
+ 		.proc_handler   = proc_dointvec_jiffies,
+ 	},

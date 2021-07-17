@@ -1,0 +1,87 @@
+From 93362fa47fe98b62e4a34ab408c4a418432e7939 Mon Sep 17 00:00:00 2001
+From: Zhou Chengming <zhouchengming1@huawei.com>
+Date: Fri, 6 Jan 2017 09:32:32 +0800
+Subject: sysctl: Drop reference added by grab_header in proc_sys_readdir
+
+Fixes CVE-2016-9191, proc_sys_readdir doesn't drop reference
+added by grab_header when return from !dir_emit_dots path.
+It can cause any path called unregister_sysctl_table will
+wait forever.
+
+The calltrace of CVE-2016-9191:
+
+[ 5535.960522] Call Trace:
+[ 5535.963265]  [<ffffffff817cdaaf>] schedule+0x3f/0xa0
+[ 5535.968817]  [<ffffffff817d33fb>] schedule_timeout+0x3db/0x6f0
+[ 5535.975346]  [<ffffffff817cf055>] ? wait_for_completion+0x45/0x130
+[ 5535.982256]  [<ffffffff817cf0d3>] wait_for_completion+0xc3/0x130
+[ 5535.988972]  [<ffffffff810d1fd0>] ? wake_up_q+0x80/0x80
+[ 5535.994804]  [<ffffffff8130de64>] drop_sysctl_table+0xc4/0xe0
+[ 5536.001227]  [<ffffffff8130de17>] drop_sysctl_table+0x77/0xe0
+[ 5536.007648]  [<ffffffff8130decd>] unregister_sysctl_table+0x4d/0xa0
+[ 5536.014654]  [<ffffffff8130deff>] unregister_sysctl_table+0x7f/0xa0
+[ 5536.021657]  [<ffffffff810f57f5>] unregister_sched_domain_sysctl+0x15/0x40
+[ 5536.029344]  [<ffffffff810d7704>] partition_sched_domains+0x44/0x450
+[ 5536.036447]  [<ffffffff817d0761>] ? __mutex_unlock_slowpath+0x111/0x1f0
+[ 5536.043844]  [<ffffffff81167684>] rebuild_sched_domains_locked+0x64/0xb0
+[ 5536.051336]  [<ffffffff8116789d>] update_flag+0x11d/0x210
+[ 5536.057373]  [<ffffffff817cf61f>] ? mutex_lock_nested+0x2df/0x450
+[ 5536.064186]  [<ffffffff81167acb>] ? cpuset_css_offline+0x1b/0x60
+[ 5536.070899]  [<ffffffff810fce3d>] ? trace_hardirqs_on+0xd/0x10
+[ 5536.077420]  [<ffffffff817cf61f>] ? mutex_lock_nested+0x2df/0x450
+[ 5536.084234]  [<ffffffff8115a9f5>] ? css_killed_work_fn+0x25/0x220
+[ 5536.091049]  [<ffffffff81167ae5>] cpuset_css_offline+0x35/0x60
+[ 5536.097571]  [<ffffffff8115aa2c>] css_killed_work_fn+0x5c/0x220
+[ 5536.104207]  [<ffffffff810bc83f>] process_one_work+0x1df/0x710
+[ 5536.110736]  [<ffffffff810bc7c0>] ? process_one_work+0x160/0x710
+[ 5536.117461]  [<ffffffff810bce9b>] worker_thread+0x12b/0x4a0
+[ 5536.123697]  [<ffffffff810bcd70>] ? process_one_work+0x710/0x710
+[ 5536.130426]  [<ffffffff810c3f7e>] kthread+0xfe/0x120
+[ 5536.135991]  [<ffffffff817d4baf>] ret_from_fork+0x1f/0x40
+[ 5536.142041]  [<ffffffff810c3e80>] ? kthread_create_on_node+0x230/0x230
+
+One cgroup maintainer mentioned that "cgroup is trying to offline
+a cpuset css, which takes place under cgroup_mutex.  The offlining
+ends up trying to drain active usages of a sysctl table which apprently
+is not happening."
+The real reason is that proc_sys_readdir doesn't drop reference added
+by grab_header when return from !dir_emit_dots path. So this cpuset
+offline path will wait here forever.
+
+See here for details: http://www.openwall.com/lists/oss-security/2016/11/04/13
+
+Fixes: f0c3b5093add ("[readdir] convert procfs")
+Cc: stable@vger.kernel.org
+Reported-by: CAI Qian <caiqian@redhat.com>
+Tested-by: Yang Shukui <yangshukui@huawei.com>
+Signed-off-by: Zhou Chengming <zhouchengming1@huawei.com>
+Acked-by: Al Viro <viro@ZenIV.linux.org.uk>
+Signed-off-by: Eric W. Biederman <ebiederm@xmission.com>
+---
+ fs/proc/proc_sysctl.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/fs/proc/proc_sysctl.c b/fs/proc/proc_sysctl.c
+index 55313d994895..d4e37acd4821 100644
+--- a/fs/proc/proc_sysctl.c
++++ b/fs/proc/proc_sysctl.c
+@@ -709,7 +709,7 @@ static int proc_sys_readdir(struct file *file, struct dir_context *ctx)
+ 	ctl_dir = container_of(head, struct ctl_dir, header);
+ 
+ 	if (!dir_emit_dots(file, ctx))
+-		return 0;
++		goto out;
+ 
+ 	pos = 2;
+ 
+@@ -719,6 +719,7 @@ static int proc_sys_readdir(struct file *file, struct dir_context *ctx)
+ 			break;
+ 		}
+ 	}
++out:
+ 	sysctl_head_finish(head);
+ 	return 0;
+ }
+-- 
+cgit 1.2.3-1.el7
+

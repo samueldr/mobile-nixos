@@ -1,0 +1,36 @@
+diff --git a/net/l2tp/l2tp_core.c b/net/l2tp/l2tp_core.c
+index 11c61c0..f7ce680 100644
+--- a/net/l2tp/l2tp_core.c
++++ b/net/l2tp/l2tp_core.c
+@@ -1347,6 +1347,9 @@
+ 
+ 			hlist_del_init(&session->hlist);
+ 
++			if (test_and_set_bit(0, &session->dead))
++				goto again;
++
+ 			if (session->ref != NULL)
+ 				(*session->ref)(session);
+ 
+@@ -1798,6 +1801,9 @@
+  */
+ int l2tp_session_delete(struct l2tp_session *session)
+ {
++	if (test_and_set_bit(0, &session->dead))
++		return 0;
++
+ 	if (session->ref)
+ 		(*session->ref)(session);
+ 	__l2tp_session_unhash(session);
+diff --git a/net/l2tp/l2tp_core.h b/net/l2tp/l2tp_core.h
+index 8c6471d..29a577b 100644
+--- a/net/l2tp/l2tp_core.h
++++ b/net/l2tp/l2tp_core.h
+@@ -85,6 +85,7 @@
+ struct l2tp_session {
+ 	int			magic;		/* should be
+ 						 * L2TP_SESSION_MAGIC */
++	long			dead;
+ 
+ 	struct l2tp_tunnel	*tunnel;	/* back pointer to tunnel
+ 						 * context */

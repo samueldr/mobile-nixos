@@ -1,0 +1,305 @@
+diff --git a/drivers/hid/hid-axff.c b/drivers/hid/hid-axff.c
+index a594e47..843aed4 100644
+--- a/drivers/hid/hid-axff.c
++++ b/drivers/hid/hid-axff.c
+@@ -75,13 +75,20 @@
+ {
+ 	struct axff_device *axff;
+ 	struct hid_report *report;
+-	struct hid_input *hidinput = list_first_entry(&hid->inputs, struct hid_input, list);
++	struct hid_input *hidinput;
+ 	struct list_head *report_list =&hid->report_enum[HID_OUTPUT_REPORT].report_list;
+-	struct input_dev *dev = hidinput->input;
++	struct input_dev *dev;
+ 	int field_count = 0;
+ 	int i, j;
+ 	int error;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_first_entry(&hid->inputs, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	if (list_empty(report_list)) {
+ 		hid_err(hid, "no output reports found\n");
+ 		return -ENODEV;
+diff --git a/drivers/hid/hid-dr.c b/drivers/hid/hid-dr.c
+index ce06444..e4e3c7b 100644
+--- a/drivers/hid/hid-dr.c
++++ b/drivers/hid/hid-dr.c
+@@ -87,13 +87,19 @@
+ {
+ 	struct drff_device *drff;
+ 	struct hid_report *report;
+-	struct hid_input *hidinput = list_first_entry(&hid->inputs,
+-						struct hid_input, list);
++	struct hid_input *hidinput;
+ 	struct list_head *report_list =
+ 			&hid->report_enum[HID_OUTPUT_REPORT].report_list;
+-	struct input_dev *dev = hidinput->input;
++	struct input_dev *dev;
+ 	int error;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_first_entry(&hid->inputs, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	if (list_empty(report_list)) {
+ 		hid_err(hid, "no output reports found\n");
+ 		return -ENODEV;
+diff --git a/drivers/hid/hid-emsff.c b/drivers/hid/hid-emsff.c
+index d82d75b..80f9a02 100644
+--- a/drivers/hid/hid-emsff.c
++++ b/drivers/hid/hid-emsff.c
+@@ -59,13 +59,19 @@
+ {
+ 	struct emsff_device *emsff;
+ 	struct hid_report *report;
+-	struct hid_input *hidinput = list_first_entry(&hid->inputs,
+-						struct hid_input, list);
++	struct hid_input *hidinput;
+ 	struct list_head *report_list =
+ 			&hid->report_enum[HID_OUTPUT_REPORT].report_list;
+-	struct input_dev *dev = hidinput->input;
++	struct input_dev *dev;
+ 	int error;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_first_entry(&hid->inputs, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	if (list_empty(report_list)) {
+ 		hid_err(hid, "no output reports found\n");
+ 		return -ENODEV;
+diff --git a/drivers/hid/hid-gaff.c b/drivers/hid/hid-gaff.c
+index 2d8cead..5a02c50 100644
+--- a/drivers/hid/hid-gaff.c
++++ b/drivers/hid/hid-gaff.c
+@@ -77,14 +77,20 @@
+ {
+ 	struct gaff_device *gaff;
+ 	struct hid_report *report;
+-	struct hid_input *hidinput = list_entry(hid->inputs.next,
+-						struct hid_input, list);
++	struct hid_input *hidinput;
+ 	struct list_head *report_list =
+ 			&hid->report_enum[HID_OUTPUT_REPORT].report_list;
+ 	struct list_head *report_ptr = report_list;
+-	struct input_dev *dev = hidinput->input;
++	struct input_dev *dev;
+ 	int error;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_entry(hid->inputs.next, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	if (list_empty(report_list)) {
+ 		hid_err(hid, "no output reports found\n");
+ 		return -ENODEV;
+diff --git a/drivers/hid/hid-holtekff.c b/drivers/hid/hid-holtekff.c
+index 9325545..3e84551 100644
+--- a/drivers/hid/hid-holtekff.c
++++ b/drivers/hid/hid-holtekff.c
+@@ -140,13 +140,19 @@
+ {
+ 	struct holtekff_device *holtekff;
+ 	struct hid_report *report;
+-	struct hid_input *hidinput = list_entry(hid->inputs.next,
+-						struct hid_input, list);
++	struct hid_input *hidinput;
+ 	struct list_head *report_list =
+ 			&hid->report_enum[HID_OUTPUT_REPORT].report_list;
+-	struct input_dev *dev = hidinput->input;
++	struct input_dev *dev;
+ 	int error;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_entry(hid->inputs.next, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	if (list_empty(report_list)) {
+ 		hid_err(hid, "no output report found\n");
+ 		return -ENODEV;
+diff --git a/drivers/hid/hid-lg2ff.c b/drivers/hid/hid-lg2ff.c
+index 0e3fb1a..6909d9c 100644
+--- a/drivers/hid/hid-lg2ff.c
++++ b/drivers/hid/hid-lg2ff.c
+@@ -62,11 +62,17 @@
+ {
+ 	struct lg2ff_device *lg2ff;
+ 	struct hid_report *report;
+-	struct hid_input *hidinput = list_entry(hid->inputs.next,
+-						struct hid_input, list);
+-	struct input_dev *dev = hidinput->input;
++	struct hid_input *hidinput;
++	struct input_dev *dev;
+ 	int error;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_entry(hid->inputs.next, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	/* Check that the report looks ok */
+ 	report = hid_validate_values(hid, HID_OUTPUT_REPORT, 0, 0, 7);
+ 	if (!report)
+diff --git a/drivers/hid/hid-lg3ff.c b/drivers/hid/hid-lg3ff.c
+index 8c2da18..acf739f 100644
+--- a/drivers/hid/hid-lg3ff.c
++++ b/drivers/hid/hid-lg3ff.c
+@@ -129,12 +129,19 @@
+ 
+ int lg3ff_init(struct hid_device *hid)
+ {
+-	struct hid_input *hidinput = list_entry(hid->inputs.next, struct hid_input, list);
+-	struct input_dev *dev = hidinput->input;
++	struct hid_input *hidinput;
++	struct input_dev *dev;
+ 	const signed short *ff_bits = ff3_joystick_ac;
+ 	int error;
+ 	int i;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_entry(hid->inputs.next, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	/* Check that the report looks ok */
+ 	if (!hid_validate_values(hid, HID_OUTPUT_REPORT, 0, 0, 35))
+ 		return -ENODEV;
+diff --git a/drivers/hid/hid-lg4ff.c b/drivers/hid/hid-lg4ff.c
+index 7835717..8bfb1c4 100644
+--- a/drivers/hid/hid-lg4ff.c
++++ b/drivers/hid/hid-lg4ff.c
+@@ -566,6 +566,13 @@
+ 	int error, i, j;
+ 	__u16 bcdDevice, rev_maj, rev_min;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_entry(hid->inputs.next, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	/* Check that the report looks ok */
+ 	if (!hid_validate_values(hid, HID_OUTPUT_REPORT, 0, 0, 7))
+ 		return -1;
+diff --git a/drivers/hid/hid-lgff.c b/drivers/hid/hid-lgff.c
+index e1394af..1871cdc 100644
+--- a/drivers/hid/hid-lgff.c
++++ b/drivers/hid/hid-lgff.c
+@@ -127,12 +127,19 @@
+ 
+ int lgff_init(struct hid_device* hid)
+ {
+-	struct hid_input *hidinput = list_entry(hid->inputs.next, struct hid_input, list);
+-	struct input_dev *dev = hidinput->input;
++	struct hid_input *hidinput;
++	struct input_dev *dev;
+ 	const signed short *ff_bits = ff_joystick;
+ 	int error;
+ 	int i;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_entry(hid->inputs.next, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	/* Check that the report looks ok */
+ 	if (!hid_validate_values(hid, HID_OUTPUT_REPORT, 0, 0, 7))
+ 		return -ENODEV;
+diff --git a/drivers/hid/hid-sony.c b/drivers/hid/hid-sony.c
+index e9af6dd..b42aa40 100644
+--- a/drivers/hid/hid-sony.c
++++ b/drivers/hid/hid-sony.c
+@@ -1592,9 +1592,15 @@
+ 
+ static int sony_init_ff(struct sony_sc *sc)
+ {
+-	struct hid_input *hidinput = list_entry(sc->hdev->inputs.next,
+-						struct hid_input, list);
+-	struct input_dev *input_dev = hidinput->input;
++	struct hid_input *hidinput;
++	struct input_dev *input_dev;
++
++	if (list_empty(&sc->hdev->inputs)) {
++		hid_err(sc->hdev, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_entry(sc->hdev->inputs.next, struct hid_input, list);
++	input_dev = hidinput->input;
+ 
+ 	input_set_capability(input_dev, EV_FF, FF_RUMBLE);
+ 	return input_ff_create_memless(input_dev, NULL, sony_play_effect);
+diff --git a/drivers/hid/hid-tmff.c b/drivers/hid/hid-tmff.c
+index b833760..9e908d9 100644
+--- a/drivers/hid/hid-tmff.c
++++ b/drivers/hid/hid-tmff.c
+@@ -126,12 +126,18 @@
+ 	struct tmff_device *tmff;
+ 	struct hid_report *report;
+ 	struct list_head *report_list;
+-	struct hid_input *hidinput = list_entry(hid->inputs.next,
+-							struct hid_input, list);
+-	struct input_dev *input_dev = hidinput->input;
++	struct hid_input *hidinput;
++	struct input_dev *input_dev;
+ 	int error;
+ 	int i;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_entry(hid->inputs.next, struct hid_input, list);
++	input_dev = hidinput->input;
++
+ 	tmff = kzalloc(sizeof(struct tmff_device), GFP_KERNEL);
+ 	if (!tmff)
+ 		return -ENOMEM;
+diff --git a/drivers/hid/hid-zpff.c b/drivers/hid/hid-zpff.c
+index a29756c..4e7e01b 100644
+--- a/drivers/hid/hid-zpff.c
++++ b/drivers/hid/hid-zpff.c
+@@ -66,11 +66,17 @@
+ {
+ 	struct zpff_device *zpff;
+ 	struct hid_report *report;
+-	struct hid_input *hidinput = list_entry(hid->inputs.next,
+-						struct hid_input, list);
+-	struct input_dev *dev = hidinput->input;
++	struct hid_input *hidinput;
++	struct input_dev *dev;
+ 	int i, error;
+ 
++	if (list_empty(&hid->inputs)) {
++		hid_err(hid, "no inputs found\n");
++		return -ENODEV;
++	}
++	hidinput = list_entry(hid->inputs.next, struct hid_input, list);
++	dev = hidinput->input;
++
+ 	for (i = 0; i < 4; i++) {
+ 		report = hid_validate_values(hid, HID_OUTPUT_REPORT, 0, i, 1);
+ 		if (!report)

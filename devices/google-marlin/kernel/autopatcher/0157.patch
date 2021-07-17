@@ -1,0 +1,40 @@
+diff --git a/include/uapi/linux/snmp.h b/include/uapi/linux/snmp.h
+index df40137..baa4995 100644
+--- a/include/uapi/linux/snmp.h
++++ b/include/uapi/linux/snmp.h
+@@ -265,6 +265,7 @@
+ 	LINUX_MIB_TCPWANTZEROWINDOWADV,		/* TCPWantZeroWindowAdv */
+ 	LINUX_MIB_TCPSYNRETRANS,		/* TCPSynRetrans */
+ 	LINUX_MIB_TCPORIGDATASENT,		/* TCPOrigDataSent */
++	LINUX_MIB_TCPWQUEUETOOBIG,		/* TCPWqueueTooBig */
+ 	__LINUX_MIB_MAX
+ };
+ 
+diff --git a/net/ipv4/proc.c b/net/ipv4/proc.c
+index 8e3eb39..483f1b9 100644
+--- a/net/ipv4/proc.c
++++ b/net/ipv4/proc.c
+@@ -287,6 +287,7 @@
+ 	SNMP_MIB_ITEM("TCPWantZeroWindowAdv", LINUX_MIB_TCPWANTZEROWINDOWADV),
+ 	SNMP_MIB_ITEM("TCPSynRetrans", LINUX_MIB_TCPSYNRETRANS),
+ 	SNMP_MIB_ITEM("TCPOrigDataSent", LINUX_MIB_TCPORIGDATASENT),
++	SNMP_MIB_ITEM("TCPWqueueTooBig", LINUX_MIB_TCPWQUEUETOOBIG),
+ 	SNMP_MIB_SENTINEL
+ };
+ 
+diff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c
+index 2ec9f8e..4acccf7 100644
+--- a/net/ipv4/tcp_output.c
++++ b/net/ipv4/tcp_output.c
+@@ -1152,6 +1152,11 @@
+ 	if (nsize < 0)
+ 		nsize = 0;
+ 
++	if (unlikely((sk->sk_wmem_queued >> 1) > sk->sk_sndbuf)) {
++		NET_INC_STATS(sock_net(sk), LINUX_MIB_TCPWQUEUETOOBIG);
++		return -ENOMEM;
++	}
++
+ 	if (skb_unclone(skb, gfp))
+ 		return -ENOMEM;
+ 

@@ -1,0 +1,27 @@
+From af8f4d626fb1e846f0a60abd21528daa686a6137 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Mon, 22 May 2017 08:21:21 -0400
+Subject: [PATCH] fix qcacld-2.0 buffer overflows
+
+---
+ drivers/staging/qcacld-2.0/CORE/SERVICES/COMMON/adf/adf_nbuf.c | 4 ++--
+ 1 file changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/staging/qcacld-2.0/CORE/SERVICES/COMMON/adf/adf_nbuf.c b/drivers/staging/qcacld-2.0/CORE/SERVICES/COMMON/adf/adf_nbuf.c
+index 87b6f5daa24..ff716bf6a7c 100644
+--- a/drivers/staging/qcacld-2.0/CORE/SERVICES/COMMON/adf/adf_nbuf.c
++++ b/drivers/staging/qcacld-2.0/CORE/SERVICES/COMMON/adf/adf_nbuf.c
+@@ -1181,11 +1181,11 @@ __adf_nbuf_trace_update(struct sk_buff *buf, char *event_string)
+       break;
+    case NBUF_PKT_TRAC_TYPE_NS:
+       adf_os_mem_copy(string_buf + adf_os_str_len(event_string),
+-                      "NS", NBUF_PKT_TRAC_PROTO_STRING);
++                      "NS\0", NBUF_PKT_TRAC_PROTO_STRING);
+       break;
+    case NBUF_PKT_TRAC_TYPE_NA:
+       adf_os_mem_copy(string_buf + adf_os_str_len(event_string),
+-                      "NA", NBUF_PKT_TRAC_PROTO_STRING);
++                      "NA\0", NBUF_PKT_TRAC_PROTO_STRING);
+       break;
+    default:
+       break;

@@ -1,0 +1,24 @@
+From 66479502e8457f9dda76d418dfa846bf7b46e6d1 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Thu, 13 Apr 2017 07:06:56 -0400
+Subject: [PATCH] slub: check cookies in __check_heap_object
+
+This provides basic use-after-free detection and extends the detection
+of corrupt cookies to more than just the alloc/free paths.
+---
+ mm/slub.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/mm/slub.c b/mm/slub.c
+index 91ffdc572cf..c47eeb8b75e 100644
+--- a/mm/slub.c
++++ b/mm/slub.c
+@@ -3511,6 +3511,8 @@ const char *__check_heap_object(const void *ptr, unsigned long n,
+ 		offset -= s->red_left_pad;
+ 	}
+ 
++	check_cookie(s, (void *)ptr - offset, s->random_active);
++
+ 	/* Allow address range falling entirely within object size. */
+ 	if (offset <= object_size && n <= object_size - offset)
+ 		return NULL;

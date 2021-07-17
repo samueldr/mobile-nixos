@@ -1,0 +1,21 @@
+diff --git a/sound/core/hrtimer.c b/sound/core/hrtimer.c
+index 886be7d..38514ed 100644
+--- a/sound/core/hrtimer.c
++++ b/sound/core/hrtimer.c
+@@ -90,7 +90,7 @@
+ 	struct snd_hrtimer *stime = t->private_data;
+ 
+ 	atomic_set(&stime->running, 0);
+-	hrtimer_cancel(&stime->hrt);
++	hrtimer_try_to_cancel(&stime->hrt);
+ 	hrtimer_start(&stime->hrt, ns_to_ktime(t->sticks * resolution),
+ 		      HRTIMER_MODE_REL);
+ 	atomic_set(&stime->running, 1);
+@@ -101,6 +101,7 @@
+ {
+ 	struct snd_hrtimer *stime = t->private_data;
+ 	atomic_set(&stime->running, 0);
++	hrtimer_try_to_cancel(&stime->hrt);
+ 	return 0;
+ }
+ 

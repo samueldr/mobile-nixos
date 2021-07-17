@@ -1,0 +1,15 @@
+diff --git a/drivers/video/console/vgacon.c b/drivers/video/console/vgacon.c
+index e5231dd..edf0af8 100644
+--- a/drivers/video/console/vgacon.c
++++ b/drivers/video/console/vgacon.c
+@@ -220,6 +220,10 @@
+ 	p = (void *) (c->vc_origin + t * c->vc_size_row);
+ 
+ 	while (count--) {
++		if ((vgacon_scrollback_tail + c->vc_size_row) >
++		    vgacon_scrollback_size)
++			vgacon_scrollback_tail = 0;
++
+ 		scr_memcpyw(vgacon_scrollback + vgacon_scrollback_tail,
+ 			    p, c->vc_size_row);
+ 		vgacon_scrollback_cnt++;

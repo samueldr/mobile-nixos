@@ -1,0 +1,13 @@
+diff --git a/drivers/block/xen-blkback/blkback.c b/drivers/block/xen-blkback/blkback.c
+index 710b1e9..c2d3c91 100644
+--- a/drivers/block/xen-blkback/blkback.c
++++ b/drivers/block/xen-blkback/blkback.c
+@@ -830,7 +830,7 @@
+ out:
+ 	for (i = last_map; i < num; i++) {
+ 		/* Don't zap current batch's valid persistent grants. */
+-		if(i >= last_map + segs_to_map)
++		if(i >= map_until)
+ 			pages[i]->persistent_gnt = NULL;
+ 		pages[i]->handle = BLKBACK_INVALID_HANDLE;
+ 	}

@@ -1,0 +1,36 @@
+From f296b49c4bd3b98c3c20eaa40800642a238965a4 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Mon, 12 Jun 2017 21:29:12 -0400
+Subject: [PATCH] disable brk system call
+
+---
+ arch/arm64/include/asm/unistd32.h | 2 +-
+ include/uapi/asm-generic/unistd.h | 2 +-
+ 2 files changed, 2 insertions(+), 2 deletions(-)
+
+diff --git a/arch/arm64/include/asm/unistd32.h b/arch/arm64/include/asm/unistd32.h
+index 8893cebcea5..d558c8731f2 100644
+--- a/arch/arm64/include/asm/unistd32.h
++++ b/arch/arm64/include/asm/unistd32.h
+@@ -112,7 +112,7 @@ __SYSCALL(__NR_times, compat_sys_times)
+ 			/* 44 was sys_prof */
+ __SYSCALL(44, sys_ni_syscall)
+ #define __NR_brk 45
+-__SYSCALL(__NR_brk, sys_brk)
++__SYSCALL(__NR_brk, sys_ni_syscall)
+ #define __NR_setgid 46
+ __SYSCALL(__NR_setgid, sys_setgid16)
+ #define __NR_getgid 47
+diff --git a/include/uapi/asm-generic/unistd.h b/include/uapi/asm-generic/unistd.h
+index 22749c13411..36e752ac258 100644
+--- a/include/uapi/asm-generic/unistd.h
++++ b/include/uapi/asm-generic/unistd.h
+@@ -584,7 +584,7 @@ __SC_COMP(__NR_readahead, sys_readahead, compat_sys_readahead)
+ 
+ /* mm/nommu.c, also with MMU */
+ #define __NR_brk 214
+-__SYSCALL(__NR_brk, sys_brk)
++__SYSCALL(__NR_brk, sys_ni_syscall)
+ #define __NR_munmap 215
+ __SYSCALL(__NR_munmap, sys_munmap)
+ #define __NR_mremap 216

@@ -1,0 +1,35 @@
+From 49d27afe9a76273e0d5314cf9241d1d1c3561d13 Mon Sep 17 00:00:00 2001
+From: kunleiz <kunleiz@codeaurora.org>
+Date: Tue, 27 Dec 2016 16:15:51 +0800
+Subject: ASoC: msm: qdsp6v2: DAP: Add check to validate param length
+
+Return an error code to ensure valid length value is valid.
+
+CRs-fixed: 1102987
+Change-Id: I6a679d08342d1da58c20b5c3d4e436dd335764ae
+Signed-off-by: kunleiz <kunleiz@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+index 59835e6..d654b30 100644
+--- a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
++++ b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+@@ -1,4 +1,4 @@
+-/* Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
++/* Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License version 2 and
+ * only version 2 as published by the Free Software Foundation.
+@@ -1656,6 +1656,7 @@ static int msm_ds2_dap_param_visualizer_control_get(u32 cmd, void *arg)
+ 		ret = 0;
+ 		dolby_data->length = 0;
+ 		pr_err("%s Incorrect VCNB length", __func__);
++		return -EINVAL;
+ 	}
+ 
+ 	params_length = (2*length + DOLBY_VIS_PARAM_HEADER_SIZE) *
+-- 
+cgit v1.1
+

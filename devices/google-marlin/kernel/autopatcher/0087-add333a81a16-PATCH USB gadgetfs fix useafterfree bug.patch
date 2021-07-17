@@ -1,0 +1,71 @@
+From add333a81a16abbd4f106266a2553677a165725f Mon Sep 17 00:00:00 2001
+From: Alan Stern <stern@rowland.harvard.edu>
+Date: Fri, 9 Dec 2016 15:18:43 -0500
+Subject: [PATCH] USB: gadgetfs: fix use-after-free bug
+
+Andrey Konovalov reports that fuzz testing with syzkaller causes a
+KASAN use-after-free bug report in gadgetfs:
+
+BUG: KASAN: use-after-free in gadgetfs_setup+0x208a/0x20e0 at addr ffff88003dfe5bf2
+Read of size 2 by task syz-executor0/22994
+CPU: 3 PID: 22994 Comm: syz-executor0 Not tainted 4.9.0-rc7+ #16
+Hardware name: QEMU Standard PC (i440FX + PIIX, 1996), BIOS Bochs 01/01/2011
+ ffff88006df06a18 ffffffff81f96aba ffffffffe0528500 1ffff1000dbe0cd6
+ ffffed000dbe0cce ffff88006df068f0 0000000041b58ab3 ffffffff8598b4c8
+ ffffffff81f96828 1ffff1000dbe0ccd ffff88006df06708 ffff88006df06748
+Call Trace:
+ <IRQ> [  201.343209]  [<     inline     >] __dump_stack lib/dump_stack.c:15
+ <IRQ> [  201.343209]  [<ffffffff81f96aba>] dump_stack+0x292/0x398 lib/dump_stack.c:51
+ [<ffffffff817e4dec>] kasan_object_err+0x1c/0x70 mm/kasan/report.c:159
+ [<     inline     >] print_address_description mm/kasan/report.c:197
+ [<ffffffff817e5080>] kasan_report_error+0x1f0/0x4e0 mm/kasan/report.c:286
+ [<     inline     >] kasan_report mm/kasan/report.c:306
+ [<ffffffff817e562a>] __asan_report_load_n_noabort+0x3a/0x40 mm/kasan/report.c:337
+ [<     inline     >] config_buf drivers/usb/gadget/legacy/inode.c:1298
+ [<ffffffff8322c8fa>] gadgetfs_setup+0x208a/0x20e0 drivers/usb/gadget/legacy/inode.c:1368
+ [<ffffffff830fdcd0>] dummy_timer+0x11f0/0x36d0 drivers/usb/gadget/udc/dummy_hcd.c:1858
+ [<ffffffff814807c1>] call_timer_fn+0x241/0x800 kernel/time/timer.c:1308
+ [<     inline     >] expire_timers kernel/time/timer.c:1348
+ [<ffffffff81482de6>] __run_timers+0xa06/0xec0 kernel/time/timer.c:1641
+ [<ffffffff814832c1>] run_timer_softirq+0x21/0x80 kernel/time/timer.c:1654
+ [<ffffffff84f4af8b>] __do_softirq+0x2fb/0xb63 kernel/softirq.c:284
+
+The cause of the bug is subtle.  The dev_config() routine gets called
+twice by the fuzzer.  The first time, the user data contains both a
+full-speed configuration descriptor and a high-speed config
+descriptor, causing dev->hs_config to be set.  But it also contains an
+invalid device descriptor, so the buffer containing the descriptors is
+deallocated and dev_config() returns an error.
+
+The second time dev_config() is called, the user data contains only a
+full-speed config descriptor.  But dev->hs_config still has the stale
+pointer remaining from the first call, causing the routine to think
+that there is a valid high-speed config.  Later on, when the driver
+dereferences the stale pointer to copy that descriptor, we get a
+use-after-free access.
+
+The fix is simple: Clear dev->hs_config if the passed-in data does not
+contain a high-speed config descriptor.
+
+Signed-off-by: Alan Stern <stern@rowland.harvard.edu>
+Reported-by: Andrey Konovalov <andreyknvl@google.com>
+Tested-by: Andrey Konovalov <andreyknvl@google.com>
+CC: <stable@vger.kernel.org>
+Signed-off-by: Felipe Balbi <felipe.balbi@linux.intel.com>
+---
+ drivers/usb/gadget/legacy/inode.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/usb/gadget/legacy/inode.c b/drivers/usb/gadget/legacy/inode.c
+index 01ed3bc0c3c8e..f1ca339426073 100644
+--- a/drivers/usb/gadget/legacy/inode.c
++++ b/drivers/usb/gadget/legacy/inode.c
+@@ -1800,6 +1800,8 @@ dev_config (struct file *fd, const char __user *buf, size_t len, loff_t *ptr)
+ 			goto fail;
+ 		kbuf += total;
+ 		length -= total;
++	} else {
++		dev->hs_config = NULL;
+ 	}
+ 
+ 	/* could support multiple configs, using another encoding! */

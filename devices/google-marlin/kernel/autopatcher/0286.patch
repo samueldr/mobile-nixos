@@ -1,0 +1,51 @@
+diff --git a/drivers/media/usb/gspca/xirlink_cit.c b/drivers/media/usb/gspca/xirlink_cit.c
+index a41aa78..b05c27e 100644
+--- a/drivers/media/usb/gspca/xirlink_cit.c
++++ b/drivers/media/usb/gspca/xirlink_cit.c
+@@ -1455,6 +1455,9 @@
+ 		return -EIO;
+ 	}
+ 
++	if (alt->desc.bNumEndpoints < 1)
++		return -ENODEV;
++
+ 	return le16_to_cpu(alt->endpoint[0].desc.wMaxPacketSize);
+ }
+ 
+@@ -2632,6 +2635,7 @@
+ 
+ static int sd_isoc_init(struct gspca_dev *gspca_dev)
+ {
++	struct usb_interface_cache *intfc;
+ 	struct usb_host_interface *alt;
+ 	int max_packet_size;
+ 
+@@ -2647,8 +2651,17 @@
+ 		break;
+ 	}
+ 
++	intfc = gspca_dev->dev->actconfig->intf_cache[0];
++
++	if (intfc->num_altsetting < 2)
++		return -ENODEV;
++
++	alt = &intfc->altsetting[1];
++
++	if (alt->desc.bNumEndpoints < 1)
++		return -ENODEV;
++
+ 	/* Start isoc bandwidth "negotiation" at max isoc bandwidth */
+-	alt = &gspca_dev->dev->actconfig->intf_cache[0]->altsetting[1];
+ 	alt->endpoint[0].desc.wMaxPacketSize = cpu_to_le16(max_packet_size);
+ 
+ 	return 0;
+@@ -2671,6 +2684,9 @@
+ 		break;
+ 	}
+ 
++	/*
++	 * Existence of altsetting and endpoint was verified in sd_isoc_init()
++	 */
+ 	alt = &gspca_dev->dev->actconfig->intf_cache[0]->altsetting[1];
+ 	packet_size = le16_to_cpu(alt->endpoint[0].desc.wMaxPacketSize);
+ 	if (packet_size <= min_packet_size)

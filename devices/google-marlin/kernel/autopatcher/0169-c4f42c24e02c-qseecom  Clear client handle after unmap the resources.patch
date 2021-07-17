@@ -1,0 +1,31 @@
+From c4f42c24e02ce82392d8f8fe215570568380c8ab Mon Sep 17 00:00:00 2001
+From: jitendrathakare <jitendrathakare@codeaurora.org>
+Date: Thu, 12 Sep 2019 19:46:48 +0530
+Subject: qseecom : Clear client handle after unmap the resources
+
+When unloading the app, reset all client members to NULL
+to protect from accessing the memory after being freed.
+
+Change-Id: I573b9c6fde03539522d2b04724a2246660c62518
+Signed-off-by: jitendra thakare <jitendrathakare@codeaurora.org>
+---
+ drivers/misc/qseecom.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/misc/qseecom.c b/drivers/misc/qseecom.c
+index 14a415b..f32d4de 100644
+--- a/drivers/misc/qseecom.c
++++ b/drivers/misc/qseecom.c
+@@ -2484,7 +2484,8 @@ static int qseecom_unmap_ion_allocated_memory(struct qseecom_dev_handle *data)
+ 	if (!IS_ERR_OR_NULL(data->client.ihandle)) {
+ 		ion_unmap_kernel(qseecom.ion_clnt, data->client.ihandle);
+ 		ion_free(qseecom.ion_clnt, data->client.ihandle);
+-		data->client.ihandle = NULL;
++		memset((void *)&data->client,
++			0, sizeof(struct qseecom_client_handle));
+ 	}
+ 	return ret;
+ }
+-- 
+cgit v1.1
+

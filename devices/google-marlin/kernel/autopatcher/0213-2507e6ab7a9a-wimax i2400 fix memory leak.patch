@@ -1,0 +1,29 @@
+From 2507e6ab7a9a440773be476141a255934468c5ef Mon Sep 17 00:00:00 2001
+From: Navid Emamdoost <navid.emamdoost@gmail.com>
+Date: Tue, 10 Sep 2019 18:01:40 -0500
+Subject: wimax: i2400: fix memory leak
+
+In i2400m_op_rfkill_sw_toggle cmd buffer should be released along with
+skb response.
+
+Signed-off-by: Navid Emamdoost <navid.emamdoost@gmail.com>
+Signed-off-by: David S. Miller <davem@davemloft.net>
+---
+ drivers/net/wimax/i2400m/op-rfkill.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/net/wimax/i2400m/op-rfkill.c b/drivers/net/wimax/i2400m/op-rfkill.c
+index 6642bcb27761d..8efb493ceec2f 100644
+--- a/drivers/net/wimax/i2400m/op-rfkill.c
++++ b/drivers/net/wimax/i2400m/op-rfkill.c
+@@ -127,6 +127,7 @@ int i2400m_op_rfkill_sw_toggle(struct wimax_dev *wimax_dev,
+ 			"%d\n", result);
+ 	result = 0;
+ error_cmd:
++	kfree(cmd);
+ 	kfree_skb(ack_skb);
+ error_msg_to_dev:
+ error_alloc:
+-- 
+cgit 1.2.3-1.el7
+

@@ -1,0 +1,240 @@
+diff --git a/fs/9p/v9fs_vfs.h b/fs/9p/v9fs_vfs.h
+index b83ebfb..92e67bc 100644
+--- a/fs/9p/v9fs_vfs.h
++++ b/fs/9p/v9fs_vfs.h
+@@ -40,6 +40,9 @@
+  */
+ #define P9_LOCK_TIMEOUT (30*HZ)
+ 
++/* flags for v9fs_stat2inode() & v9fs_stat2inode_dotl() */
++#define V9FS_STAT2INODE_KEEP_ISIZE 1
++
+ extern struct file_system_type v9fs_fs_type;
+ extern const struct address_space_operations v9fs_addr_operations;
+ extern const struct file_operations v9fs_file_operations;
+@@ -61,8 +64,10 @@
+ 		    struct inode *inode, umode_t mode, dev_t);
+ void v9fs_evict_inode(struct inode *inode);
+ ino_t v9fs_qid2ino(struct p9_qid *qid);
+-void v9fs_stat2inode(struct p9_wstat *, struct inode *, struct super_block *);
+-void v9fs_stat2inode_dotl(struct p9_stat_dotl *, struct inode *);
++void v9fs_stat2inode(struct p9_wstat *stat, struct inode *inode,
++		      struct super_block *sb, unsigned int flags);
++void v9fs_stat2inode_dotl(struct p9_stat_dotl *stat, struct inode *inode,
++			   unsigned int flags);
+ int v9fs_dir_release(struct inode *inode, struct file *filp);
+ int v9fs_file_open(struct inode *inode, struct file *file);
+ void v9fs_inode2stat(struct inode *inode, struct p9_wstat *stat);
+@@ -87,4 +92,18 @@
+ }
+ 
+ int v9fs_open_to_dotl_flags(int flags);
++
++static inline void v9fs_i_size_write(struct inode *inode, loff_t i_size)
++{
++	/*
++	 * 32-bit need the lock, concurrent updates could break the
++	 * sequences and make i_size_read() loop forever.
++	 * 64-bit updates are atomic and can skip the locking.
++	 */
++	if (sizeof(i_size) > sizeof(long))
++		spin_lock(&inode->i_lock);
++	i_size_write(inode, i_size);
++	if (sizeof(i_size) > sizeof(long))
++		spin_unlock(&inode->i_lock);
++}
+ #endif
+diff --git a/fs/9p/vfs_inode.c b/fs/9p/vfs_inode.c
+index 6134fbb..cc147db7 100644
+--- a/fs/9p/vfs_inode.c
++++ b/fs/9p/vfs_inode.c
+@@ -538,7 +538,7 @@
+ 	if (retval)
+ 		goto error;
+ 
+-	v9fs_stat2inode(st, inode, sb);
++	v9fs_stat2inode(st, inode, sb, 0);
+ 	v9fs_cache_inode_get_cookie(inode);
+ 	unlock_new_inode(inode);
+ 	return inode;
+@@ -1074,7 +1074,7 @@
+ 	if (IS_ERR(st))
+ 		return PTR_ERR(st);
+ 
+-	v9fs_stat2inode(st, dentry->d_inode, dentry->d_inode->i_sb);
++	v9fs_stat2inode(st, dentry->d_inode, dentry->d_inode->i_sb, 0);
+ 	generic_fillattr(dentry->d_inode, stat);
+ 
+ 	p9stat_free(st);
+@@ -1152,12 +1152,13 @@
+  * @stat: Plan 9 metadata (mistat) structure
+  * @inode: inode to populate
+  * @sb: superblock of filesystem
++ * @flags: control flags (e.g. V9FS_STAT2INODE_KEEP_ISIZE)
+  *
+  */
+ 
+ void
+ v9fs_stat2inode(struct p9_wstat *stat, struct inode *inode,
+-	struct super_block *sb)
++		 struct super_block *sb, unsigned int flags)
+ {
+ 	umode_t mode;
+ 	char ext[32];
+@@ -1198,10 +1199,11 @@
+ 	mode = p9mode2perm(v9ses, stat);
+ 	mode |= inode->i_mode & ~S_IALLUGO;
+ 	inode->i_mode = mode;
+-	i_size_write(inode, stat->length);
+ 
++	if (!(flags & V9FS_STAT2INODE_KEEP_ISIZE))
++		v9fs_i_size_write(inode, stat->length);
+ 	/* not real number of blocks, but 512 byte ones ... */
+-	inode->i_blocks = (i_size_read(inode) + 512 - 1) >> 9;
++	inode->i_blocks = (stat->length + 512 - 1) >> 9;
+ 	v9inode->cache_validity &= ~V9FS_INO_INVALID_ATTR;
+ }
+ 
+@@ -1465,9 +1467,9 @@
+ {
+ 	int umode;
+ 	dev_t rdev;
+-	loff_t i_size;
+ 	struct p9_wstat *st;
+ 	struct v9fs_session_info *v9ses;
++	unsigned int flags;
+ 
+ 	v9ses = v9fs_inode2v9ses(inode);
+ 	st = p9_client_stat(fid);
+@@ -1480,16 +1482,13 @@
+ 	if ((inode->i_mode & S_IFMT) != (umode & S_IFMT))
+ 		goto out;
+ 
+-	spin_lock(&inode->i_lock);
+ 	/*
+ 	 * We don't want to refresh inode->i_size,
+ 	 * because we may have cached data
+ 	 */
+-	i_size = inode->i_size;
+-	v9fs_stat2inode(st, inode, inode->i_sb);
+-	if (v9ses->cache == CACHE_LOOSE || v9ses->cache == CACHE_FSCACHE)
+-		inode->i_size = i_size;
+-	spin_unlock(&inode->i_lock);
++	flags = (v9ses->cache == CACHE_LOOSE || v9ses->cache == CACHE_FSCACHE) ?
++		V9FS_STAT2INODE_KEEP_ISIZE : 0;
++	v9fs_stat2inode(st, inode, inode->i_sb, flags);
+ out:
+ 	p9stat_free(st);
+ 	kfree(st);
+diff --git a/fs/9p/vfs_inode_dotl.c b/fs/9p/vfs_inode_dotl.c
+index 2a03f78d..9af2f89 100644
+--- a/fs/9p/vfs_inode_dotl.c
++++ b/fs/9p/vfs_inode_dotl.c
+@@ -143,7 +143,7 @@
+ 	if (retval)
+ 		goto error;
+ 
+-	v9fs_stat2inode_dotl(st, inode);
++	v9fs_stat2inode_dotl(st, inode, 0);
+ 	v9fs_cache_inode_get_cookie(inode);
+ 	retval = v9fs_get_acl(inode, fid);
+ 	if (retval)
+@@ -498,7 +498,7 @@
+ 	if (IS_ERR(st))
+ 		return PTR_ERR(st);
+ 
+-	v9fs_stat2inode_dotl(st, dentry->d_inode);
++	v9fs_stat2inode_dotl(st, dentry->d_inode, 0);
+ 	generic_fillattr(dentry->d_inode, stat);
+ 	/* Change block size to what the server returned */
+ 	stat->blksize = st->st_blksize;
+@@ -609,11 +609,13 @@
+  * v9fs_stat2inode_dotl - populate an inode structure with stat info
+  * @stat: stat structure
+  * @inode: inode to populate
++ * @flags: ctrl flags (e.g. V9FS_STAT2INODE_KEEP_ISIZE)
+  *
+  */
+ 
+ void
+-v9fs_stat2inode_dotl(struct p9_stat_dotl *stat, struct inode *inode)
++v9fs_stat2inode_dotl(struct p9_stat_dotl *stat, struct inode *inode,
++		      unsigned int flags)
+ {
+ 	umode_t mode;
+ 	struct v9fs_inode *v9inode = V9FS_I(inode);
+@@ -633,7 +635,8 @@
+ 		mode |= inode->i_mode & ~S_IALLUGO;
+ 		inode->i_mode = mode;
+ 
+-		i_size_write(inode, stat->st_size);
++		if (!(flags & V9FS_STAT2INODE_KEEP_ISIZE))
++			v9fs_i_size_write(inode, stat->st_size);
+ 		inode->i_blocks = stat->st_blocks;
+ 	} else {
+ 		if (stat->st_result_mask & P9_STATS_ATIME) {
+@@ -663,8 +666,9 @@
+ 		}
+ 		if (stat->st_result_mask & P9_STATS_RDEV)
+ 			inode->i_rdev = new_decode_dev(stat->st_rdev);
+-		if (stat->st_result_mask & P9_STATS_SIZE)
+-			i_size_write(inode, stat->st_size);
++		if (!(flags & V9FS_STAT2INODE_KEEP_ISIZE) &&
++		    stat->st_result_mask & P9_STATS_SIZE)
++			v9fs_i_size_write(inode, stat->st_size);
+ 		if (stat->st_result_mask & P9_STATS_BLOCKS)
+ 			inode->i_blocks = stat->st_blocks;
+ 	}
+@@ -946,9 +950,9 @@
+ 
+ int v9fs_refresh_inode_dotl(struct p9_fid *fid, struct inode *inode)
+ {
+-	loff_t i_size;
+ 	struct p9_stat_dotl *st;
+ 	struct v9fs_session_info *v9ses;
++	unsigned int flags;
+ 
+ 	v9ses = v9fs_inode2v9ses(inode);
+ 	st = p9_client_getattr_dotl(fid, P9_STATS_ALL);
+@@ -960,16 +964,13 @@
+ 	if ((inode->i_mode & S_IFMT) != (st->st_mode & S_IFMT))
+ 		goto out;
+ 
+-	spin_lock(&inode->i_lock);
+ 	/*
+ 	 * We don't want to refresh inode->i_size,
+ 	 * because we may have cached data
+ 	 */
+-	i_size = inode->i_size;
+-	v9fs_stat2inode_dotl(st, inode);
+-	if (v9ses->cache == CACHE_LOOSE || v9ses->cache == CACHE_FSCACHE)
+-		inode->i_size = i_size;
+-	spin_unlock(&inode->i_lock);
++	flags = (v9ses->cache == CACHE_LOOSE || v9ses->cache == CACHE_FSCACHE) ?
++		V9FS_STAT2INODE_KEEP_ISIZE : 0;
++	v9fs_stat2inode_dotl(st, inode, flags);
+ out:
+ 	kfree(st);
+ 	return 0;
+diff --git a/fs/9p/vfs_super.c b/fs/9p/vfs_super.c
+index 0afd038..975c3c1 100644
+--- a/fs/9p/vfs_super.c
++++ b/fs/9p/vfs_super.c
+@@ -169,7 +169,7 @@
+ 			goto release_sb;
+ 		}
+ 		root->d_inode->i_ino = v9fs_qid2ino(&st->qid);
+-		v9fs_stat2inode_dotl(st, root->d_inode);
++		v9fs_stat2inode_dotl(st, root->d_inode, 0);
+ 		kfree(st);
+ 	} else {
+ 		struct p9_wstat *st = NULL;
+@@ -180,7 +180,7 @@
+ 		}
+ 
+ 		root->d_inode->i_ino = v9fs_qid2ino(&st->qid);
+-		v9fs_stat2inode(st, root->d_inode, sb);
++		v9fs_stat2inode(st, root->d_inode, sb, 0);
+ 
+ 		p9stat_free(st);
+ 		kfree(st);

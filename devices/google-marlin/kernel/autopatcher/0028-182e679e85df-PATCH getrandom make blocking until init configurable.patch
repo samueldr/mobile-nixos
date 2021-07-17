@@ -1,0 +1,30 @@
+From 182e679e85dfc3af7d06cf2a5063c9f75128e6ff Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Tue, 5 Sep 2017 22:43:56 -0400
+Subject: [PATCH] getrandom: make blocking until init configurable
+
+Change-Id: I6eda9ceb35a5bc81bd29c9747e9dcfedc3f76952
+---
+ drivers/char/random.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/char/random.c b/drivers/char/random.c
+index d55156fc064..b91245c6974 100644
+--- a/drivers/char/random.c
++++ b/drivers/char/random.c
+@@ -1532,6 +1532,7 @@ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
+ 	if (flags & GRND_RANDOM)
+ 		return _random_read(flags & GRND_NONBLOCK, buf, count);
+ 
++#ifdef CONFIG_GETRANDOM_BLOCKING_INIT
+ 	if (unlikely(nonblocking_pool.initialized == 0)) {
+ 		if (flags & GRND_NONBLOCK)
+ 			return -EAGAIN;
+@@ -1540,6 +1541,7 @@ SYSCALL_DEFINE3(getrandom, char __user *, buf, size_t, count,
+ 		if (signal_pending(current))
+ 			return -ERESTARTSYS;
+ 	}
++#endif
+ 	return urandom_read(NULL, buf, count, NULL);
+ }
+ 

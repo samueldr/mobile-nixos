@@ -1,0 +1,86 @@
+diff --git a/arch/arm/kvm/mmio.c b/arch/arm/kvm/mmio.c
+index c215bb4..43fcb7a 100644
+--- a/arch/arm/kvm/mmio.c
++++ b/arch/arm/kvm/mmio.c
+@@ -113,7 +113,7 @@
+ 		}
+ 
+ 		trace_kvm_mmio(KVM_TRACE_MMIO_READ, len, run->mmio.phys_addr,
+-			       data);
++			       &data);
+ 		data = vcpu_data_host_to_guest(vcpu, data, len);
+ 		*vcpu_reg(vcpu, vcpu->arch.mmio_decode.rt) = data;
+ 	}
+@@ -193,7 +193,7 @@
+ 	trace_kvm_mmio((mmio.is_write) ? KVM_TRACE_MMIO_WRITE :
+ 					 KVM_TRACE_MMIO_READ_UNSATISFIED,
+ 			mmio.len, fault_ipa,
+-			(mmio.is_write) ? data : 0);
++			(mmio.is_write) ? &data : 0);
+ 
+ 	if (mmio.is_write)
+ 		mmio_write_buf(mmio.data, mmio.len, data);
+diff --git a/arch/x86/kvm/x86.c b/arch/x86/kvm/x86.c
+index 25e2c4e..5253035 100644
+--- a/arch/x86/kvm/x86.c
++++ b/arch/x86/kvm/x86.c
+@@ -4192,7 +4192,7 @@
+ 		      !kvm_iodevice_read(&vcpu->arch.apic->dev, addr, n, v))
+ 		    && kvm_io_bus_read(vcpu->kvm, KVM_MMIO_BUS, addr, n, v))
+ 			break;
+-		trace_kvm_mmio(KVM_TRACE_MMIO_READ, n, addr, *(u64 *)v);
++		trace_kvm_mmio(KVM_TRACE_MMIO_READ, n, addr, v);
+ 		handled += n;
+ 		addr += n;
+ 		len -= n;
+@@ -4438,7 +4438,7 @@
+ {
+ 	if (vcpu->mmio_read_completed) {
+ 		trace_kvm_mmio(KVM_TRACE_MMIO_READ, bytes,
+-			       vcpu->mmio_fragments[0].gpa, *(u64 *)val);
++			       vcpu->mmio_fragments[0].gpa, val);
+ 		vcpu->mmio_read_completed = 0;
+ 		return 1;
+ 	}
+@@ -4460,14 +4460,14 @@
+ 
+ static int write_mmio(struct kvm_vcpu *vcpu, gpa_t gpa, int bytes, void *val)
+ {
+-	trace_kvm_mmio(KVM_TRACE_MMIO_WRITE, bytes, gpa, *(u64 *)val);
++	trace_kvm_mmio(KVM_TRACE_MMIO_WRITE, bytes, gpa, val);
+ 	return vcpu_mmio_write(vcpu, gpa, bytes, val);
+ }
+ 
+ static int read_exit_mmio(struct kvm_vcpu *vcpu, gpa_t gpa,
+ 			  void *val, int bytes)
+ {
+-	trace_kvm_mmio(KVM_TRACE_MMIO_READ_UNSATISFIED, bytes, gpa, 0);
++	trace_kvm_mmio(KVM_TRACE_MMIO_READ_UNSATISFIED, bytes, gpa, NULL);
+ 	return X86EMUL_IO_NEEDED;
+ }
+ 
+diff --git a/include/trace/events/kvm.h b/include/trace/events/kvm.h
+index 6edf1f2..8df91de 100644
+--- a/include/trace/events/kvm.h
++++ b/include/trace/events/kvm.h
+@@ -183,7 +183,7 @@
+ 	{ KVM_TRACE_MMIO_WRITE, "write" }
+ 
+ TRACE_EVENT(kvm_mmio,
+-	TP_PROTO(int type, int len, u64 gpa, u64 val),
++	TP_PROTO(int type, int len, u64 gpa, void *val),
+ 	TP_ARGS(type, len, gpa, val),
+ 
+ 	TP_STRUCT__entry(
+@@ -197,7 +197,10 @@
+ 		__entry->type		= type;
+ 		__entry->len		= len;
+ 		__entry->gpa		= gpa;
+-		__entry->val		= val;
++		__entry->val		= 0;
++		if (val)
++			memcpy(&__entry->val, val,
++			       min_t(u32, sizeof(__entry->val), len));
+ 	),
+ 
+ 	TP_printk("mmio %s len %u gpa 0x%llx val 0x%llx",

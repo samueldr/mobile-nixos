@@ -1,0 +1,15 @@
+diff --git a/net/nfc/llcp_sock.c b/net/nfc/llcp_sock.c
+index 1aaab8f..036dc3e 100644
+--- a/net/nfc/llcp_sock.c
++++ b/net/nfc/llcp_sock.c
+@@ -679,6 +679,10 @@
+ 		ret = -EISCONN;
+ 		goto error;
+ 	}
++	if (sk->sk_state == LLCP_CONNECTING) {
++		ret = -EINPROGRESS;
++		goto error;
++	}
+ 
+ 	dev = nfc_get_device(addr->dev_idx);
+ 	if (dev == NULL) {

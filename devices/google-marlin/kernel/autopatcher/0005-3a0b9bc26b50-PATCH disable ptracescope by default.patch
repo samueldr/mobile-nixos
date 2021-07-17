@@ -1,0 +1,23 @@
+From 3a0b9bc26b505bd8c02de8294b54f7845b009fc7 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Sun, 27 Aug 2017 18:42:57 -0400
+Subject: [PATCH] disable ptrace_scope by default
+
+Change-Id: Id5cc7e1d2d28331d94bde4cbfcf9c77cc33629a7
+---
+ security/yama/yama_lsm.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/security/yama/yama_lsm.c b/security/yama/yama_lsm.c
+index 0038834b558..01ca5ccc56d 100644
+--- a/security/yama/yama_lsm.c
++++ b/security/yama/yama_lsm.c
+@@ -24,7 +24,7 @@
+ #define YAMA_SCOPE_CAPABILITY	2
+ #define YAMA_SCOPE_NO_ATTACH	3
+ 
+-static int ptrace_scope = YAMA_SCOPE_RELATIONAL;
++static int ptrace_scope = YAMA_SCOPE_DISABLED;
+ 
+ /* describe a ptrace relationship for potential exception */
+ struct ptrace_relation {

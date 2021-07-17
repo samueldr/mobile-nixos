@@ -1,0 +1,73 @@
+From 7f821fc9c77a9b01fe7b1d6e72717b33d8d64142 Mon Sep 17 00:00:00 2001
+From: Michael Neuling <mikey@neuling.org>
+Date: Thu, 19 Nov 2015 15:44:45 +1100
+Subject: powerpc/tm: Check for already reclaimed tasks
+
+Currently we can hit a scenario where we'll tm_reclaim() twice.  This
+results in a TM bad thing exception because the second reclaim occurs
+when not in suspend mode.
+
+The scenario in which this can happen is the following.  We attempt to
+deliver a signal to userspace.  To do this we need obtain the stack
+pointer to write the signal context.  To get this stack pointer we
+must tm_reclaim() in case we need to use the checkpointed stack
+pointer (see get_tm_stackpointer()).  Normally we'd then return
+directly to userspace to deliver the signal without going through
+__switch_to().
+
+Unfortunatley, if at this point we get an error (such as a bad
+userspace stack pointer), we need to exit the process.  The exit will
+result in a __switch_to().  __switch_to() will attempt to save the
+process state which results in another tm_reclaim().  This
+tm_reclaim() now causes a TM Bad Thing exception as this state has
+already been saved and the processor is no longer in TM suspend mode.
+Whee!
+
+This patch checks the state of the MSR to ensure we are TM suspended
+before we attempt the tm_reclaim().  If we've already saved the state
+away, we should no longer be in TM suspend mode.  This has the
+additional advantage of checking for a potential TM Bad Thing
+exception.
+
+Found using syscall fuzzer.
+
+Fixes: fb09692e71f1 ("powerpc: Add reclaim and recheckpoint functions for context switching transactional memory processes")
+Cc: stable@vger.kernel.org # v3.9+
+Signed-off-by: Michael Neuling <mikey@neuling.org>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+---
+ arch/powerpc/kernel/process.c | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+
+diff --git a/arch/powerpc/kernel/process.c b/arch/powerpc/kernel/process.c
+index 75b6676c1a0b..646bf4d222c1 100644
+--- a/arch/powerpc/kernel/process.c
++++ b/arch/powerpc/kernel/process.c
+@@ -551,6 +551,24 @@ static void tm_reclaim_thread(struct thread_struct *thr,
+ 		msr_diff &= MSR_FP | MSR_VEC | MSR_VSX | MSR_FE0 | MSR_FE1;
+ 	}
+ 
++	/*
++	 * Use the current MSR TM suspended bit to track if we have
++	 * checkpointed state outstanding.
++	 * On signal delivery, we'd normally reclaim the checkpointed
++	 * state to obtain stack pointer (see:get_tm_stackpointer()).
++	 * This will then directly return to userspace without going
++	 * through __switch_to(). However, if the stack frame is bad,
++	 * we need to exit this thread which calls __switch_to() which
++	 * will again attempt to reclaim the already saved tm state.
++	 * Hence we need to check that we've not already reclaimed
++	 * this state.
++	 * We do this using the current MSR, rather tracking it in
++	 * some specific thread_struct bit, as it has the additional
++	 * benifit of checking for a potential TM bad thing exception.
++	 */
++	if (!MSR_TM_SUSPENDED(mfmsr()))
++		return;
++
+ 	tm_reclaim(thr, thr->regs->msr, cause);
+ 
+ 	/* Having done the reclaim, we now have the checkpointed
+-- 
+cgit 1.2-0.3.lf.el7
+

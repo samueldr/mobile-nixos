@@ -1,0 +1,41 @@
+diff --git a/fs/exec.c b/fs/exec.c
+index e98d7c3..ce312b0 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -1157,7 +1157,7 @@
+ 
+ 	/* An exec changes our domain. We are no longer part of the thread
+ 	   group */
+-	current->self_exec_id++;
++	WRITE_ONCE(current->self_exec_id, current->self_exec_id + 1);
+ 	flush_signal_handlers(current, 0);
+ }
+ EXPORT_SYMBOL(setup_new_exec);
+diff --git a/include/linux/sched.h b/include/linux/sched.h
+index cfb094f..021125a 100644
+--- a/include/linux/sched.h
++++ b/include/linux/sched.h
+@@ -1567,8 +1567,8 @@
+ 	struct seccomp seccomp;
+ 
+ /* Thread group tracking */
+-   	u32 parent_exec_id;
+-   	u32 self_exec_id;
++	u64 parent_exec_id;
++	u64 self_exec_id;
+ /* Protection of (de-)allocation: mm, files, fs, tty, keyrings, mems_allowed,
+  * mempolicy */
+ 	spinlock_t alloc_lock;
+diff --git a/kernel/signal.c b/kernel/signal.c
+index 8e27d79..6c06900 100644
+--- a/kernel/signal.c
++++ b/kernel/signal.c
+@@ -1703,7 +1703,7 @@
+ 		 * This is only possible if parent == real_parent.
+ 		 * Check if it has changed security domain.
+ 		 */
+-		if (tsk->parent_exec_id != tsk->parent->self_exec_id)
++		if (tsk->parent_exec_id != READ_ONCE(tsk->parent->self_exec_id))
+ 			sig = SIGCHLD;
+ 	}
+ 

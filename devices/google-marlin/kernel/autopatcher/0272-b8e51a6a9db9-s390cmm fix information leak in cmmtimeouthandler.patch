@@ -1,0 +1,65 @@
+From b8e51a6a9db94bc1fb18ae831b3dab106b5a4b5f Mon Sep 17 00:00:00 2001
+From: Yihui ZENG <yzeng56@asu.edu>
+Date: Fri, 25 Oct 2019 12:31:48 +0300
+Subject: s390/cmm: fix information leak in cmm_timeout_handler()
+
+The problem is that we were putting the NUL terminator too far:
+
+	buf[sizeof(buf) - 1] = '\0';
+
+If the user input isn't NUL terminated and they haven't initialized the
+whole buffer then it leads to an info leak.  The NUL terminator should
+be:
+
+	buf[len - 1] = '\0';
+
+Signed-off-by: Yihui Zeng <yzeng56@asu.edu>
+Cc: stable@vger.kernel.org
+Signed-off-by: Dan Carpenter <dan.carpenter@oracle.com>
+[heiko.carstens@de.ibm.com: keep semantics of how *lenp and *ppos are handled]
+Signed-off-by: Heiko Carstens <heiko.carstens@de.ibm.com>
+Signed-off-by: Vasily Gorbik <gor@linux.ibm.com>
+---
+ arch/s390/mm/cmm.c | 12 ++++++------
+ 1 file changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/arch/s390/mm/cmm.c b/arch/s390/mm/cmm.c
+index 510a18299196..a51c892f14f3 100644
+--- a/arch/s390/mm/cmm.c
++++ b/arch/s390/mm/cmm.c
+@@ -298,16 +298,16 @@ static int cmm_timeout_handler(struct ctl_table *ctl, int write,
+ 	}
+ 
+ 	if (write) {
+-		len = *lenp;
+-		if (copy_from_user(buf, buffer,
+-				   len > sizeof(buf) ? sizeof(buf) : len))
++		len = min(*lenp, sizeof(buf));
++		if (copy_from_user(buf, buffer, len))
+ 			return -EFAULT;
+-		buf[sizeof(buf) - 1] = '\0';
++		buf[len - 1] = '\0';
+ 		cmm_skip_blanks(buf, &p);
+ 		nr = simple_strtoul(p, &p, 0);
+ 		cmm_skip_blanks(p, &p);
+ 		seconds = simple_strtoul(p, &p, 0);
+ 		cmm_set_timeout(nr, seconds);
++		*ppos += *lenp;
+ 	} else {
+ 		len = sprintf(buf, "%ld %ld\n",
+ 			      cmm_timeout_pages, cmm_timeout_seconds);
+@@ -315,9 +315,9 @@ static int cmm_timeout_handler(struct ctl_table *ctl, int write,
+ 			len = *lenp;
+ 		if (copy_to_user(buffer, buf, len))
+ 			return -EFAULT;
++		*lenp = len;
++		*ppos += len;
+ 	}
+-	*lenp = len;
+-	*ppos += len;
+ 	return 0;
+ }
+ 
+-- 
+cgit 1.2.3-1.el7
+

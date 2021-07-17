@@ -1,0 +1,37 @@
+From ac328eb631fa74a63d5d2583e6bfeeb5a7a2df65 Mon Sep 17 00:00:00 2001
+From: Ashish Jain <ashishj@codeaurora.org>
+Date: Mon, 20 Jun 2016 18:09:07 +0530
+Subject: ASoC: msm: qdsp6v2: DAP: Add check to validate data length
+
+Validate input data length to ensure only relevant data
+is copied.
+
+CRs-Fixed: 1027585
+Change-Id: I67eb4f162f944bbf4d9e55fb8fe93759e6b8ff91
+Signed-off-by: Ashish Jain <ashishj@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+index fea7bb4..379062e 100644
+--- a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
++++ b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+@@ -1522,6 +1522,14 @@ static int msm_ds2_dap_get_param(u32 cmd, void *arg)
+ 		goto end;
+ 	}
+ 
++	/* Return if invalid length */
++	if (dolby_data->length >
++	       (DOLBY_MAX_LENGTH_INDIVIDUAL_PARAM - DOLBY_PARAM_PAYLOAD_SIZE)) {
++		pr_err("Invalid length %d", dolby_data->length);
++		rc = -EINVAL;
++		goto end;
++	}
++
+ 	for (i = 0; i < DS2_DEVICES_ALL; i++) {
+ 		if ((dev_map[i].active) &&
+ 			(dev_map[i].device_id & dolby_data->device_id)) {
+-- 
+cgit v1.1
+

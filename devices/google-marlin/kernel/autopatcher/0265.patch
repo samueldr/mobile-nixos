@@ -1,0 +1,45 @@
+diff --git a/drivers/tty/vt/selection.c b/drivers/tty/vt/selection.c
+index df0f610..cb0f79c 100644
+--- a/drivers/tty/vt/selection.c
++++ b/drivers/tty/vt/selection.c
+@@ -158,7 +158,7 @@
+  *	The entire selection process is managed under the console_lock. It's
+  *	 a lot under the lock but its hardly a performance path
+  */
+-int set_selection(const struct tiocl_selection __user *sel, struct tty_struct *tty)
++static int __set_selection(const struct tiocl_selection __user *sel, struct tty_struct *tty)
+ {
+ 	struct vc_data *vc = vc_cons[fg_console].d;
+ 	int sel_mode, new_sel_start, new_sel_end, spc;
+@@ -334,6 +334,17 @@
+ 	return ret;
+ }
+ 
++int set_selection(const struct tiocl_selection __user *v, struct tty_struct *tty)
++{
++	int ret;
++
++	console_lock();
++	ret = __set_selection(v, tty);
++	console_unlock();
++
++	return ret;
++}
++
+ /* Insert the contents of the selection buffer into the
+  * queue of the tty associated with the current console.
+  * Invoked by ioctl().
+diff --git a/drivers/tty/vt/vt.c b/drivers/tty/vt/vt.c
+index cbb4d1a..ae1c651 100644
+--- a/drivers/tty/vt/vt.c
++++ b/drivers/tty/vt/vt.c
+@@ -2666,9 +2666,7 @@
+ 	switch (type)
+ 	{
+ 		case TIOCL_SETSEL:
+-			console_lock();
+ 			ret = set_selection((struct tiocl_selection __user *)(p+1), tty);
+-			console_unlock();
+ 			break;
+ 		case TIOCL_PASTESEL:
+ 			ret = paste_selection(tty);

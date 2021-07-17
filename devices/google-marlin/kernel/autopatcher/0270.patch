@@ -1,0 +1,20 @@
+diff --git a/net/core/dev.c b/net/core/dev.c
+index 19a2983..605fee0 100644
+--- a/net/core/dev.c
++++ b/net/core/dev.c
+@@ -4264,7 +4264,6 @@
+ 	skb_reset_mac_header(skb);
+ 	skb_gro_reset_offset(skb);
+ 
+-	eth = skb_gro_header_fast(skb, 0);
+ 	if (unlikely(skb_gro_header_hard(skb, hlen))) {
+ 		eth = skb_gro_header_slow(skb, hlen, 0);
+ 		if (unlikely(!eth)) {
+@@ -4272,6 +4271,7 @@
+ 			return NULL;
+ 		}
+ 	} else {
++		eth = (const struct ethhdr *)skb->data;
+ 		gro_pull_from_frag0(skb, hlen);
+ 		NAPI_GRO_CB(skb)->frag0 += hlen;
+ 		NAPI_GRO_CB(skb)->frag0_len -= hlen;

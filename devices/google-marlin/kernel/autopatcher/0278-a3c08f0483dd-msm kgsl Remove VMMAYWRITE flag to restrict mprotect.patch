@@ -1,0 +1,32 @@
+From a3c08f0483dd13f5c19be0e2ca2f0167187cbb71 Mon Sep 17 00:00:00 2001
+From: Indira Biruduraju <ibirudur@codeaurora.org>
+Date: Tue, 11 Aug 2020 15:24:16 +0530
+Subject: msm: kgsl: Remove VM_MAYWRITE flag to restrict mprotect
+
+When VM_MAYWRITE flag is used during mmap(), mprotect()
+can be used later to change the protection of memstore
+to allow write. Make sure this does not happen by
+removing VM_MAYWRITE from the vm_flags of vma.
+
+Change-Id: I6f69f05858ea40611d512cfa796caabeaa88cdb5
+Signed-off-by: Indira Biruduraju <ibirudur@codeaurora.org>
+---
+ drivers/gpu/msm/kgsl.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/drivers/gpu/msm/kgsl.c b/drivers/gpu/msm/kgsl.c
+index ff4daba..224ec28 100644
+--- a/drivers/gpu/msm/kgsl.c
++++ b/drivers/gpu/msm/kgsl.c
+@@ -4121,6 +4121,8 @@ kgsl_mmap_memstore(struct kgsl_device *device, struct vm_area_struct *vma)
+ 	if (vma->vm_flags & VM_WRITE)
+ 		return -EPERM;
+ 
++	vma->vm_flags &= ~VM_MAYWRITE;
++
+ 	if (memdesc->size  !=  vma_size) {
+ 		KGSL_MEM_ERR(device, "memstore bad size: %d should be %llu\n",
+ 			     vma_size, memdesc->size);
+-- 
+cgit v1.1
+

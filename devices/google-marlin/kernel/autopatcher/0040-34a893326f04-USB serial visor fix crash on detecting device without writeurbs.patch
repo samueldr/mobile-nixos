@@ -1,0 +1,41 @@
+From 34a893326f0473dbe25c6a128c63e17eba08a71c Mon Sep 17 00:00:00 2001
+From: Vladis Dronov <vdronov@redhat.com>
+Date: Tue, 12 Jan 2016 15:10:50 +0100
+Subject: USB: serial: visor: fix crash on detecting device without write_urbs
+
+[ Upstream commit cb3232138e37129e88240a98a1d2aba2187ff57c ]
+
+The visor driver crashes in clie_5_attach() when a specially crafted USB
+device without bulk-out endpoint is detected. This fix adds a check that
+the device has proper configuration expected by the driver.
+
+Reported-by: Ralf Spenneberg <ralf@spenneberg.net>
+Signed-off-by: Vladis Dronov <vdronov@redhat.com>
+Fixes: cfb8da8f69b8 ("USB: visor: fix initialisation of UX50/TH55 devices")
+Cc: stable <stable@vger.kernel.org>
+Signed-off-by: Johan Hovold <johan@kernel.org>
+Signed-off-by: Sasha Levin <sasha.levin@oracle.com>
+---
+ drivers/usb/serial/visor.c | 6 ++++--
+ 1 file changed, 4 insertions(+), 2 deletions(-)
+
+diff --git a/drivers/usb/serial/visor.c b/drivers/usb/serial/visor.c
+index c53fbb3e0b8c6..337a0be89fcf0 100644
+--- a/drivers/usb/serial/visor.c
++++ b/drivers/usb/serial/visor.c
+@@ -602,8 +602,10 @@ static int clie_5_attach(struct usb_serial *serial)
+ 	 */
+ 
+ 	/* some sanity check */
+-	if (serial->num_ports < 2)
+-		return -1;
++	if (serial->num_bulk_out < 2) {
++		dev_err(&serial->interface->dev, "missing bulk out endpoints\n");
++		return -ENODEV;
++	}
+ 
+ 	/* port 0 now uses the modified endpoint Address */
+ 	port = serial->port[0];
+-- 
+cgit 1.2.3-1.el7
+

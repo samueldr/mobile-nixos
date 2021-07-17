@@ -1,0 +1,13 @@
+diff --git a/drivers/net/phy/mdio-bcm-unimac.c b/drivers/net/phy/mdio-bcm-unimac.c
+index 5b643e5..74e13fd 100644
+--- a/drivers/net/phy/mdio-bcm-unimac.c
++++ b/drivers/net/phy/mdio-bcm-unimac.c
+@@ -129,6 +129,8 @@
+ 		return -ENOMEM;
+ 
+ 	r = platform_get_resource(pdev, IORESOURCE_MEM, 0);
++	if (!r)
++		return -EINVAL;
+ 
+ 	/* Just ioremap, as this MDIO block is usually integrated into an
+ 	 * Ethernet MAC controller register range

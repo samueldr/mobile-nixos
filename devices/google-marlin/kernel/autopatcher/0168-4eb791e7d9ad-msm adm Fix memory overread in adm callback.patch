@@ -1,0 +1,34 @@
+From 4eb791e7d9ad856e1197ab028cf8f066088fa2bd Mon Sep 17 00:00:00 2001
+From: Soumya Managoli <smanag@codeaurora.org>
+Date: Wed, 9 Oct 2019 18:11:02 +0530
+Subject: msm: adm: Fix memory overread in adm callback
+
+For ADM_CMDRSP_GET_PP_PARAMS_V5 cmd response,
+the check for data payload_size is incorrect.
+Modify the check condition to make sure there
+is enough data to copy, size is contained in
+payload[3].
+
+Change-Id: I2f155ad8b302e89131ee85cfc72e4009dda617d3
+Signed-off-by: Soumya Managoli <smanag@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/q6adm.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/msm/qdsp6v2/q6adm.c b/sound/soc/msm/qdsp6v2/q6adm.c
+index 2cbd170..959f0b3 100644
+--- a/sound/soc/msm/qdsp6v2/q6adm.c
++++ b/sound/soc/msm/qdsp6v2/q6adm.c
+@@ -1572,7 +1572,8 @@ static int32_t adm_callback(struct apr_client_data *data, void *priv)
+ 			idx = ADM_GET_PARAMETER_LENGTH * copp_idx;
+ 			if ((payload[0] == 0) && (data->payload_size >
+ 				(4 * sizeof(*payload))) &&
+-				(data->payload_size - 4 >=
++				(data->payload_size -
++				(4 * sizeof(*payload)) >=
+ 				payload[3]) &&
+ 				(ARRAY_SIZE(adm_get_parameters) >
+ 				idx) &&
+-- 
+cgit v1.1
+

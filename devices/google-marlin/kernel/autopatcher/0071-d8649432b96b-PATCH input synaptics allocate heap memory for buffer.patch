@@ -1,0 +1,65 @@
+From d8649432b96bd361de20168372c10269e88e1258 Mon Sep 17 00:00:00 2001
+From: Min Chong <mchong@google.com>
+Date: Wed, 17 Aug 2016 23:50:14 -0700
+Subject: [PATCH] input: synaptics: allocate heap memory for buffer
+
+Allocate buffer memory on the heap instead of the stack
+to avoid a potential stack overflow in the write function.
+
+Bug: 30537088
+Change-Id: Ibe54ac391ade69e4c0c87bf5332c8bcae730e94c
+Signed-off-by: Ivan Lozano <ivanlozano@google.com>
+---
+ .../input/touchscreen/synaptics_i2c_rmi4.c    | 25 ++++++++++++-------
+ 1 file changed, 16 insertions(+), 9 deletions(-)
+
+diff --git a/drivers/input/touchscreen/synaptics_i2c_rmi4.c b/drivers/input/touchscreen/synaptics_i2c_rmi4.c
+index eade21de3e15d..ecfbe6a3f9a23 100644
+--- a/drivers/input/touchscreen/synaptics_i2c_rmi4.c
++++ b/drivers/input/touchscreen/synaptics_i2c_rmi4.c
+@@ -1214,15 +1214,16 @@ static int synaptics_rmi4_i2c_write(struct synaptics_rmi4_data *rmi4_data,
+ {
+ 	int retval;
+ 	unsigned char retry;
+-	unsigned char buf[length + 1];
+-	struct i2c_msg msg[] = {
+-		{
+-			.addr = rmi4_data->i2c_client->addr,
+-			.flags = 0,
+-			.len = length + 1,
+-			.buf = buf,
+-		}
+-	};
++	unsigned char *buf;
++	struct i2c_msg msg[1];
++
++	buf = kzalloc(length + 1, GFP_KERNEL);
++	if (!buf) {
++		dev_err(&rmi4_data->i2c_client->dev,
++				"%s: Failed to alloc mem for buffer\n",
++				__func__);
++		return -ENOMEM;
++	}
+ 
+ 	mutex_lock(&(rmi4_data->rmi4_io_ctrl_mutex));
+ 
+@@ -1230,6 +1231,11 @@ static int synaptics_rmi4_i2c_write(struct synaptics_rmi4_data *rmi4_data,
+ 	if (retval != PAGE_SELECT_LEN)
+ 		goto exit;
+ 
++	msg[0].addr = rmi4_data->i2c_client->addr;
++	msg[0].flags = 0;
++	msg[0].len = length + 1;
++	msg[0].buf = buf;
++
+ 	buf[0] = addr & MASK_8BIT;
+ 	memcpy(&buf[1], &data[0], length);
+ 
+@@ -1253,6 +1259,7 @@ static int synaptics_rmi4_i2c_write(struct synaptics_rmi4_data *rmi4_data,
+ 
+ exit:
+ 	mutex_unlock(&(rmi4_data->rmi4_io_ctrl_mutex));
++	kfree(buf);
+ 
+ 	return retval;
+ }

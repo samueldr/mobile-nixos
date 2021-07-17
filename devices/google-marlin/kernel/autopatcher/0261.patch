@@ -1,0 +1,38 @@
+diff --git a/fs/eventpoll.c b/fs/eventpoll.c
+index 538d815..328eafc 100644
+--- a/fs/eventpoll.c
++++ b/fs/eventpoll.c
+@@ -1724,9 +1724,11 @@
+ 			 * not already there, and calling reverse_path_check()
+ 			 * during ep_insert().
+ 			 */
+-			if (list_empty(&epi->ffd.file->f_tfile_llink))
++			if (list_empty(&epi->ffd.file->f_tfile_llink)) {
++				get_file(epi->ffd.file);
+ 				list_add(&epi->ffd.file->f_tfile_llink,
+ 					 &tfile_check_list);
++			}
+ 		}
+ 	}
+ 	mutex_unlock(&ep->mtx);
+@@ -1770,6 +1772,7 @@
+ 		file = list_first_entry(&tfile_check_list, struct file,
+ 					f_tfile_llink);
+ 		list_del_init(&file->f_tfile_llink);
++		fput(file);
+ 	}
+ 	INIT_LIST_HEAD(&tfile_check_list);
+ }
+@@ -1911,9 +1914,11 @@
+ 					clear_tfile_check_list();
+ 					goto error_tgt_fput;
+ 				}
+-			} else
++			} else {
++				get_file(tf.file);
+ 				list_add(&tf.file->f_tfile_llink,
+ 							&tfile_check_list);
++			}
+ 			mutex_lock_nested(&ep->mtx, 0);
+ 			if (is_file_epoll(tf.file)) {
+ 				tep = tf.file->private_data;

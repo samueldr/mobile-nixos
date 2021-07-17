@@ -1,0 +1,34 @@
+diff --git a/kernel/fork.c b/kernel/fork.c
+index ed3710b..e2c54b3 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -1508,14 +1508,9 @@
+ 	/* ok, now we should be set up.. */
+ 	p->pid = pid_nr(pid);
+ 	if (clone_flags & CLONE_THREAD) {
+-		p->exit_signal = -1;
+ 		p->group_leader = current->group_leader;
+ 		p->tgid = current->tgid;
+ 	} else {
+-		if (clone_flags & CLONE_PARENT)
+-			p->exit_signal = current->group_leader->exit_signal;
+-		else
+-			p->exit_signal = (clone_flags & CSIGNAL);
+ 		p->group_leader = p;
+ 		p->tgid = p->pid;
+ 	}
+@@ -1540,9 +1535,14 @@
+ 	if (clone_flags & (CLONE_PARENT|CLONE_THREAD)) {
+ 		p->real_parent = current->real_parent;
+ 		p->parent_exec_id = current->parent_exec_id;
++		if (clone_flags & CLONE_THREAD)
++			p->exit_signal = -1;
++		else
++			p->exit_signal = current->group_leader->exit_signal;
+ 	} else {
+ 		p->real_parent = current;
+ 		p->parent_exec_id = current->self_exec_id;
++		p->exit_signal = (clone_flags & CSIGNAL);
+ 	}
+ 
+ 	spin_lock(&current->sighand->siglock);

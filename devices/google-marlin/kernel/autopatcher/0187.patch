@@ -1,0 +1,21 @@
+diff --git a/drivers/media/usb/cpia2/cpia2_usb.c b/drivers/media/usb/cpia2/cpia2_usb.c
+index 351a78a..41ea00a 100644
+--- a/drivers/media/usb/cpia2/cpia2_usb.c
++++ b/drivers/media/usb/cpia2/cpia2_usb.c
+@@ -884,7 +884,6 @@
+ 	cpia2_unregister_camera(cam);
+ 	v4l2_device_disconnect(&cam->v4l2_dev);
+ 	mutex_unlock(&cam->v4l2_lock);
+-	v4l2_device_put(&cam->v4l2_dev);
+ 
+ 	if(cam->buffers) {
+ 		DBG("Wakeup waiting processes\n");
+@@ -897,6 +896,8 @@
+ 	DBG("Releasing interface\n");
+ 	usb_driver_release_interface(&cpia2_driver, intf);
+ 
++	v4l2_device_put(&cam->v4l2_dev);
++
+ 	LOG("CPiA2 camera disconnected.\n");
+ }
+ 

@@ -1,0 +1,86 @@
+From d2b9d2a5ad5ef04ff978c9923d19730cb05efd55 Mon Sep 17 00:00:00 2001
+From: Michael Neuling <mikey@neuling.org>
+Date: Thu, 19 Nov 2015 15:44:44 +1100
+Subject: powerpc/tm: Block signal return setting invalid MSR state
+
+Currently we allow both the MSR T and S bits to be set by userspace on
+a signal return.  Unfortunately this is a reserved configuration and
+will cause a TM Bad Thing exception if attempted (via rfid).
+
+This patch checks for this case in both the 32 and 64 bit signals
+code.  If both T and S are set, we mark the context as invalid.
+
+Found using a syscall fuzzer.
+
+Fixes: 2b0a576d15e0 ("powerpc: Add new transactional memory state to the signal context")
+Cc: stable@vger.kernel.org # v3.9+
+Signed-off-by: Michael Neuling <mikey@neuling.org>
+Signed-off-by: Michael Ellerman <mpe@ellerman.id.au>
+---
+ arch/powerpc/include/asm/reg.h  |  1 +
+ arch/powerpc/kernel/signal_32.c | 14 +++++++++-----
+ arch/powerpc/kernel/signal_64.c |  4 ++++
+ 3 files changed, 14 insertions(+), 5 deletions(-)
+
+diff --git a/arch/powerpc/include/asm/reg.h b/arch/powerpc/include/asm/reg.h
+index a908ada8e0a53..2220f7a60def3 100644
+--- a/arch/powerpc/include/asm/reg.h
++++ b/arch/powerpc/include/asm/reg.h
+@@ -108,6 +108,7 @@
+ #define MSR_TS_T	__MASK(MSR_TS_T_LG)	/*  Transaction Transactional */
+ #define MSR_TS_MASK	(MSR_TS_T | MSR_TS_S)   /* Transaction State bits */
+ #define MSR_TM_ACTIVE(x) (((x) & MSR_TS_MASK) != 0) /* Transaction active? */
++#define MSR_TM_RESV(x) (((x) & MSR_TS_MASK) == MSR_TS_MASK) /* Reserved */
+ #define MSR_TM_TRANSACTIONAL(x)	(((x) & MSR_TS_MASK) == MSR_TS_T)
+ #define MSR_TM_SUSPENDED(x)	(((x) & MSR_TS_MASK) == MSR_TS_S)
+ 
+diff --git a/arch/powerpc/kernel/signal_32.c b/arch/powerpc/kernel/signal_32.c
+index 0dbee465af7a7..ef7c24e84a623 100644
+--- a/arch/powerpc/kernel/signal_32.c
++++ b/arch/powerpc/kernel/signal_32.c
+@@ -875,6 +875,15 @@ static long restore_tm_user_regs(struct pt_regs *regs,
+ 		return 1;
+ #endif /* CONFIG_SPE */
+ 
++	/* Get the top half of the MSR from the user context */
++	if (__get_user(msr_hi, &tm_sr->mc_gregs[PT_MSR]))
++		return 1;
++	msr_hi <<= 32;
++	/* If TM bits are set to the reserved value, it's an invalid context */
++	if (MSR_TM_RESV(msr_hi))
++		return 1;
++	/* Pull in the MSR TM bits from the user context */
++	regs->msr = (regs->msr & ~MSR_TS_MASK) | (msr_hi & MSR_TS_MASK);
+ 	/* Now, recheckpoint.  This loads up all of the checkpointed (older)
+ 	 * registers, including FP and V[S]Rs.  After recheckpointing, the
+ 	 * transactional versions should be loaded.
+@@ -884,11 +893,6 @@ static long restore_tm_user_regs(struct pt_regs *regs,
+ 	current->thread.tm_texasr |= TEXASR_FS;
+ 	/* This loads the checkpointed FP/VEC state, if used */
+ 	tm_recheckpoint(&current->thread, msr);
+-	/* Get the top half of the MSR */
+-	if (__get_user(msr_hi, &tm_sr->mc_gregs[PT_MSR]))
+-		return 1;
+-	/* Pull in MSR TM from user context */
+-	regs->msr = (regs->msr & ~MSR_TS_MASK) | ((msr_hi<<32) & MSR_TS_MASK);
+ 
+ 	/* This loads the speculative FP/VEC state, if used */
+ 	if (msr & MSR_FP) {
+diff --git a/arch/powerpc/kernel/signal_64.c b/arch/powerpc/kernel/signal_64.c
+index 20756dfb9f346..c676ecec0869b 100644
+--- a/arch/powerpc/kernel/signal_64.c
++++ b/arch/powerpc/kernel/signal_64.c
+@@ -438,6 +438,10 @@ static long restore_tm_sigcontexts(struct pt_regs *regs,
+ 
+ 	/* get MSR separately, transfer the LE bit if doing signal return */
+ 	err |= __get_user(msr, &sc->gp_regs[PT_MSR]);
++	/* Don't allow reserved mode. */
++	if (MSR_TM_RESV(msr))
++		return -EINVAL;
++
+ 	/* pull in MSR TM from user context */
+ 	regs->msr = (regs->msr & ~MSR_TS_MASK) | (msr & MSR_TS_MASK);
+ 
+-- 
+cgit 1.2.3-1.el7
+

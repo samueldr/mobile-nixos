@@ -1,0 +1,55 @@
+From 43268e7260fd6e7398843af846475d74c70711b9 Mon Sep 17 00:00:00 2001
+From: Harshitha Sai Neelati <hsaine@codeaurora.org>
+Date: Mon, 16 Sep 2019 13:02:28 +0530
+Subject: msm: kgsl: Verify the offset of the profiling buffer
+
+If a command is using a profiling buffer, make sure that the offset
+is within the bounds of the specified memory descriptor.
+
+Change-Id: Ic0dedbadc77e8eccd957136467bd0c56a1af2dab
+Signed-off-by: Jordan Crouse <jcrouse@codeaurora.org>
+Signed-off-by: Harshitha Sai Neelati <hsaine@codeaurora.org>
+---
+ drivers/gpu/msm/kgsl_cmdbatch.c | 23 +++++++++++++++++++----
+ 1 file changed, 19 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/gpu/msm/kgsl_cmdbatch.c b/drivers/gpu/msm/kgsl_cmdbatch.c
+index e3a0483..da54689 100644
+--- a/drivers/gpu/msm/kgsl_cmdbatch.c
++++ b/drivers/gpu/msm/kgsl_cmdbatch.c
+@@ -573,13 +573,28 @@ static void add_profiling_buffer(struct kgsl_device *device,
+ 		return;
+ 	}
+ 
+-	cmdbatch->profiling_buf_entry = entry;
++	if (!id) {
++		cmdbatch->profiling_buffer_gpuaddr = gpuaddr;
++	} else {
++		u64 off =
++			offset + sizeof(struct kgsl_cmdbatch_profiling_buffer);
++
++		/*
++		 * Make sure there is enough room in the object to store the
++		 * entire profiling buffer object
++		 */
++		if (off < offset || off >= entry->memdesc.size) {
++			dev_err(device->dev,
++				"ignore invalid profile offset ctxt %d id %d offset %lld gpuaddr %llx size %lld\n",
++			cmdbatch->context->id, id, offset, gpuaddr, size);
++			kgsl_mem_entry_put(entry);
++			return;
++		}
+ 
+-	if (id != 0)
+ 		cmdbatch->profiling_buffer_gpuaddr =
+ 			entry->memdesc.gpuaddr + offset;
+-	else
+-		cmdbatch->profiling_buffer_gpuaddr = gpuaddr;
++	}
++	cmdbatch->profiling_buf_entry = entry;
+ }
+ 
+ /**
+-- 
+cgit v1.1
+

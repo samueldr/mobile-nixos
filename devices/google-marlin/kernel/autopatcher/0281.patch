@@ -1,0 +1,22 @@
+diff --git a/drivers/net/can/slcan.c b/drivers/net/can/slcan.c
+index 14012ea..3e2ffe6 100644
+--- a/drivers/net/can/slcan.c
++++ b/drivers/net/can/slcan.c
+@@ -150,7 +150,7 @@
+ 	u32 tmpid;
+ 	char *cmd = sl->rbuff;
+ 
+-	cf.can_id = 0;
++	memset(&cf, 0, sizeof(cf));
+ 
+ 	switch (*cmd) {
+ 	case 'r':
+@@ -189,8 +189,6 @@
+ 	else
+ 		return;
+ 
+-	*(u64 *) (&cf.data) = 0; /* clear payload */
+-
+ 	/* RTR frames may have a dlc > 0 but they never have any data bytes */
+ 	if (!(cf.can_id & CAN_RTR_FLAG)) {
+ 		for (i = 0; i < cf.can_dlc; i++) {

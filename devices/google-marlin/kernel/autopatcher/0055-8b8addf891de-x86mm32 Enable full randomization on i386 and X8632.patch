@@ -1,0 +1,83 @@
+From 8b8addf891de8a00e4d39fc32f93f7c5eb8feceb Mon Sep 17 00:00:00 2001
+From: Hector Marco-Gisbert <hecmargi@upv.es>
+Date: Thu, 10 Mar 2016 20:51:00 +0100
+Subject: x86/mm/32: Enable full randomization on i386 and X86_32
+
+Currently on i386 and on X86_64 when emulating X86_32 in legacy mode, only
+the stack and the executable are randomized but not other mmapped files
+(libraries, vDSO, etc.). This patch enables randomization for the
+libraries, vDSO and mmap requests on i386 and in X86_32 in legacy mode.
+
+By default on i386 there are 8 bits for the randomization of the libraries,
+vDSO and mmaps which only uses 1MB of VA.
+
+This patch preserves the original randomness, using 1MB of VA out of 3GB or
+4GB. We think that 1MB out of 3GB is not a big cost for having the ASLR.
+
+The first obvious security benefit is that all objects are randomized (not
+only the stack and the executable) in legacy mode which highly increases
+the ASLR effectiveness, otherwise the attackers may use these
+non-randomized areas. But also sensitive setuid/setgid applications are
+more secure because currently, attackers can disable the randomization of
+these applications by setting the ulimit stack to "unlimited". This is a
+very old and widely known trick to disable the ASLR in i386 which has been
+allowed for too long.
+
+Another trick used to disable the ASLR was to set the ADDR_NO_RANDOMIZE
+personality flag, but fortunately this doesn't work on setuid/setgid
+applications because there is security checks which clear Security-relevant
+flags.
+
+This patch always randomizes the mmap_legacy_base address, removing the
+possibility to disable the ASLR by setting the stack to "unlimited".
+
+Signed-off-by: Hector Marco-Gisbert <hecmargi@upv.es>
+Acked-by: Ismael Ripoll Ripoll <iripoll@upv.es>
+Acked-by: Kees Cook <keescook@chromium.org>
+Acked-by: Arjan van de Ven <arjan@linux.intel.com>
+Cc: Linus Torvalds <torvalds@linux-foundation.org>
+Cc: Peter Zijlstra <peterz@infradead.org>
+Cc: Thomas Gleixner <tglx@linutronix.de>
+Cc: akpm@linux-foundation.org
+Cc: kees Cook <keescook@chromium.org>
+Link: http://lkml.kernel.org/r/1457639460-5242-1-git-send-email-hecmargi@upv.es
+Signed-off-by: Ingo Molnar <mingo@kernel.org>
+---
+ arch/x86/mm/mmap.c | 14 +-------------
+ 1 file changed, 1 insertion(+), 13 deletions(-)
+
+diff --git a/arch/x86/mm/mmap.c b/arch/x86/mm/mmap.c
+index 96bd1e2bffafb..389939f74dd5a 100644
+--- a/arch/x86/mm/mmap.c
++++ b/arch/x86/mm/mmap.c
+@@ -93,18 +93,6 @@ static unsigned long mmap_base(unsigned long rnd)
+ 	return PAGE_ALIGN(TASK_SIZE - gap - rnd);
+ }
+ 
+-/*
+- * Bottom-up (legacy) layout on X86_32 did not support randomization, X86_64
+- * does, but not when emulating X86_32
+- */
+-static unsigned long mmap_legacy_base(unsigned long rnd)
+-{
+-	if (mmap_is_ia32())
+-		return TASK_UNMAPPED_BASE;
+-	else
+-		return TASK_UNMAPPED_BASE + rnd;
+-}
+-
+ /*
+  * This function, called very early during the creation of a new
+  * process VM image, sets up which VM layout function to use:
+@@ -116,7 +104,7 @@ void arch_pick_mmap_layout(struct mm_struct *mm)
+ 	if (current->flags & PF_RANDOMIZE)
+ 		random_factor = arch_mmap_rnd();
+ 
+-	mm->mmap_legacy_base = mmap_legacy_base(random_factor);
++	mm->mmap_legacy_base = TASK_UNMAPPED_BASE + random_factor;
+ 
+ 	if (mmap_is_legacy()) {
+ 		mm->mmap_base = mm->mmap_legacy_base;
+-- 
+cgit 1.2.3-1.el7
+

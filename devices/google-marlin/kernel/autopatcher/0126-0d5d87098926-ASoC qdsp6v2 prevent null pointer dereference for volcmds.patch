@@ -1,0 +1,34 @@
+From 0d5d87098926b7e9501529556cd90e4fd8ca189d Mon Sep 17 00:00:00 2001
+From: Xiaojun Sang <xsang@codeaurora.org>
+Date: Wed, 16 Nov 2016 15:10:20 +0800
+Subject: ASoC: qdsp6v2: prevent null pointer dereference for _vol_cmds
+
+In case of memory allocation failure, _vol_cmd_cnt is not reset.
+In _volume_cmds_free, null pointer dereference would happen for
+_vol_cmds[i].
+To prevent it, reset _vol_cmd_cnt when memory allocation fails.
+
+CRs-Fixed: 1089598
+Change-Id: Icb998549cdb999c6db2fd52aef505f200e630da5
+Signed-off-by: Xiaojun Sang <xsang@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/msm-dts-eagle.c | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/msm/qdsp6v2/msm-dts-eagle.c b/sound/soc/msm/qdsp6v2/msm-dts-eagle.c
+index 7a23a17..dfa4bb2 100644
+--- a/sound/soc/msm/qdsp6v2/msm-dts-eagle.c
++++ b/sound/soc/msm/qdsp6v2/msm-dts-eagle.c
+@@ -234,7 +234,8 @@ static s32 _volume_cmds_alloc1(s32 size)
+ 	if (_vol_cmds) {
+ 		_vol_cmds_d = kzalloc(_vol_cmd_cnt * sizeof(struct vol_cmds_d),
+ 					GFP_KERNEL);
+-	}
++	} else
++		_vol_cmd_cnt = 0;
+ 	if (_vol_cmds_d)
+ 		return 0;
+ 	_volume_cmds_free();
+-- 
+cgit v1.1
+

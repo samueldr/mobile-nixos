@@ -1,0 +1,34 @@
+From 65009746a6e649779f73d665934561ea983892fe Mon Sep 17 00:00:00 2001
+From: Siena Richard <sienar@codeaurora.org>
+Date: Mon, 5 Dec 2016 12:26:52 -0800
+Subject: ASoC: msm: qdsp6v2: return error when copy from userspace fails
+
+A copy_from_user is not always expected to succeed. Therefore, check
+for an error before operating on the buffer post copy.
+
+Change-Id: Ibba9a47c84e735d30e32eeac5b80d51044b7a9e8
+CRs-Fixed: 1094852
+Signed-off-by: Siena Richard <sienar@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c b/sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c
+index 6570819..c444a27 100644
+--- a/sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c
++++ b/sound/soc/msm/qdsp6v2/msm-pcm-voip-v2.c
+@@ -823,6 +823,11 @@ static int msm_pcm_playback_copy(struct snd_pcm_substream *substream, int a,
+ 					(sizeof(buf_node->frame.frm_hdr) +
+ 					 sizeof(buf_node->frame.pktlen));
+ 			}
++			if (ret) {
++				pr_err("%s: copy from user failed %d\n",
++				       __func__, ret);
++				return -EFAULT;
++			}
+ 			spin_lock_irqsave(&prtd->dsp_lock, dsp_flags);
+ 			list_add_tail(&buf_node->list, &prtd->in_queue);
+ 			spin_unlock_irqrestore(&prtd->dsp_lock, dsp_flags);
+-- 
+cgit v1.1
+

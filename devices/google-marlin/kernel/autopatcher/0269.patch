@@ -1,0 +1,41 @@
+diff --git a/net/ipv4/cipso_ipv4.c b/net/ipv4/cipso_ipv4.c
+index 3b16be5..0bf82567 100644
+--- a/net/ipv4/cipso_ipv4.c
++++ b/net/ipv4/cipso_ipv4.c
+@@ -1341,7 +1341,8 @@
+ 			return ret_val;
+ 		}
+ 
+-		secattr->flags |= NETLBL_SECATTR_MLS_CAT;
++		if (secattr->attr.mls.cat)
++			secattr->flags |= NETLBL_SECATTR_MLS_CAT;
+ 	}
+ 
+ 	return 0;
+@@ -1522,7 +1523,8 @@
+ 			return ret_val;
+ 		}
+ 
+-		secattr->flags |= NETLBL_SECATTR_MLS_CAT;
++		if (secattr->attr.mls.cat)
++			secattr->flags |= NETLBL_SECATTR_MLS_CAT;
+ 	}
+ 
+ 	return 0;
+diff --git a/net/netlabel/netlabel_kapi.c b/net/netlabel/netlabel_kapi.c
+index bfa2b6d..25ab12e 100644
+--- a/net/netlabel/netlabel_kapi.c
++++ b/net/netlabel/netlabel_kapi.c
+@@ -605,6 +605,12 @@
+ 	if ((off & (BITS_PER_LONG - 1)) != 0)
+ 		return -EINVAL;
+ 
++	/* a null catmap is equivalent to an empty one */
++	if (!catmap) {
++		*offset = (u32)-1;
++		return 0;
++	}
++
+ 	if (off < catmap->startbit) {
+ 		off = catmap->startbit;
+ 		*offset = off;

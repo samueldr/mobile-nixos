@@ -1,0 +1,28 @@
+diff --git a/drivers/net/wireless/ath/ath9k/htc_hst.c b/drivers/net/wireless/ath/ath9k/htc_hst.c
+index 1410453..5452bee1 100644
+--- a/drivers/net/wireless/ath/ath9k/htc_hst.c
++++ b/drivers/net/wireless/ath/ath9k/htc_hst.c
+@@ -174,6 +174,7 @@
+ 	time_left = wait_for_completion_timeout(&target->cmd_wait, HZ);
+ 	if (!time_left) {
+ 		dev_err(target->dev, "HTC credit config timeout\n");
++		kfree_skb(skb);
+ 		return -ETIMEDOUT;
+ 	}
+ 
+@@ -209,6 +210,7 @@
+ 	time_left = wait_for_completion_timeout(&target->cmd_wait, HZ);
+ 	if (!time_left) {
+ 		dev_err(target->dev, "HTC start timeout\n");
++		kfree_skb(skb);
+ 		return -ETIMEDOUT;
+ 	}
+ 
+@@ -281,6 +283,7 @@
+ 	if (!time_left) {
+ 		dev_err(target->dev, "Service connection timeout for: %d\n",
+ 			service_connreq->service_id);
++		kfree_skb(skb);
+ 		return -ETIMEDOUT;
+ 	}
+ 

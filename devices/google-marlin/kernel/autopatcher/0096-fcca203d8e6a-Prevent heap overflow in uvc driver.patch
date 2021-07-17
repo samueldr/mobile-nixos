@@ -1,0 +1,37 @@
+From fcca203d8e6aa0ef22fa41d72a06dea393d6d148 Mon Sep 17 00:00:00 2001
+From: Robb Glasser <rglasser@google.com>
+Date: Tue, 14 Feb 2017 13:25:46 -0800
+Subject: Prevent heap overflow in uvc driver
+
+The size of uvc_control_mapping is user controlled leading to a
+potential heap overflow in the uvc driver. This adds a check to verify
+the user provided size fits within the bounds of the defined buffer
+size.
+
+Bug: 33300353
+Change-Id: If29c1b396633b6137966a12e38f6fd1841b045bd
+Signed-off-by: Robb Glasser <rglasser@google.com>
+Git-repo: https://android.googlesource.com/kernel/msm
+Git-commit: 8bc3ec72a02052187397d0de1a7b8bbe7340451c
+Signed-off-by: Dennis Cagle <d-cagle@codeaurora.org>
+---
+ drivers/media/usb/uvc/uvc_ctrl.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/drivers/media/usb/uvc/uvc_ctrl.c b/drivers/media/usb/uvc/uvc_ctrl.c
+index a2f4501..f61d1d7 100644
+--- a/drivers/media/usb/uvc/uvc_ctrl.c
++++ b/drivers/media/usb/uvc/uvc_ctrl.c
+@@ -1939,6 +1939,9 @@ int uvc_ctrl_add_mapping(struct uvc_video_chain *chain,
+ 	if (!found)
+ 		return -ENOENT;
+ 
++	if (ctrl->info.size < mapping->size)
++		return -EINVAL;
++
+ 	if (mutex_lock_interruptible(&chain->ctrl_mutex))
+ 		return -ERESTARTSYS;
+ 
+-- 
+cgit v1.1
+

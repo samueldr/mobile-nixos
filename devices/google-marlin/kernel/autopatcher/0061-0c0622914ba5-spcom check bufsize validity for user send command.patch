@@ -1,0 +1,57 @@
+From 0c0622914ba53cdcb6e79e85f64bfdf7762c0368 Mon Sep 17 00:00:00 2001
+From: Amir Samuelov <amirs@codeaurora.org>
+Date: Tue, 6 Dec 2016 16:42:14 +0200
+Subject: spcom: check buf_size validity for user send command
+
+Check command buf size before allocating kernel buffer.
+
+CRs-Fixed: 1094078
+Change-Id: Ib03cd8c79966ff35863c1bde99089cac018ab45c
+Signed-off-by: Amir Samuelov <amirs@codeaurora.org>
+---
+ drivers/soc/qcom/spcom.c | 22 ++++++++++++++++++++++
+ 1 file changed, 22 insertions(+)
+
+diff --git a/drivers/soc/qcom/spcom.c b/drivers/soc/qcom/spcom.c
+index 0c5f3b8..19388f1 100644
+--- a/drivers/soc/qcom/spcom.c
++++ b/drivers/soc/qcom/spcom.c
+@@ -1333,6 +1333,16 @@ static int spcom_handle_send_command(struct spcom_channel *ch,
+ 
+ 	pr_debug("send req/resp ch [%s] size [%d] .\n", ch->name, size);
+ 
++	/*
++	 * check that cmd buf size is at least struct size,
++	 * to allow access to struct fields.
++	 */
++	if (size < sizeof(*cmd)) {
++		pr_err("ch [%s] invalid cmd buf.\n",
++			ch->name);
++		return -EINVAL;
++	}
++
+ 	/* Check if remote side connect */
+ 	if (!spcom_is_channel_connected(ch)) {
+ 		pr_err("ch [%s] remote side not connect.\n", ch->name);
+@@ -1344,6 +1354,18 @@ static int spcom_handle_send_command(struct spcom_channel *ch,
+ 	buf_size = cmd->buf_size;
+ 	timeout_msec = cmd->timeout_msec;
+ 
++	/* Check param validity */
++	if (buf_size > SPCOM_MAX_RESPONSE_SIZE) {
++		pr_err("ch [%s] invalid buf size [%d].\n",
++			ch->name, buf_size);
++		return -EINVAL;
++	}
++	if (size != sizeof(*cmd) + buf_size) {
++		pr_err("ch [%s] invalid cmd size [%d].\n",
++			ch->name, size);
++		return -EINVAL;
++	}
++
+ 	/* Allocate Buffers*/
+ 	tx_buf_size = sizeof(*hdr) + buf_size;
+ 	tx_buf = kzalloc(tx_buf_size, GFP_KERNEL);
+-- 
+cgit v1.1
+

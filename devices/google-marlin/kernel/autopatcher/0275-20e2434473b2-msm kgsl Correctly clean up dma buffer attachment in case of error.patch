@@ -1,0 +1,50 @@
+From 20e2434473b259b40b590099da9fbce02a37cc8a Mon Sep 17 00:00:00 2001
+From: Kamal Agrawal <kamaagra@codeaurora.org>
+Date: Wed, 19 Aug 2020 10:25:15 +0530
+Subject: msm: kgsl: Correctly clean up dma buffer attachment in case of error
+
+In kgsl_ioctl_gpuobj_import(), user memory of type KGSL_USER_MEM_TYPE_ADDR
+can also lead to setting up a dma buffer. When attaching mem entry to
+process fails, dma buffer attachment is cleaned up only in case of
+KGSL_USER_MEM_TYPE_DMABUF. Similar situation can arise in case of
+kgsl_ioctl_map_user_mem(). Fix this by obtaining user memory type from
+the memdesc flags.
+
+Change-Id: I502bd0ae19241802e8f835f20391b2ce67999418
+Signed-off-by: Puranam V G Tejaswi <pvgtejas@codeaurora.org>
+Signed-off-by: Kamal Agrawal <kamaagra@codeaurora.org>
+---
+ drivers/gpu/msm/kgsl.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/gpu/msm/kgsl.c b/drivers/gpu/msm/kgsl.c
+index f62de5a..7ed6f28 100644
+--- a/drivers/gpu/msm/kgsl.c
++++ b/drivers/gpu/msm/kgsl.c
+@@ -1,4 +1,4 @@
+-/* Copyright (c) 2008-2019, The Linux Foundation. All rights reserved.
++/* Copyright (c) 2008-2020, The Linux Foundation. All rights reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 and
+@@ -2311,7 +2311,7 @@ long kgsl_ioctl_gpuobj_import(struct kgsl_device_private *dev_priv,
+ 	return 0;
+ 
+ unmap:
+-	if (param->type == KGSL_USER_MEM_TYPE_DMABUF) {
++	if (kgsl_memdesc_usermem_type(&entry->memdesc) == KGSL_MEM_ENTRY_ION) {
+ 		kgsl_destroy_ion(entry->priv_data);
+ 		entry->memdesc.sgt = NULL;
+ 	}
+@@ -2620,7 +2620,7 @@ long kgsl_ioctl_map_user_mem(struct kgsl_device_private *dev_priv,
+ 	return result;
+ 
+ error_attach:
+-	switch (memtype) {
++	switch (kgsl_memdesc_usermem_type(&entry->memdesc)) {
+ 	case KGSL_MEM_ENTRY_ION:
+ 		kgsl_destroy_ion(entry->priv_data);
+ 		entry->memdesc.sgt = NULL;
+-- 
+cgit v1.1
+

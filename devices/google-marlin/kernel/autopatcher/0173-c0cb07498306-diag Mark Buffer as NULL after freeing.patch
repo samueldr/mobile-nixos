@@ -1,0 +1,31 @@
+From c0cb074983060d6ff46e312a9db81fde869cd63b Mon Sep 17 00:00:00 2001
+From: Hardik Arya <harya@codeaurora.org>
+Date: Fri, 23 Nov 2018 10:41:41 +0530
+Subject: diag: Mark Buffer as NULL after freeing
+
+There is a possibility of use-after-free and
+double free because of not marking buffer as
+NULL after freeing. The patch marks buffer
+as NULL after freeing in error case.
+
+Change-Id: Iacf8f8a4a4e644f48c87d5445ccd594766f2e156
+Signed-off-by: Hardik Arya <harya@codeaurora.org>
+---
+ drivers/char/diag/diag_masks.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/char/diag/diag_masks.c b/drivers/char/diag/diag_masks.c
+index 41ab338..8d53a06 100644
+--- a/drivers/char/diag/diag_masks.c
++++ b/drivers/char/diag/diag_masks.c
+@@ -1773,6 +1773,7 @@ static int __diag_mask_init(struct diag_mask_info *mask_info, int mask_len,
+ 		mask_info->update_buf = kzalloc(update_buf_len, GFP_KERNEL);
+ 		if (!mask_info->update_buf) {
+ 			kfree(mask_info->ptr);
++			mask_info->ptr = NULL;
+ 			return -ENOMEM;
+ 		}
+ 		kmemleak_not_leak(mask_info->update_buf);
+-- 
+cgit v1.1
+

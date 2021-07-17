@@ -1,0 +1,36 @@
+From 63c317dbee97983004dffdd9f742a20d17150071 Mon Sep 17 00:00:00 2001
+From: Avijit Kanti Das <avijitnsec@codeaurora.org>
+Date: Wed, 14 May 2014 11:03:56 -0700
+Subject: net: Zeroing the structure ethtool_wolinfo in ethtool_get_wol()
+
+memset() the structure ethtool_wolinfo that has padded bytes
+but the padded bytes have not been zeroed out.
+
+Change-Id: If3fd2d872a1b1ab9521d937b86a29fc468a8bbfe
+Signed-off-by: Avijit Kanti Das <avijitnsec@codeaurora.org>
+---
+ net/core/ethtool.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/net/core/ethtool.c b/net/core/ethtool.c
+index ce91766..900a05f 100644
+--- a/net/core/ethtool.c
++++ b/net/core/ethtool.c
+@@ -711,11 +711,13 @@ static int ethtool_reset(struct net_device *dev, char __user *useraddr)
+ 
+ static int ethtool_get_wol(struct net_device *dev, char __user *useraddr)
+ {
+-	struct ethtool_wolinfo wol = { .cmd = ETHTOOL_GWOL };
++	struct ethtool_wolinfo wol;
+ 
+ 	if (!dev->ethtool_ops->get_wol)
+ 		return -EOPNOTSUPP;
+ 
++	memset(&wol, 0, sizeof(struct ethtool_wolinfo));
++	wol.cmd = ETHTOOL_GWOL;
+ 	dev->ethtool_ops->get_wol(dev, &wol);
+ 
+ 	if (copy_to_user(useraddr, &wol, sizeof(wol)))
+-- 
+cgit v1.1
+

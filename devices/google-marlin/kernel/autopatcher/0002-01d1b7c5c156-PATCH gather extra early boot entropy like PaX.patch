@@ -1,0 +1,38 @@
+From 01d1b7c5c156e47c68380fc251c285b68bfff232 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Tue, 14 Mar 2017 15:32:03 -0400
+Subject: [PATCH] gather extra early boot entropy like PaX
+
+---
+ mm/page_alloc.c | 11 +++++++++++
+ 1 file changed, 11 insertions(+)
+
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index 6e327a3569f..ae5a95e16ef 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -60,6 +60,7 @@
+ #include <linux/page-debug-flags.h>
+ #include <linux/hugetlb.h>
+ #include <linux/sched/rt.h>
++#include <linux/random.h>
+ 
+ #include <asm/sections.h>
+ #include <asm/tlbflush.h>
+@@ -844,6 +845,16 @@ void  __free_pages_bootmem(struct page *page, unsigned long pfn,
+ 	__ClearPageReserved(p);
+ 	set_page_count(p, 0);
+ 
++	if (!PageHighMem(page) && page_to_pfn(page) < 0x100000) {
++		unsigned long hash = 0;
++		size_t index, end = PAGE_SIZE * nr_pages / sizeof hash;
++		const unsigned long *data = lowmem_page_address(page);
++
++		for (index = 0; index < end; index++)
++			hash ^= hash + data[index];
++		add_device_randomness((const void *)&hash, sizeof(hash));
++	}
++
+ 	page_zone(page)->managed_pages += nr_pages;
+ 	set_page_refcounted(page);
+ 	__free_pages(page, order);

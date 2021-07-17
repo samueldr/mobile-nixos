@@ -1,0 +1,54 @@
+From 7681f31ec9cdacab4fd10570be924f2cef6669ba Mon Sep 17 00:00:00 2001
+From: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Date: Wed, 13 Feb 2019 18:21:31 -0500
+Subject: xen/pciback: Don't disable PCI_COMMAND on PCI device reset.
+
+There is no need for this at all. Worst it means that if
+the guest tries to write to BARs it could lead (on certain
+platforms) to PCI SERR errors.
+
+Please note that with af6fc858a35b90e89ea7a7ee58e66628c55c776b
+"xen-pciback: limit guest control of command register"
+a guest is still allowed to enable those control bits (safely), but
+is not allowed to disable them and that therefore a well behaved
+frontend which enables things before using them will still
+function correctly.
+
+This is done via an write to the configuration register 0x4 which
+triggers on the backend side:
+command_write
+  \- pci_enable_device
+     \- pci_enable_device_flags
+        \- do_pci_enable_device
+           \- pcibios_enable_device
+              \-pci_enable_resourcess
+                [which enables the PCI_COMMAND_MEMORY|PCI_COMMAND_IO]
+
+However guests (and drivers) which don't do this could cause
+problems, including the security issues which XSA-120 sought
+to address.
+
+Reported-by: Jan Beulich <jbeulich@suse.com>
+Signed-off-by: Konrad Rzeszutek Wilk <konrad.wilk@oracle.com>
+Reviewed-by: Prarit Bhargava <prarit@redhat.com>
+Signed-off-by: Juergen Gross <jgross@suse.com>
+---
+ drivers/xen/xen-pciback/pciback_ops.c | 2 --
+ 1 file changed, 2 deletions(-)
+
+diff --git a/drivers/xen/xen-pciback/pciback_ops.c b/drivers/xen/xen-pciback/pciback_ops.c
+index ea4a08b83fa0..787966f44589 100644
+--- a/drivers/xen/xen-pciback/pciback_ops.c
++++ b/drivers/xen/xen-pciback/pciback_ops.c
+@@ -127,8 +127,6 @@ void xen_pcibk_reset_device(struct pci_dev *dev)
+ 		if (pci_is_enabled(dev))
+ 			pci_disable_device(dev);
+ 
+-		pci_write_config_word(dev, PCI_COMMAND, 0);
+-
+ 		dev->is_busmaster = 0;
+ 	} else {
+ 		pci_read_config_word(dev, PCI_COMMAND, &cmd);
+-- 
+cgit 1.2.3-1.el7
+

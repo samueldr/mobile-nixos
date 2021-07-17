@@ -1,0 +1,64 @@
+From bcdbeb844773333d2d1c08004f3b3e25921040e5 Mon Sep 17 00:00:00 2001
+From: Alan Stern <stern@rowland.harvard.edu>
+Date: Wed, 14 Dec 2016 14:55:56 -0500
+Subject: [PATCH] USB: dummy-hcd: fix bug in stop_activity (handle ep0)
+
+The stop_activity() routine in dummy-hcd is supposed to unlink all
+active requests for every endpoint, among other things.  But it
+doesn't handle ep0.  As a result, fuzz testing can generate a WARNING
+like the following:
+
+WARNING: CPU: 0 PID: 4410 at drivers/usb/gadget/udc/dummy_hcd.c:672 dummy_free_request+0x153/0x170
+Modules linked in:
+CPU: 0 PID: 4410 Comm: syz-executor Not tainted 4.9.0-rc7+ #32
+Hardware name: QEMU Standard PC (i440FX + PIIX, 1996), BIOS Bochs 01/01/2011
+ ffff88006a64ed10 ffffffff81f96b8a ffffffff41b58ab3 1ffff1000d4c9d35
+ ffffed000d4c9d2d ffff880065f8ac00 0000000041b58ab3 ffffffff8598b510
+ ffffffff81f968f8 0000000041b58ab3 ffffffff859410e0 ffffffff813f0590
+Call Trace:
+ [<     inline     >] __dump_stack lib/dump_stack.c:15
+ [<ffffffff81f96b8a>] dump_stack+0x292/0x398 lib/dump_stack.c:51
+ [<ffffffff812b808f>] __warn+0x19f/0x1e0 kernel/panic.c:550
+ [<ffffffff812b831c>] warn_slowpath_null+0x2c/0x40 kernel/panic.c:585
+ [<ffffffff830fcb13>] dummy_free_request+0x153/0x170 drivers/usb/gadget/udc/dummy_hcd.c:672
+ [<ffffffff830ed1b0>] usb_ep_free_request+0xc0/0x420 drivers/usb/gadget/udc/core.c:195
+ [<ffffffff83225031>] gadgetfs_unbind+0x131/0x190 drivers/usb/gadget/legacy/inode.c:1612
+ [<ffffffff830ebd8f>] usb_gadget_remove_driver+0x10f/0x2b0 drivers/usb/gadget/udc/core.c:1228
+ [<ffffffff830ec084>] usb_gadget_unregister_driver+0x154/0x240 drivers/usb/gadget/udc/core.c:1357
+
+This patch fixes the problem by iterating over all the endpoints in
+the driver's ep array instead of iterating over the gadget's ep_list,
+which explicitly leaves out ep0.
+
+Signed-off-by: Alan Stern <stern@rowland.harvard.edu>
+Reported-by: Andrey Konovalov <andreyknvl@google.com>
+CC: <stable@vger.kernel.org>
+Signed-off-by: Felipe Balbi <felipe.balbi@linux.intel.com>
+---
+ drivers/usb/gadget/udc/dummy_hcd.c | 6 +++---
+ 1 file changed, 3 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/usb/gadget/udc/dummy_hcd.c b/drivers/usb/gadget/udc/dummy_hcd.c
+index 02b14e91ae6c5..c60abe3a68f9c 100644
+--- a/drivers/usb/gadget/udc/dummy_hcd.c
++++ b/drivers/usb/gadget/udc/dummy_hcd.c
+@@ -330,7 +330,7 @@ static void nuke(struct dummy *dum, struct dummy_ep *ep)
+ /* caller must hold lock */
+ static void stop_activity(struct dummy *dum)
+ {
+-	struct dummy_ep	*ep;
++	int i;
+ 
+ 	/* prevent any more requests */
+ 	dum->address = 0;
+@@ -338,8 +338,8 @@ static void stop_activity(struct dummy *dum)
+ 	/* The timer is left running so that outstanding URBs can fail */
+ 
+ 	/* nuke any pending requests first, so driver i/o is quiesced */
+-	list_for_each_entry(ep, &dum->gadget.ep_list, ep.ep_list)
+-		nuke(dum, ep);
++	for (i = 0; i < DUMMY_ENDPOINTS; ++i)
++		nuke(dum, &dum->ep[i]);
+ 
+ 	/* driver now does any non-usb quiescing necessary */
+ }

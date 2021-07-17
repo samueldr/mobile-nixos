@@ -1,0 +1,14 @@
+diff --git a/fs/btrfs/ctree.c b/fs/btrfs/ctree.c
+index 9ee3c68..cee317f 100644
+--- a/fs/btrfs/ctree.c
++++ b/fs/btrfs/ctree.c
+@@ -1427,7 +1427,9 @@
+ 			btrfs_warn(root->fs_info,
+ 				"failed to read tree block %llu from get_old_root", logical);
+ 		} else {
++			btrfs_tree_read_lock(old);
+ 			eb = btrfs_clone_extent_buffer(old);
++			btrfs_tree_read_unlock(old);
+ 			free_extent_buffer(old);
+ 		}
+ 	} else if (old_root) {

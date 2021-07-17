@@ -1,0 +1,24 @@
+diff --git a/drivers/scsi/scsi_transport_iscsi.c b/drivers/scsi/scsi_transport_iscsi.c
+index 63688af..f911354 100644
+--- a/drivers/scsi/scsi_transport_iscsi.c
++++ b/drivers/scsi/scsi_transport_iscsi.c
+@@ -119,6 +119,9 @@
+ 		      char *buf)
+ {
+ 	struct iscsi_internal *priv = dev_to_iscsi_internal(dev);
++
++	if (!capable(CAP_SYS_ADMIN))
++		return -EACCES;
+ 	return sprintf(buf, "%llu\n", (unsigned long long)iscsi_handle(priv->iscsi_transport));
+ }
+ static DEVICE_ATTR(handle, S_IRUGO, show_transport_handle, NULL);
+@@ -3522,6 +3525,9 @@
+ 	struct iscsi_cls_conn *conn;
+ 	struct iscsi_endpoint *ep = NULL;
+ 
++	if (!netlink_capable(skb, CAP_SYS_ADMIN))
++		return -EPERM;
++
+ 	if (nlh->nlmsg_type == ISCSI_UEVENT_PATH_UPDATE)
+ 		*group = ISCSI_NL_GRP_UIP;
+ 	else

@@ -1,0 +1,20 @@
+diff --git a/net/nfc/rawsock.c b/net/nfc/rawsock.c
+index 11c3544..47de2eb 100644
+--- a/net/nfc/rawsock.c
++++ b/net/nfc/rawsock.c
+@@ -344,10 +344,13 @@
+ 	if ((sock->type != SOCK_SEQPACKET) && (sock->type != SOCK_RAW))
+ 		return -ESOCKTNOSUPPORT;
+ 
+-	if (sock->type == SOCK_RAW)
++	if (sock->type == SOCK_RAW) {
++		if (!capable(CAP_NET_RAW))
++			return -EPERM;
+ 		sock->ops = &rawsock_raw_ops;
+-	else
++	} else {
+ 		sock->ops = &rawsock_ops;
++	}
+ 
+ 	sk = sk_alloc(net, PF_NFC, GFP_ATOMIC, nfc_proto->proto);
+ 	if (!sk)

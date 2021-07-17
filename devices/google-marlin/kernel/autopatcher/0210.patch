@@ -1,0 +1,12 @@
+diff --git a/drivers/net/ethernet/qlogic/qla3xxx.c b/drivers/net/ethernet/qlogic/qla3xxx.c
+index a51506b..b92b26b 100644
+--- a/drivers/net/ethernet/qlogic/qla3xxx.c
++++ b/drivers/net/ethernet/qlogic/qla3xxx.c
+@@ -2787,6 +2787,7 @@
+ 				netdev_err(qdev->ndev,
+ 					   "PCI mapping failed with error: %d\n",
+ 					   err);
++				dev_kfree_skb_irq(skb);
+ 				ql_free_large_buffers(qdev);
+ 				return -ENOMEM;
+ 			}

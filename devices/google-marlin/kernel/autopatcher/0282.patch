@@ -1,0 +1,24 @@
+diff --git a/mm/mempolicy.c b/mm/mempolicy.c
+index 06659e4..842a985 100644
+--- a/mm/mempolicy.c
++++ b/mm/mempolicy.c
+@@ -2720,7 +2720,9 @@
+ 	switch (mode) {
+ 	case MPOL_PREFERRED:
+ 		/*
+-		 * Insist on a nodelist of one node only
++		 * Insist on a nodelist of one node only, although later
++		 * we use first_node(nodes) to grab a single node, so here
++		 * nodelist (or nodes) cannot be empty.
+ 		 */
+ 		if (nodelist) {
+ 			char *rest = nodelist;
+@@ -2728,6 +2730,8 @@
+ 				rest++;
+ 			if (*rest)
+ 				goto out;
++			if (nodes_empty(nodes))
++				goto out;
+ 		}
+ 		break;
+ 	case MPOL_INTERLEAVE:

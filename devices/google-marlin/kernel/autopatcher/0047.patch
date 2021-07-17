@@ -1,0 +1,137 @@
+diff --git a/include/linux/mm_types.h b/include/linux/mm_types.h
+index 939f7ad..d9e5211 100644
+--- a/include/linux/mm_types.h
++++ b/include/linux/mm_types.h
+@@ -425,6 +425,7 @@
+ 	 */
+ 	struct task_struct __rcu *owner;
+ #endif
++	struct user_namespace *user_ns;
+ 
+ 	/* store ref to file /proc/<pid>/exe symlink points to */
+ 	struct file *exe_file;
+diff --git a/kernel/fork.c b/kernel/fork.c
+index f3b903f..3757ee2 100644
+--- a/kernel/fork.c
++++ b/kernel/fork.c
+@@ -564,7 +564,8 @@
+ #endif
+ }
+ 
+-static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p)
++static struct mm_struct *mm_init(struct mm_struct *mm, struct task_struct *p,
++	struct user_namespace *user_ns)
+ {
+ 	mm->mmap = NULL;
+ 	mm->mm_rb = RB_ROOT;
+@@ -603,6 +604,7 @@
+ 	if (init_new_context(p, mm))
+ 		goto fail_nocontext;
+ 
++	mm->user_ns = get_user_ns(user_ns);
+ 	return mm;
+ 
+ fail_nocontext:
+@@ -640,7 +642,7 @@
+ 		return NULL;
+ 
+ 	memset(mm, 0, sizeof(*mm));
+-	return mm_init(mm, current);
++	return mm_init(mm, current, current_user_ns());
+ }
+ 
+ /*
+@@ -655,6 +657,7 @@
+ 	destroy_context(mm);
+ 	mmu_notifier_mm_destroy(mm);
+ 	check_mm(mm);
++	put_user_ns(mm->user_ns);
+ 	free_mm(mm);
+ }
+ EXPORT_SYMBOL_GPL(__mmdrop);
+@@ -913,7 +916,7 @@
+ 
+ 	memcpy(mm, oldmm, sizeof(*mm));
+ 
+-	if (!mm_init(mm, tsk))
++	if (!mm_init(mm, tsk, mm->user_ns))
+ 		goto fail_nomem;
+ 
+ 	dup_mm_exe_file(oldmm, mm);
+diff --git a/kernel/ptrace.c b/kernel/ptrace.c
+index bf2f758..81a529d 100644
+--- a/kernel/ptrace.c
++++ b/kernel/ptrace.c
+@@ -225,7 +225,7 @@
+ static int __ptrace_may_access(struct task_struct *task, unsigned int mode)
+ {
+ 	const struct cred *cred = current_cred(), *tcred;
+-	int dumpable = 0;
++	struct mm_struct *mm;
+ 	kuid_t caller_uid;
+ 	kgid_t caller_gid;
+ 
+@@ -276,16 +276,11 @@
+ 	return -EPERM;
+ ok:
+ 	rcu_read_unlock();
+-	smp_rmb();
+-	if (task->mm)
+-		dumpable = get_dumpable(task->mm);
+-	rcu_read_lock();
+-	if (dumpable != SUID_DUMP_USER &&
+-	    !ptrace_has_cap(__task_cred(task)->user_ns, mode)) {
+-		rcu_read_unlock();
+-		return -EPERM;
+-	}
+-	rcu_read_unlock();
++	mm = task->mm;
++	if (mm &&
++	    ((get_dumpable(mm) != SUID_DUMP_USER) &&
++	     !ptrace_has_cap(mm->user_ns, mode)))
++	    return -EPERM;
+ 
+ 	return security_ptrace_access_check(task, mode);
+ }
+@@ -336,6 +331,11 @@
+ 
+ 	task_lock(task);
+ 	retval = __ptrace_may_access(task, PTRACE_MODE_ATTACH_REALCREDS);
++	if (!retval) {
++		struct mm_struct *mm = task->mm;
++		if (mm && ns_capable(mm->user_ns, CAP_SYS_PTRACE))
++			flags |= PT_PTRACE_CAP;
++	}
+ 	task_unlock(task);
+ 	if (retval)
+ 		goto unlock_creds;
+@@ -349,10 +349,6 @@
+ 
+ 	if (seize)
+ 		flags |= PT_SEIZED;
+-	rcu_read_lock();
+-	if (ns_capable(__task_cred(task)->user_ns, CAP_SYS_PTRACE))
+-		flags |= PT_PTRACE_CAP;
+-	rcu_read_unlock();
+ 	task->ptrace = flags;
+ 
+ 	__ptrace_link(task, current);
+diff --git a/mm/init-mm.c b/mm/init-mm.c
+index a56a851..975e49f 100644
+--- a/mm/init-mm.c
++++ b/mm/init-mm.c
+@@ -6,6 +6,7 @@
+ #include <linux/cpumask.h>
+ 
+ #include <linux/atomic.h>
++#include <linux/user_namespace.h>
+ #include <asm/pgtable.h>
+ #include <asm/mmu.h>
+ 
+@@ -21,5 +22,6 @@
+ 	.mmap_sem	= __RWSEM_INITIALIZER(init_mm.mmap_sem),
+ 	.page_table_lock =  __SPIN_LOCK_UNLOCKED(init_mm.page_table_lock),
+ 	.mmlist		= LIST_HEAD_INIT(init_mm.mmlist),
++	.user_ns	= &init_user_ns,
+ 	INIT_MM_CONTEXT(init_mm)
+ };

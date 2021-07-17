@@ -1,0 +1,16 @@
+diff --git a/fs/ext4/super.c b/fs/ext4/super.c
+index e7c5087..4372f5e 100644
+--- a/fs/ext4/super.c
++++ b/fs/ext4/super.c
+@@ -5242,7 +5242,10 @@
+ 		ext4_register_li_request(sb, first_not_zeroed);
+ 	}
+ 
+-	ext4_setup_system_zone(sb);
++	err = ext4_setup_system_zone(sb);
++	if (err)
++		goto restore_opts;
++
+ 	if (sbi->s_journal == NULL && !(old_sb_flags & MS_RDONLY))
+ 		ext4_commit_super(sb, 1);
+ 

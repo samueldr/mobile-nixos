@@ -1,0 +1,22 @@
+diff --git a/kernel/trace/ring_buffer.c b/kernel/trace/ring_buffer.c
+index 7eb3c33..7860bd3a 100644
+--- a/kernel/trace/ring_buffer.c
++++ b/kernel/trace/ring_buffer.c
+@@ -4257,6 +4257,8 @@
+ 
+ 	if (!cpumask_test_cpu(cpu, buffer->cpumask))
+ 		return;
++	/* prevent another thread from changing buffer sizes */
++	mutex_lock(&buffer->mutex);
+ 
+ 	atomic_inc(&buffer->resize_disabled);
+ 	atomic_inc(&cpu_buffer->record_disabled);
+@@ -4280,6 +4282,8 @@
+ 
+ 	atomic_dec(&cpu_buffer->record_disabled);
+ 	atomic_dec(&buffer->resize_disabled);
++
++	mutex_unlock(&buffer->mutex);
+ }
+ EXPORT_SYMBOL_GPL(ring_buffer_reset_cpu);
+ 

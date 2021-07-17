@@ -1,0 +1,69 @@
+diff --git a/fs/cifs/sess.c b/fs/cifs/sess.c
+index 693da83..2cd8928 100644
+--- a/fs/cifs/sess.c
++++ b/fs/cifs/sess.c
+@@ -344,13 +344,12 @@
+ 	/* BB is NTLMV2 session security format easier to use here? */
+ 	flags = NTLMSSP_NEGOTIATE_56 |	NTLMSSP_REQUEST_TARGET |
+ 		NTLMSSP_NEGOTIATE_128 | NTLMSSP_NEGOTIATE_UNICODE |
+-		NTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_EXTENDED_SEC;
+-	if (ses->server->sign) {
++		NTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_EXTENDED_SEC |
++		NTLMSSP_NEGOTIATE_SEAL;
++	if (ses->server->sign)
+ 		flags |= NTLMSSP_NEGOTIATE_SIGN;
+-		if (!ses->server->session_estab ||
+-				ses->ntlmssp->sesskey_per_smbsess)
+-			flags |= NTLMSSP_NEGOTIATE_KEY_XCH;
+-	}
++	if (!ses->server->session_estab || ses->ntlmssp->sesskey_per_smbsess)
++		flags |= NTLMSSP_NEGOTIATE_KEY_XCH;
+ 
+ 	sec_blob->NegotiateFlags = cpu_to_le32(flags);
+ 
+@@ -407,13 +406,12 @@
+ 	flags = NTLMSSP_NEGOTIATE_56 |
+ 		NTLMSSP_REQUEST_TARGET | NTLMSSP_NEGOTIATE_TARGET_INFO |
+ 		NTLMSSP_NEGOTIATE_128 | NTLMSSP_NEGOTIATE_UNICODE |
+-		NTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_EXTENDED_SEC;
+-	if (ses->server->sign) {
++		NTLMSSP_NEGOTIATE_NTLM | NTLMSSP_NEGOTIATE_EXTENDED_SEC |
++		NTLMSSP_NEGOTIATE_SEAL;
++	if (ses->server->sign)
+ 		flags |= NTLMSSP_NEGOTIATE_SIGN;
+-		if (!ses->server->session_estab ||
+-				ses->ntlmssp->sesskey_per_smbsess)
+-			flags |= NTLMSSP_NEGOTIATE_KEY_XCH;
+-	}
++	if (!ses->server->session_estab || ses->ntlmssp->sesskey_per_smbsess)
++		flags |= NTLMSSP_NEGOTIATE_KEY_XCH;
+ 
+ 	tmp = *pbuffer + sizeof(AUTHENTICATE_MESSAGE);
+ 	sec_blob->NegotiateFlags = cpu_to_le32(flags);
+diff --git a/fs/cifs/smb2pdu.c b/fs/cifs/smb2pdu.c
+index 98d6e86..a4c59dc 100644
+--- a/fs/cifs/smb2pdu.c
++++ b/fs/cifs/smb2pdu.c
+@@ -802,10 +802,8 @@
+ 
+ 	if (!rc) {
+ 		mutex_lock(&server->srv_mutex);
+-		if (server->sign && server->ops->generate_signingkey) {
++		if (server->ops->generate_signingkey) {
+ 			rc = server->ops->generate_signingkey(ses);
+-			kfree(ses->auth_key.response);
+-			ses->auth_key.response = NULL;
+ 			if (rc) {
+ 				cifs_dbg(FYI,
+ 					"SMB3 session key generation failed\n");
+@@ -827,10 +825,6 @@
+ 	}
+ 
+ keygen_exit:
+-	if (!server->sign) {
+-		kfree(ses->auth_key.response);
+-		ses->auth_key.response = NULL;
+-	}
+ 	if (spnego_key) {
+ 		key_invalidate(spnego_key);
+ 		key_put(spnego_key);

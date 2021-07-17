@@ -1,0 +1,56 @@
+From c319c2b0926d1ea5edb4d0778d88bd3ce37c4b95 Mon Sep 17 00:00:00 2001
+From: Ashish Jain <ashishj@codeaurora.org>
+Date: Fri, 1 Jul 2016 12:31:21 +0530
+Subject: ASoC: msm: qdsp6v2: DAP: Add check to validate param length
+
+To avoid buffer overflow, validate input length used to
+fetch visualizer data.
+
+CRs-Fixed: 1033540
+Change-Id: I445d1ba3bce47308bc31ae24a70d5ee358f22a2d
+Signed-off-by: Ashish Jain <ashishj@codeaurora.org>
+---
+ sound/soc/msm/qdsp6v2/msm-dolby-common.h   | 3 ++-
+ sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c | 7 +++++++
+ 2 files changed, 9 insertions(+), 1 deletion(-)
+
+diff --git a/sound/soc/msm/qdsp6v2/msm-dolby-common.h b/sound/soc/msm/qdsp6v2/msm-dolby-common.h
+index aab6dc8..f14e42e 100644
+--- a/sound/soc/msm/qdsp6v2/msm-dolby-common.h
++++ b/sound/soc/msm/qdsp6v2/msm-dolby-common.h
+@@ -1,5 +1,5 @@
+ 
+-/* Copyright (c) 2013-2014, The Linux Foundation. All rights reserved.
++/* Copyright (c) 2013-2014, 2016 The Linux Foundation. All rights reserved.
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License version 2 and
+  * only version 2 as published by the Free Software Foundation.
+@@ -232,6 +232,7 @@
+ 
+ #define TOTAL_LENGTH_DOLBY_PARAM		745
+ #define DOLBY_VIS_PARAM_HEADER_SIZE		25
++#define DOLBY_PARAM_VCNB_MAX_LENGTH		40
+ 
+ #define DOLBY_INVALID_PORT_ID			-1
+ 
+diff --git a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+index 379062e..86290aa 100644
+--- a/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
++++ b/sound/soc/msm/qdsp6v2/msm-ds2-dap-config.c
+@@ -1635,6 +1635,13 @@ static int msm_ds2_dap_param_visualizer_control_get(u32 cmd, void *arg)
+ 	}
+ 
+ 	length = ds2_dap_params[cache_dev].params_val[DOLBY_PARAM_VCNB_OFFSET];
++
++	if (length > DOLBY_PARAM_VCNB_MAX_LENGTH || length <= 0) {
++		ret = 0;
++		dolby_data->length = 0;
++		pr_err("%s Incorrect VCNB length", __func__);
++	}
++
+ 	params_length = (2*length + DOLBY_VIS_PARAM_HEADER_SIZE) *
+ 							 sizeof(uint32_t);
+ 
+-- 
+cgit v1.1
+

@@ -1,0 +1,86 @@
+diff --git a/Documentation/networking/ip-sysctl.txt b/Documentation/networking/ip-sysctl.txt
+index 909d822..186f8cb 100644
+--- a/Documentation/networking/ip-sysctl.txt
++++ b/Documentation/networking/ip-sysctl.txt
+@@ -223,6 +223,14 @@
+ 	Path MTU discovery (MTU probing).  If MTU probing is enabled,
+ 	this is the initial MSS used by the connection.
+ 
++tcp_min_snd_mss - INTEGER
++	TCP SYN and SYNACK messages usually advertise an ADVMSS option,
++	as described in RFC 1122 and RFC 6691.
++	If this ADVMSS option is smaller than tcp_min_snd_mss,
++	it is silently capped to tcp_min_snd_mss.
++
++	Default : 48 (at least 8 bytes of payload per segment)
++
+ tcp_congestion_control - STRING
+ 	Set the congestion control algorithm to be used for new
+ 	connections. The algorithm "reno" is always available, but
+diff --git a/include/net/netns/ipv4.h b/include/net/netns/ipv4.h
+index 0ffef1a..2e1cd35 100644
+--- a/include/net/netns/ipv4.h
++++ b/include/net/netns/ipv4.h
+@@ -81,6 +81,7 @@
+ 
+ 	int sysctl_fwmark_reflect;
+ 	int sysctl_tcp_fwmark_accept;
++	int sysctl_tcp_min_snd_mss;
+ 
+ 	struct ping_group_range ping_group_range;
+ 
+diff --git a/net/ipv4/sysctl_net_ipv4.c b/net/ipv4/sysctl_net_ipv4.c
+index ea2a80d..0c15239 100644
+--- a/net/ipv4/sysctl_net_ipv4.c
++++ b/net/ipv4/sysctl_net_ipv4.c
+@@ -35,6 +35,8 @@
+ static int ip_local_port_range_max[] = { 65535, 65535 };
+ static int tcp_adv_win_scale_min = -31;
+ static int tcp_adv_win_scale_max = 31;
++static int tcp_min_snd_mss_min = TCP_MIN_SND_MSS;
++static int tcp_min_snd_mss_max = 65535;
+ static int ip_ttl_min = 1;
+ static int ip_ttl_max = 255;
+ static int tcp_syn_retries_min = 1;
+@@ -894,6 +896,15 @@
+ 		.proc_handler	= proc_dointvec,
+ 	},
+ 	{
++		.procname	= "tcp_min_snd_mss",
++		.data		= &init_net.ipv4.sysctl_tcp_min_snd_mss,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax,
++		.extra1		= &tcp_min_snd_mss_min,
++		.extra2		= &tcp_min_snd_mss_max,
++	},
++	{
+ 		.procname	= "tcp_fwmark_accept",
+ 		.data		= &init_net.ipv4.sysctl_tcp_fwmark_accept,
+ 		.maxlen		= sizeof(int),
+diff --git a/net/ipv4/tcp_ipv4.c b/net/ipv4/tcp_ipv4.c
+index 4995e0f..0472e2f 100644
+--- a/net/ipv4/tcp_ipv4.c
++++ b/net/ipv4/tcp_ipv4.c
+@@ -2464,6 +2464,7 @@
+ 		*per_cpu_ptr(net->ipv4.tcp_sk, cpu) = sk;
+ 	}
+ 	net->ipv4.sysctl_tcp_ecn = 2;
++	net->ipv4.sysctl_tcp_min_snd_mss = TCP_MIN_SND_MSS;
+ 	return 0;
+ 
+ fail:
+diff --git a/net/ipv4/tcp_output.c b/net/ipv4/tcp_output.c
+index 4acccf7..11a6dda 100644
+--- a/net/ipv4/tcp_output.c
++++ b/net/ipv4/tcp_output.c
+@@ -1323,8 +1323,7 @@
+ 	mss_now -= icsk->icsk_ext_hdr_len;
+ 
+ 	/* Then reserve room for full set of TCP options and 8 bytes of data */
+-	if (mss_now < TCP_MIN_SND_MSS)
+-		mss_now = TCP_MIN_SND_MSS;
++	mss_now = max(mss_now, sock_net(sk)->ipv4.sysctl_tcp_min_snd_mss);
+ 	return mss_now;
+ }
+ 

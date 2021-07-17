@@ -1,0 +1,96 @@
+From f9a1c372299fed53d4b72bb601f7f3bfe6f9999c Mon Sep 17 00:00:00 2001
+From: Takashi Iwai <tiwai@suse.de>
+Date: Mon, 6 Nov 2017 10:47:14 +0100
+Subject: [PATCH] ALSA: usx2y: Fix invalid stream URBs
+
+The us122l driver creates URBs per the fixed endpoints, and this may
+end up with URBs with inconsistent pipes when a fuzzer or a malicious
+program deals with the manipulated endpoints.  It ends up with a
+kernel warning like:
+
+  usb 1-1: BOGUS urb xfer, pipe 0 != type 3
+  ------------[ cut here ]------------
+  WARNING: CPU: 0 PID: 24 at drivers/usb/core/urb.c:471
+  usb_submit_urb+0x113e/0x1400
+  Call Trace:
+   usb_stream_start+0x48a/0x9f0 sound/usb/usx2y/usb_stream.c:690
+   us122l_start+0x116/0x290 sound/usb/usx2y/us122l.c:365
+   us122l_create_card sound/usb/usx2y/us122l.c:502
+   us122l_usb_probe sound/usb/usx2y/us122l.c:588
+   ....
+
+For avoiding the bad access, this patch adds a few sanity checks of
+the validity of created URBs like previous similar fixes using the new
+usb_urb_ep_type_check() helper function.
+
+Reported-by: Andrey Konovalov <andreyknvl@google.com>
+Tested-by: Andrey Konovalov <andreyknvl@google.com>
+Signed-off-by: Takashi Iwai <tiwai@suse.de>
+---
+ sound/usb/usx2y/usb_stream.c | 23 +++++++++++++++++------
+ 1 file changed, 17 insertions(+), 6 deletions(-)
+
+diff --git a/sound/usb/usx2y/usb_stream.c b/sound/usb/usx2y/usb_stream.c
+index e229abd216526..b0f8979ff2d2f 100644
+--- a/sound/usb/usx2y/usb_stream.c
++++ b/sound/usb/usx2y/usb_stream.c
+@@ -56,7 +56,7 @@ static void playback_prep_freqn(struct usb_stream_kernel *sk, struct urb *urb)
+ 		    lb, s->period_size);
+ }
+ 
+-static void init_pipe_urbs(struct usb_stream_kernel *sk, unsigned use_packsize,
++static int init_pipe_urbs(struct usb_stream_kernel *sk, unsigned use_packsize,
+ 			   struct urb **urbs, char *transfer,
+ 			   struct usb_device *dev, int pipe)
+ {
+@@ -77,6 +77,8 @@ static void init_pipe_urbs(struct usb_stream_kernel *sk, unsigned use_packsize,
+ 		urb->interval = 1;
+ 		if (usb_pipeout(pipe))
+ 			continue;
++		if (usb_urb_ep_type_check(urb))
++			return -EINVAL;
+ 
+ 		urb->transfer_buffer_length = transfer_length;
+ 		desc = urb->iso_frame_desc;
+@@ -87,9 +89,11 @@ static void init_pipe_urbs(struct usb_stream_kernel *sk, unsigned use_packsize,
+ 			desc[p].length = maxpacket;
+ 		}
+ 	}
++
++	return 0;
+ }
+ 
+-static void init_urbs(struct usb_stream_kernel *sk, unsigned use_packsize,
++static int init_urbs(struct usb_stream_kernel *sk, unsigned use_packsize,
+ 		      struct usb_device *dev, int in_pipe, int out_pipe)
+ {
+ 	struct usb_stream	*s = sk->s;
+@@ -103,9 +107,12 @@ static void init_urbs(struct usb_stream_kernel *sk, unsigned use_packsize,
+ 		sk->outurb[u] = usb_alloc_urb(sk->n_o_ps, GFP_KERNEL);
+ 	}
+ 
+-	init_pipe_urbs(sk, use_packsize, sk->inurb, indata, dev, in_pipe);
+-	init_pipe_urbs(sk, use_packsize, sk->outurb, sk->write_page, dev,
+-		       out_pipe);
++	if (init_pipe_urbs(sk, use_packsize, sk->inurb, indata, dev, in_pipe) ||
++	    init_pipe_urbs(sk, use_packsize, sk->outurb, sk->write_page, dev,
++			   out_pipe))
++		return -EINVAL;
++
++	return 0;
+ }
+ 
+ 
+@@ -226,7 +233,11 @@ struct usb_stream *usb_stream_new(struct usb_stream_kernel *sk,
+ 	else
+ 		sk->freqn = get_usb_high_speed_rate(sample_rate);
+ 
+-	init_urbs(sk, use_packsize, dev, in_pipe, out_pipe);
++	if (init_urbs(sk, use_packsize, dev, in_pipe, out_pipe) < 0) {
++		usb_stream_free(sk);
++		return NULL;
++	}
++
+ 	sk->s->state = usb_stream_stopped;
+ out:
+ 	return sk->s;

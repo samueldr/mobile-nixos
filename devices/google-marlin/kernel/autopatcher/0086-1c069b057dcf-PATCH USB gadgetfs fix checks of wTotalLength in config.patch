@@ -1,0 +1,65 @@
+From 1c069b057dcf64fada952eaa868d35f02bb0cfc2 Mon Sep 17 00:00:00 2001
+From: Alan Stern <stern@rowland.harvard.edu>
+Date: Fri, 9 Dec 2016 15:24:24 -0500
+Subject: [PATCH] USB: gadgetfs: fix checks of wTotalLength in config
+ descriptors
+
+Andrey Konovalov's fuzz testing of gadgetfs showed that we should
+improve the driver's checks for valid configuration descriptors passed
+in by the user.  In particular, the driver needs to verify that the
+wTotalLength value in the descriptor is not too short (smaller
+than USB_DT_CONFIG_SIZE).  And the check for whether wTotalLength is
+too large has to be changed, because the driver assumes there is
+always enough room remaining in the buffer to hold a device descriptor
+(at least USB_DT_DEVICE_SIZE bytes).
+
+This patch adds the additional check and fixes the existing check.  It
+may do a little more than strictly necessary, but one extra check
+won't hurt.
+
+Signed-off-by: Alan Stern <stern@rowland.harvard.edu>
+CC: Andrey Konovalov <andreyknvl@google.com>
+CC: <stable@vger.kernel.org>
+Signed-off-by: Felipe Balbi <felipe.balbi@linux.intel.com>
+---
+ drivers/usb/gadget/legacy/inode.c | 10 +++++++---
+ 1 file changed, 7 insertions(+), 3 deletions(-)
+
+diff --git a/drivers/usb/gadget/legacy/inode.c b/drivers/usb/gadget/legacy/inode.c
+index f1ca339426073..08e5ecc050795 100644
+--- a/drivers/usb/gadget/legacy/inode.c
++++ b/drivers/usb/gadget/legacy/inode.c
+@@ -1734,10 +1734,12 @@ static struct usb_gadget_driver gadgetfs_driver = {
+  * such as configuration notifications.
+  */
+ 
+-static int is_valid_config (struct usb_config_descriptor *config)
++static int is_valid_config(struct usb_config_descriptor *config,
++		unsigned int total)
+ {
+ 	return config->bDescriptorType == USB_DT_CONFIG
+ 		&& config->bLength == USB_DT_CONFIG_SIZE
++		&& total >= USB_DT_CONFIG_SIZE
+ 		&& config->bConfigurationValue != 0
+ 		&& (config->bmAttributes & USB_CONFIG_ATT_ONE) != 0
+ 		&& (config->bmAttributes & USB_CONFIG_ATT_WAKEUP) == 0;
+@@ -1787,7 +1789,8 @@ dev_config (struct file *fd, const char __user *buf, size_t len, loff_t *ptr)
+ 	/* full or low speed config */
+ 	dev->config = (void *) kbuf;
+ 	total = le16_to_cpu(dev->config->wTotalLength);
+-	if (!is_valid_config (dev->config) || total >= length)
++	if (!is_valid_config(dev->config, total) ||
++			total > length - USB_DT_DEVICE_SIZE)
+ 		goto fail;
+ 	kbuf += total;
+ 	length -= total;
+@@ -1796,7 +1799,8 @@ dev_config (struct file *fd, const char __user *buf, size_t len, loff_t *ptr)
+ 	if (kbuf [1] == USB_DT_CONFIG) {
+ 		dev->hs_config = (void *) kbuf;
+ 		total = le16_to_cpu(dev->hs_config->wTotalLength);
+-		if (!is_valid_config (dev->hs_config) || total >= length)
++		if (!is_valid_config(dev->hs_config, total) ||
++				total > length - USB_DT_DEVICE_SIZE)
+ 			goto fail;
+ 		kbuf += total;
+ 		length -= total;

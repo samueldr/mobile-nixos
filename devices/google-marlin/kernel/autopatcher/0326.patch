@@ -1,0 +1,16 @@
+diff --git a/fs/romfs/storage.c b/fs/romfs/storage.c
+index f86f51f..1dcadd2 100644
+--- a/fs/romfs/storage.c
++++ b/fs/romfs/storage.c
+@@ -221,10 +221,8 @@
+ 	size_t limit;
+ 
+ 	limit = romfs_maxsize(sb);
+-	if (pos >= limit)
++	if (pos >= limit || buflen > limit - pos)
+ 		return -EIO;
+-	if (buflen > limit - pos)
+-		buflen = limit - pos;
+ 
+ #ifdef CONFIG_ROMFS_ON_MTD
+ 	if (sb->s_mtd)

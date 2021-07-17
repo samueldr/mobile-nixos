@@ -1,0 +1,34 @@
+diff --git a/fs/ext4/namei.c b/fs/ext4/namei.c
+index 8389aeb..f1c9a8a 100644
+--- a/fs/ext4/namei.c
++++ b/fs/ext4/namei.c
+@@ -1719,7 +1719,7 @@
+ 			     blocksize, hinfo, map);
+ 	map -= count;
+ 	dx_sort_map(map, count);
+-	/* Split the existing block in the middle, size-wise */
++	/* Ensure that neither split block is over half full */
+ 	size = 0;
+ 	move = 0;
+ 	for (i = count-1; i >= 0; i--) {
+@@ -1729,8 +1729,18 @@
+ 		size += map[i].size;
+ 		move++;
+ 	}
+-	/* map index at which we will split */
+-	split = count - move;
++	/*
++	 * map index at which we will split
++	 *
++	 * If the sum of active entries didn't exceed half the block size, just
++	 * split it in half by count; each resulting block will have at least
++	 * half the space free.
++	 */
++	if (i > 0)
++		split = count - move;
++	else
++		split = count/2;
++
+ 	hash2 = map[split].hash;
+ 	continued = hash2 == map[split - 1].hash;
+ 	dxtrace(printk(KERN_INFO "Split block %lu at %x, %i/%i\n",

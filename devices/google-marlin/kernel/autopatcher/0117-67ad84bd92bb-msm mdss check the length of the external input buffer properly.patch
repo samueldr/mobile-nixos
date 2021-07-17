@@ -1,0 +1,32 @@
+From 67ad84bd92bb10a655624ebe99d31ae44c06db5a Mon Sep 17 00:00:00 2001
+From: Ashish Garg <ashigarg@codeaurora.org>
+Date: Thu, 14 Sep 2017 13:13:16 +0530
+Subject: msm: mdss: check the length of the external input buffer properly
+
+dchdr->dlen is a short variable controlled by the user-provided data
+(a string). If the value is negative, the condition does not pass
+and loop continues, also increasing the value of "len". As a result
+buffer overflow and overwrite occurs.
+
+Change-Id: I5eacec446c9a8b5b82fc3bc6d1281303f336d4de
+Signed-off-by: Ashish Garg <ashigarg@codeaurora.org>
+---
+ drivers/video/msm/mdss/mdss_dsi.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/msm/mdss/mdss_dsi.c b/drivers/video/msm/mdss/mdss_dsi.c
+index d4768ece..e206a32 100644
+--- a/drivers/video/msm/mdss/mdss_dsi.c
++++ b/drivers/video/msm/mdss/mdss_dsi.c
+@@ -953,7 +953,7 @@ static int mdss_dsi_cmd_flush(struct file *file, fl_owner_t id)
+ 	while (len >= sizeof(*dchdr)) {
+ 		dchdr = (struct dsi_ctrl_hdr *)bp;
+ 		dchdr->dlen = ntohs(dchdr->dlen);
+-		if (dchdr->dlen > len) {
++		if (dchdr->dlen > len || dchdr->dlen < 0) {
+ 			pr_err("%s: dtsi cmd=%x error, len=%d\n",
+ 				__func__, dchdr->dtype, dchdr->dlen);
+ 			kfree(buf);
+-- 
+cgit v1.1
+

@@ -1,0 +1,47 @@
+From 79856f1b189faf189f8cf43e7222fc0b5138563e Mon Sep 17 00:00:00 2001
+From: Udipto Goswami <ugoswami@codeaurora.org>
+Date: Wed, 16 Sep 2020 17:20:10 +0530
+Subject: usb: dwc3: ep0: Return from handle_status if ep0_delegate_req
+ succeeds
+
+Currently if the controller receives a standard interface request
+like 0x81 it goes to ep0_inspect_setup where on the basis of
+bRequestType it calls ep0_std_request which calls handle_status.
+
+Since it is an interface request, it will further call
+delegate_request which is handles in composite_setup and calls
+ep0_queue. However, in the implementation of handle_status we have
+an if check for return value of delegate request. If it returns
+zero then instead of bailing out from there we break from the switch
+and go to the return statement of handle_status, which is ep0_queue.
+This results in queuing the same request two times resulting in a
+list corruption due to double add.
+
+Fix this by returning from handle_status irrespective of the
+return status as in case ep0_queue fails we are suppose to
+bail out without doing anything.
+
+Change-Id: Ibfc99e9112b1173f2a22007a5e18b458904cefca
+Signed-off-by: Udipto Goswami <ugoswami@codeaurora.org>
+---
+ drivers/usb/dwc3/ep0.c | 4 +---
+ 1 file changed, 1 insertion(+), 3 deletions(-)
+
+diff --git a/drivers/usb/dwc3/ep0.c b/drivers/usb/dwc3/ep0.c
+index 68db8096..94abfc3 100644
+--- a/drivers/usb/dwc3/ep0.c
++++ b/drivers/usb/dwc3/ep0.c
+@@ -400,9 +400,7 @@ static int dwc3_ep0_handle_status(struct dwc3 *dwc,
+ 		 */
+ 
+ 		ret = dwc3_ep0_delegate_req(dwc, ctrl);
+-		if (ret)
+-			return ret;
+-		break;
++		return ret;
+ 
+ 	case USB_RECIP_ENDPOINT:
+ 		dep = dwc3_wIndex_to_dep(dwc, ctrl->wIndex);
+-- 
+cgit v1.1
+

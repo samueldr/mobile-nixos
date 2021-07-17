@@ -1,0 +1,103 @@
+diff --git a/drivers/block/xen-blkback/blkback.c b/drivers/block/xen-blkback/blkback.c
+index 4eeae8a..6686af3 100644
+--- a/drivers/block/xen-blkback/blkback.c
++++ b/drivers/block/xen-blkback/blkback.c
+@@ -1350,33 +1350,34 @@
+ static void make_response(struct xen_blkif *blkif, u64 id,
+ 			  unsigned short op, int st)
+ {
+-	struct blkif_response  resp;
++	struct blkif_response *resp;
+ 	unsigned long     flags;
+ 	union blkif_back_rings *blk_rings = &blkif->blk_rings;
+ 	int notify;
+ 
+-	resp.id        = id;
+-	resp.operation = op;
+-	resp.status    = st;
+-
+ 	spin_lock_irqsave(&blkif->blk_ring_lock, flags);
+ 	/* Place on the response ring for the relevant domain. */
+ 	switch (blkif->blk_protocol) {
+ 	case BLKIF_PROTOCOL_NATIVE:
+-		memcpy(RING_GET_RESPONSE(&blk_rings->native, blk_rings->native.rsp_prod_pvt),
+-		       &resp, sizeof(resp));
++		resp = RING_GET_RESPONSE(&blk_rings->native,
++					 blk_rings->native.rsp_prod_pvt);
+ 		break;
+ 	case BLKIF_PROTOCOL_X86_32:
+-		memcpy(RING_GET_RESPONSE(&blk_rings->x86_32, blk_rings->x86_32.rsp_prod_pvt),
+-		       &resp, sizeof(resp));
++		resp = RING_GET_RESPONSE(&blk_rings->x86_32,
++					 blk_rings->x86_32.rsp_prod_pvt);
+ 		break;
+ 	case BLKIF_PROTOCOL_X86_64:
+-		memcpy(RING_GET_RESPONSE(&blk_rings->x86_64, blk_rings->x86_64.rsp_prod_pvt),
+-		       &resp, sizeof(resp));
++		resp = RING_GET_RESPONSE(&blk_rings->x86_64,
++					 blk_rings->x86_64.rsp_prod_pvt);
+ 		break;
+ 	default:
+ 		BUG();
+ 	}
++
++	resp->id        = id;
++	resp->operation = op;
++	resp->status    = st;
++
+ 	blk_rings->common.rsp_prod_pvt++;
+ 	RING_PUSH_RESPONSES_AND_CHECK_NOTIFY(&blk_rings->common, notify);
+ 	spin_unlock_irqrestore(&blkif->blk_ring_lock, flags);
+diff --git a/drivers/block/xen-blkback/common.h b/drivers/block/xen-blkback/common.h
+index f65b807..adbae27 100644
+--- a/drivers/block/xen-blkback/common.h
++++ b/drivers/block/xen-blkback/common.h
+@@ -70,9 +70,8 @@
+ struct blkif_common_request {
+ 	char dummy;
+ };
+-struct blkif_common_response {
+-	char dummy;
+-};
++
++/* i386 protocol version */
+ 
+ struct blkif_x86_32_request_rw {
+ 	uint8_t        nr_segments;  /* number of segments                   */
+@@ -124,14 +123,6 @@
+ 	} u;
+ } __attribute__((__packed__));
+ 
+-/* i386 protocol version */
+-#pragma pack(push, 4)
+-struct blkif_x86_32_response {
+-	uint64_t        id;              /* copied from request */
+-	uint8_t         operation;       /* copied from request */
+-	int16_t         status;          /* BLKIF_RSP_???       */
+-};
+-#pragma pack(pop)
+ /* x86_64 protocol version */
+ 
+ struct blkif_x86_64_request_rw {
+@@ -188,18 +179,12 @@
+ 	} u;
+ } __attribute__((__packed__));
+ 
+-struct blkif_x86_64_response {
+-	uint64_t       __attribute__((__aligned__(8))) id;
+-	uint8_t         operation;       /* copied from request */
+-	int16_t         status;          /* BLKIF_RSP_???       */
+-};
+-
+ DEFINE_RING_TYPES(blkif_common, struct blkif_common_request,
+-		  struct blkif_common_response);
++		  struct blkif_response);
+ DEFINE_RING_TYPES(blkif_x86_32, struct blkif_x86_32_request,
+-		  struct blkif_x86_32_response);
++		  struct blkif_response __packed);
+ DEFINE_RING_TYPES(blkif_x86_64, struct blkif_x86_64_request,
+-		  struct blkif_x86_64_response);
++		  struct blkif_response);
+ 
+ union blkif_back_rings {
+ 	struct blkif_back_ring        native;

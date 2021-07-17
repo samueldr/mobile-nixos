@@ -1,0 +1,13 @@
+diff --git a/fs/jfs/jfs_dmap.h b/fs/jfs/jfs_dmap.h
+index 562b9a7e..f502a15 100644
+--- a/fs/jfs/jfs_dmap.h
++++ b/fs/jfs/jfs_dmap.h
+@@ -196,7 +196,7 @@
+ #define	dmt_leafidx	t1.leafidx
+ #define	dmt_height	t1.height
+ #define	dmt_budmin	t1.budmin
+-#define	dmt_stree	t1.stree
++#define	dmt_stree	t2.stree
+ 
+ /*
+  *	on-disk aggregate disk allocation map descriptor.

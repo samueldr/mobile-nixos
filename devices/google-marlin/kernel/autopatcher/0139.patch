@@ -1,0 +1,18 @@
+diff --git a/sound/usb/card.c b/sound/usb/card.c
+index f7dbdc1..59fb1ef 100644
+--- a/sound/usb/card.c
++++ b/sound/usb/card.c
+@@ -593,9 +593,12 @@
+ 
+  __error:
+ 	if (chip) {
++		/* chip->probing is inside the chip->card object,
++		 * reset before memory is possibly returned.
++		 */
++		chip->probing = 0;
+ 		if (!chip->num_interfaces)
+ 			snd_card_free(chip->card);
+-		chip->probing = 0;
+ 	}
+ 	mutex_unlock(&register_mutex);
+  __err_val:

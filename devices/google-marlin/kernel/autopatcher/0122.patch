@@ -1,0 +1,14 @@
+diff --git a/kernel/bpf/verifier.c b/kernel/bpf/verifier.c
+index 4470b9f..0ea7de2 100644
+--- a/kernel/bpf/verifier.c
++++ b/kernel/bpf/verifier.c
+@@ -996,7 +996,8 @@
+ 				regs[insn->dst_reg].type = UNKNOWN_VALUE;
+ 				regs[insn->dst_reg].map_ptr = NULL;
+ 			}
+-		} else {
++		} else if (BPF_CLASS(insn->code) == BPF_ALU64 ||
++			   insn->imm >= 0) {
+ 			/* case: R = imm
+ 			 * remember the value we stored into this reg
+ 			 */

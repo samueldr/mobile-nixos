@@ -1,0 +1,63 @@
+From edc4746f253d907d048de680a621e121517f484b Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan@kernel.org>
+Date: Wed, 9 Oct 2019 12:48:41 +0200
+Subject: USB: iowarrior: fix use-after-free on disconnect
+
+A recent fix addressing a deadlock on disconnect introduced a new bug
+by moving the present flag out of the critical section protected by the
+driver-data mutex. This could lead to a racing release() freeing the
+driver data before disconnect() is done with it.
+
+Due to insufficient locking a related use-after-free could be triggered
+also before the above mentioned commit. Specifically, the driver needs
+to hold the driver-data mutex also while checking the opened flag at
+disconnect().
+
+Fixes: c468a8aa790e ("usb: iowarrior: fix deadlock on disconnect")
+Fixes: 946b960d13c1 ("USB: add driver for iowarrior devices.")
+Cc: stable <stable@vger.kernel.org>	# 2.6.21
+Reported-by: syzbot+0761012cebf7bdb38137@syzkaller.appspotmail.com
+Signed-off-by: Johan Hovold <johan@kernel.org>
+Link: https://lore.kernel.org/r/20191009104846.5925-2-johan@kernel.org
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/misc/iowarrior.c | 7 +++----
+ 1 file changed, 3 insertions(+), 4 deletions(-)
+
+diff --git a/drivers/usb/misc/iowarrior.c b/drivers/usb/misc/iowarrior.c
+index f5bed9f29e562..4fe1d3267b3cf 100644
+--- a/drivers/usb/misc/iowarrior.c
++++ b/drivers/usb/misc/iowarrior.c
+@@ -866,8 +866,6 @@ static void iowarrior_disconnect(struct usb_interface *interface)
+ 	dev = usb_get_intfdata(interface);
+ 	mutex_lock(&iowarrior_open_disc_lock);
+ 	usb_set_intfdata(interface, NULL);
+-	/* prevent device read, write and ioctl */
+-	dev->present = 0;
+ 
+ 	minor = dev->minor;
+ 	mutex_unlock(&iowarrior_open_disc_lock);
+@@ -878,8 +876,7 @@ static void iowarrior_disconnect(struct usb_interface *interface)
+ 	mutex_lock(&dev->mutex);
+ 
+ 	/* prevent device read, write and ioctl */
+-
+-	mutex_unlock(&dev->mutex);
++	dev->present = 0;
+ 
+ 	if (dev->opened) {
+ 		/* There is a process that holds a filedescriptor to the device ,
+@@ -889,8 +886,10 @@ static void iowarrior_disconnect(struct usb_interface *interface)
+ 		usb_kill_urb(dev->int_in_urb);
+ 		wake_up_interruptible(&dev->read_wait);
+ 		wake_up_interruptible(&dev->write_wait);
++		mutex_unlock(&dev->mutex);
+ 	} else {
+ 		/* no process is using the device, cleanup now */
++		mutex_unlock(&dev->mutex);
+ 		iowarrior_delete(dev);
+ 	}
+ 
+-- 
+cgit 1.2.3-1.el7
+

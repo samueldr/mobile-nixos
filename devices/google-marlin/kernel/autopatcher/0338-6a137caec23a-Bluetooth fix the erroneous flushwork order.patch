@@ -1,0 +1,54 @@
+From 6a137caec23aeb9e036cdfd8a46dd8a366460e5d Mon Sep 17 00:00:00 2001
+From: Lin Ma <linma@zju.edu.cn>
+Date: Tue, 25 May 2021 14:39:02 +0200
+Subject: Bluetooth: fix the erroneous flush_work() order
+
+In the cleanup routine for failed initialization of HCI device,
+the flush_work(&hdev->rx_work) need to be finished before the
+flush_work(&hdev->cmd_work). Otherwise, the hci_rx_work() can
+possibly invoke new cmd_work and cause a bug, like double free,
+in late processings.
+
+This was assigned CVE-2021-3564.
+
+This patch reorder the flush_work() to fix this bug.
+
+Cc: Marcel Holtmann <marcel@holtmann.org>
+Cc: Johan Hedberg <johan.hedberg@gmail.com>
+Cc: Luiz Augusto von Dentz <luiz.dentz@gmail.com>
+Cc: "David S. Miller" <davem@davemloft.net>
+Cc: Jakub Kicinski <kuba@kernel.org>
+Cc: linux-bluetooth@vger.kernel.org
+Cc: netdev@vger.kernel.org
+Cc: linux-kernel@vger.kernel.org
+Signed-off-by: Lin Ma <linma@zju.edu.cn>
+Signed-off-by: Hao Xiong <mart1n@zju.edu.cn>
+Cc: stable <stable@vger.kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Marcel Holtmann <marcel@holtmann.org>
+---
+ net/bluetooth/hci_core.c | 7 ++++++-
+ 1 file changed, 6 insertions(+), 1 deletion(-)
+
+diff --git a/net/bluetooth/hci_core.c b/net/bluetooth/hci_core.c
+index fd12f1652bdf4..7d71d104fdfda 100644
+--- a/net/bluetooth/hci_core.c
++++ b/net/bluetooth/hci_core.c
+@@ -1610,8 +1610,13 @@ setup_failed:
+ 	} else {
+ 		/* Init failed, cleanup */
+ 		flush_work(&hdev->tx_work);
+-		flush_work(&hdev->cmd_work);
++
++		/* Since hci_rx_work() is possible to awake new cmd_work
++		 * it should be flushed first to avoid unexpected call of
++		 * hci_cmd_work()
++		 */
+ 		flush_work(&hdev->rx_work);
++		flush_work(&hdev->cmd_work);
+ 
+ 		skb_queue_purge(&hdev->cmd_q);
+ 		skb_queue_purge(&hdev->rx_q);
+-- 
+cgit 1.2.3-1.el7
+

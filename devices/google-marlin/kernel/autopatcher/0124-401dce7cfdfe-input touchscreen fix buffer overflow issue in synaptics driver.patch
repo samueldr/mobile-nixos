@@ -1,0 +1,36 @@
+From 401dce7cfdfea999a5209e52371beca9423452b7 Mon Sep 17 00:00:00 2001
+From: Shantanu Jain <shjain@codeaurora.org>
+Date: Mon, 6 Mar 2017 19:14:09 +0530
+Subject: input: touchscreen: fix buffer overflow issue in synaptics driver
+
+Fix buffer overflow issue in synaptics touch driver while copying
+the contents of "strptr" into "firmware_id". This code change is
+meant to fix the same.
+
+Change-Id: I8ea96af558eff540a37fb8e7da730c74502622aa
+Signed-off-by: Shantanu Jain <shjain@codeaurora.org>
+---
+ drivers/input/touchscreen/synaptics_dsx_2.6/synaptics_dsx_fw_update.c | 4 +++-
+ 1 file changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/input/touchscreen/synaptics_dsx_2.6/synaptics_dsx_fw_update.c b/drivers/input/touchscreen/synaptics_dsx_2.6/synaptics_dsx_fw_update.c
+index 52bd5cf..168318f 100644
+--- a/drivers/input/touchscreen/synaptics_dsx_2.6/synaptics_dsx_fw_update.c
++++ b/drivers/input/touchscreen/synaptics_dsx_2.6/synaptics_dsx_fw_update.c
+@@ -2218,10 +2218,12 @@ static int fwu_get_image_firmware_id(unsigned int *fw_id)
+ 					__func__);
+ 			return -ENOMEM;
+ 		}
+-		while (strptr[index] >= '0' && strptr[index] <= '9') {
++		while ((index < MAX_FIRMWARE_ID_LEN - 1) && strptr[index] >= '0'
++						&& strptr[index] <= '9') {
+ 			firmware_id[index] = strptr[index];
+ 			index++;
+ 		}
++		firmware_id[index] = '\0';
+ 
+ 		retval = sstrtoul(firmware_id, 10, (unsigned long *)fw_id);
+ 		kfree(firmware_id);
+-- 
+cgit v1.1
+

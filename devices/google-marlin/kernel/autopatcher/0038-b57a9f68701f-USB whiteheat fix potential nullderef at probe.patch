@@ -1,0 +1,85 @@
+From b57a9f68701f9587e1b1792232db55615353c314 Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan@kernel.org>
+Date: Wed, 23 Sep 2015 11:41:42 -0700
+Subject: USB: whiteheat: fix potential null-deref at probe
+
+[ Upstream commit cbb4be652d374f64661137756b8f357a1827d6a4 ]
+
+Fix potential null-pointer dereference at probe by making sure that the
+required endpoints are present.
+
+The whiteheat driver assumes there are at least five pairs of bulk
+endpoints, of which the final pair is used for the "command port". An
+attempt to bind to an interface with fewer bulk endpoints would
+currently lead to an oops.
+
+Fixes CVE-2015-5257.
+
+Reported-by: Moein Ghasemzadeh <moein@istuary.com>
+Cc: stable <stable@vger.kernel.org>
+Signed-off-by: Johan Hovold <johan@kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Sasha Levin <sasha.levin@oracle.com>
+---
+ drivers/usb/serial/whiteheat.c | 31 +++++++++++++++++++++++++++++++
+ 1 file changed, 31 insertions(+)
+
+diff --git a/drivers/usb/serial/whiteheat.c b/drivers/usb/serial/whiteheat.c
+index 6c3734d2b45a7..d3ea90bef84d9 100644
+--- a/drivers/usb/serial/whiteheat.c
++++ b/drivers/usb/serial/whiteheat.c
+@@ -80,6 +80,8 @@ static int  whiteheat_firmware_download(struct usb_serial *serial,
+ static int  whiteheat_firmware_attach(struct usb_serial *serial);
+ 
+ /* function prototypes for the Connect Tech WhiteHEAT serial converter */
++static int whiteheat_probe(struct usb_serial *serial,
++				const struct usb_device_id *id);
+ static int  whiteheat_attach(struct usb_serial *serial);
+ static void whiteheat_release(struct usb_serial *serial);
+ static int  whiteheat_port_probe(struct usb_serial_port *port);
+@@ -116,6 +118,7 @@ static struct usb_serial_driver whiteheat_device = {
+ 	.description =		"Connect Tech - WhiteHEAT",
+ 	.id_table =		id_table_std,
+ 	.num_ports =		4,
++	.probe =		whiteheat_probe,
+ 	.attach =		whiteheat_attach,
+ 	.release =		whiteheat_release,
+ 	.port_probe =		whiteheat_port_probe,
+@@ -217,6 +220,34 @@ static int whiteheat_firmware_attach(struct usb_serial *serial)
+ /*****************************************************************************
+  * Connect Tech's White Heat serial driver functions
+  *****************************************************************************/
++
++static int whiteheat_probe(struct usb_serial *serial,
++				const struct usb_device_id *id)
++{
++	struct usb_host_interface *iface_desc;
++	struct usb_endpoint_descriptor *endpoint;
++	size_t num_bulk_in = 0;
++	size_t num_bulk_out = 0;
++	size_t min_num_bulk;
++	unsigned int i;
++
++	iface_desc = serial->interface->cur_altsetting;
++
++	for (i = 0; i < iface_desc->desc.bNumEndpoints; i++) {
++		endpoint = &iface_desc->endpoint[i].desc;
++		if (usb_endpoint_is_bulk_in(endpoint))
++			++num_bulk_in;
++		if (usb_endpoint_is_bulk_out(endpoint))
++			++num_bulk_out;
++	}
++
++	min_num_bulk = COMMAND_PORT + 1;
++	if (num_bulk_in < min_num_bulk || num_bulk_out < min_num_bulk)
++		return -ENODEV;
++
++	return 0;
++}
++
+ static int whiteheat_attach(struct usb_serial *serial)
+ {
+ 	struct usb_serial_port *command_port;
+-- 
+cgit 1.2.3-1.el7
+

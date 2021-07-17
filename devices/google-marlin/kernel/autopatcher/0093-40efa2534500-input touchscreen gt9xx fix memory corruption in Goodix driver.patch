@@ -1,0 +1,51 @@
+From 40efa25345003a96db34effbd23ed39530b3ac10 Mon Sep 17 00:00:00 2001
+From: Vevek Venkatesan <vevekv@codeaurora.org>
+Date: Mon, 23 Jan 2017 18:04:53 +0530
+Subject: input: touchscreen: gt9xx: fix memory corruption in Goodix driver
+
+Fix memory corruption in Goodix touchscreen driver, by resetting
+the global structure cmd_head to zero (except *data and wr flag)
+in goodix_tool_write handler on error case.
+
+Change-Id: I4f7f8f464b93571627b922b10c10a65826228e42
+Signed-off-by: Vevek Venkatesan <vevekv@codeaurora.org>
+---
+ drivers/input/touchscreen/gt9xx/goodix_tool.c | 8 +++++++-
+ 1 file changed, 7 insertions(+), 1 deletion(-)
+
+diff --git a/drivers/input/touchscreen/gt9xx/goodix_tool.c b/drivers/input/touchscreen/gt9xx/goodix_tool.c
+index 762efc9..7ca154a 100644
+--- a/drivers/input/touchscreen/gt9xx/goodix_tool.c
++++ b/drivers/input/touchscreen/gt9xx/goodix_tool.c
+@@ -1,7 +1,7 @@
+ /* drivers/input/touchscreen/goodix_tool.c
+  *
+  * 2010 - 2012 Goodix Technology.
+- * Copyright (c) 2013-2016, The Linux Foundation. All rights reserved.
++ * Copyright (c) 2013-2017, The Linux Foundation. All rights reserved.
+  *
+  * This program is free software; you can redistribute it and/or modify
+  * it under the terms of the GNU General Public License as published by
+@@ -309,6 +309,7 @@ static ssize_t goodix_tool_write(struct file *filp, const char __user *userbuf,
+ 						size_t count, loff_t *ppos)
+ {
+ 	s32 ret = 0;
++	u8 *dataptr = NULL;
+ 
+ 	mutex_lock(&lock);
+ 	ret = copy_from_user(&cmd_head, userbuf, CMD_HEAD_LENGTH);
+@@ -468,6 +469,11 @@ static ssize_t goodix_tool_write(struct file *filp, const char __user *userbuf,
+ 	ret = CMD_HEAD_LENGTH;
+ 
+ exit:
++	dataptr = cmd_head.data;
++	memset(&cmd_head, 0, sizeof(cmd_head));
++	cmd_head.wr = 0xFF;
++	cmd_head.data = dataptr;
++
+ 	mutex_unlock(&lock);
+ 	return ret;
+ }
+-- 
+cgit v1.1
+

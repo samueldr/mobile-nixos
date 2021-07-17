@@ -1,0 +1,376 @@
+diff --git a/include/linux/font.h b/include/linux/font.h
+index 0a3639a..f85e70b 100644
+--- a/include/linux/font.h
++++ b/include/linux/font.h
+@@ -65,4 +65,9 @@
+ 
+ #define FONT_EXTRA_WORDS 4
+ 
++struct font_data {
++	unsigned int extra[FONT_EXTRA_WORDS];
++	const unsigned char data[];
++} __packed;
++
+ #endif /* _VIDEO_FONT_H */
+diff --git a/lib/fonts/font_10x18.c b/lib/fonts/font_10x18.c
+index 6be72bb..87e904f 100644
+--- a/lib/fonts/font_10x18.c
++++ b/lib/fonts/font_10x18.c
+@@ -7,8 +7,8 @@
+ 
+ #define FONTDATAMAX 9216
+ 
+-static const unsigned char fontdata_10x18[FONTDATAMAX] = {
+-
++static struct font_data fontdata_10x18 = {
++	{ 0, 0, FONTDATAMAX, 0 }, {
+ 	/* 0 0x00 '^@' */
+ 	0x00, 0x00, /* 0000000000 */
+ 	0x00, 0x00, /* 0000000000 */
+@@ -5128,8 +5128,7 @@
+ 	0x00, 0x00, /* 0000000000 */
+ 	0x00, 0x00, /* 0000000000 */
+ 	0x00, 0x00, /* 0000000000 */
+-
+-};
++} };
+ 
+ 
+ const struct font_desc font_10x18 = {
+@@ -5137,7 +5136,7 @@
+ 	.name	= "10x18",
+ 	.width	= 10,
+ 	.height	= 18,
+-	.data	= fontdata_10x18,
++	.data	= fontdata_10x18.data,
+ #ifdef __sparc__
+ 	.pref	= 5,
+ #else
+diff --git a/lib/fonts/font_6x10.c b/lib/fonts/font_6x10.c
+index b206209..896ffa9 100644
+--- a/lib/fonts/font_6x10.c
++++ b/lib/fonts/font_6x10.c
+@@ -1,7 +1,9 @@
+ #include <linux/font.h>
+ 
+-static const unsigned char fontdata_6x10[] = {
++#define FONTDATAMAX 2560
+ 
++static struct font_data fontdata_6x10 = {
++	{ 0, 0, FONTDATAMAX, 0 }, {
+ 	/* 0 0x00 '^@' */
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+@@ -3073,14 +3075,13 @@
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+-
+-};
++} };
+ 
+ const struct font_desc font_6x10 = {
+ 	.idx	= FONT6x10_IDX,
+ 	.name	= "6x10",
+ 	.width	= 6,
+ 	.height	= 10,
+-	.data	= fontdata_6x10,
++	.data	= fontdata_6x10.data,
+ 	.pref	= 0,
+ };
+diff --git a/lib/fonts/font_6x11.c b/lib/fonts/font_6x11.c
+index 46e86e6..eb46a59 100644
+--- a/lib/fonts/font_6x11.c
++++ b/lib/fonts/font_6x11.c
+@@ -8,8 +8,8 @@
+ 
+ #define FONTDATAMAX (11*256)
+ 
+-static const unsigned char fontdata_6x11[FONTDATAMAX] = {
+-
++static struct font_data fontdata_6x11 = {
++	{ 0, 0, FONTDATAMAX, 0 }, {
+ 	/* 0 0x00 '^@' */
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+@@ -3337,8 +3337,7 @@
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+-
+-};
++} };
+ 
+ 
+ const struct font_desc font_vga_6x11 = {
+@@ -3346,7 +3345,7 @@
+ 	.name	= "ProFont6x11",
+ 	.width	= 6,
+ 	.height	= 11,
+-	.data	= fontdata_6x11,
++	.data	= fontdata_6x11.data,
+ 	/* Try avoiding this font if possible unless on MAC */
+ 	.pref	= -2000,
+ };
+diff --git a/lib/fonts/font_7x14.c b/lib/fonts/font_7x14.c
+index 3b7dbf9..c88b3bb 100644
+--- a/lib/fonts/font_7x14.c
++++ b/lib/fonts/font_7x14.c
+@@ -7,8 +7,8 @@
+ 
+ #define FONTDATAMAX 3584
+ 
+-static const unsigned char fontdata_7x14[FONTDATAMAX] = {
+-
++static struct font_data fontdata_7x14 = {
++	{ 0, 0, FONTDATAMAX, 0 }, {
+ 	/* 0 0x00 '^@' */
+ 	0x00, /* 0000000 */
+ 	0x00, /* 0000000 */
+@@ -4104,8 +4104,7 @@
+ 	0x00, /* 0000000 */
+ 	0x00, /* 0000000 */
+ 	0x00, /* 0000000 */
+-
+-};
++} };
+ 
+ 
+ const struct font_desc font_7x14 = {
+@@ -4113,6 +4112,6 @@
+ 	.name	= "7x14",
+ 	.width	= 7,
+ 	.height	= 14,
+-	.data	= fontdata_7x14,
++	.data	= fontdata_7x14.data,
+ 	.pref	= 0,
+ };
+diff --git a/lib/fonts/font_8x16.c b/lib/fonts/font_8x16.c
+index 00a0c67..ba53e26 100644
+--- a/lib/fonts/font_8x16.c
++++ b/lib/fonts/font_8x16.c
+@@ -9,8 +9,8 @@
+ 
+ #define FONTDATAMAX 4096
+ 
+-static const unsigned char fontdata_8x16[FONTDATAMAX] = {
+-
++static struct font_data fontdata_8x16 = {
++	{ 0, 0, FONTDATAMAX, 0 }, {
+ 	/* 0 0x00 '^@' */
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+@@ -4618,8 +4618,7 @@
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+-
+-};
++} };
+ 
+ 
+ const struct font_desc font_vga_8x16 = {
+@@ -4627,7 +4626,7 @@
+ 	.name	= "VGA8x16",
+ 	.width	= 8,
+ 	.height	= 16,
+-	.data	= fontdata_8x16,
++	.data	= fontdata_8x16.data,
+ 	.pref	= 0,
+ };
+ EXPORT_SYMBOL(font_vga_8x16);
+diff --git a/lib/fonts/font_8x8.c b/lib/fonts/font_8x8.c
+index 9f56efe..4d28b81 100644
+--- a/lib/fonts/font_8x8.c
++++ b/lib/fonts/font_8x8.c
+@@ -8,8 +8,8 @@
+ 
+ #define FONTDATAMAX 2048
+ 
+-static const unsigned char fontdata_8x8[FONTDATAMAX] = {
+-
++static struct font_data fontdata_8x8 = {
++	{ 0, 0, FONTDATAMAX, 0 }, {
+ 	/* 0 0x00 '^@' */
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+@@ -2569,8 +2569,7 @@
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+ 	0x00, /* 00000000 */
+-
+-};
++} };
+ 
+ 
+ const struct font_desc font_vga_8x8 = {
+@@ -2578,6 +2577,6 @@
+ 	.name	= "VGA8x8",
+ 	.width	= 8,
+ 	.height	= 8,
+-	.data	= fontdata_8x8,
++	.data	= fontdata_8x8.data,
+ 	.pref	= 0,
+ };
+diff --git a/lib/fonts/font_acorn_8x8.c b/lib/fonts/font_acorn_8x8.c
+index 639e31a..957398b 100644
+--- a/lib/fonts/font_acorn_8x8.c
++++ b/lib/fonts/font_acorn_8x8.c
+@@ -2,7 +2,10 @@
+ 
+ #include <linux/font.h>
+ 
+-static const unsigned char acorndata_8x8[] = {
++#define FONTDATAMAX 2048
++
++static struct font_data acorndata_8x8 = {
++{ 0, 0, FONTDATAMAX, 0 }, {
+ /* 00 */  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, /* ^@ */
+ /* 01 */  0x7e, 0x81, 0xa5, 0x81, 0xbd, 0x99, 0x81, 0x7e, /* ^A */
+ /* 02 */  0x7e, 0xff, 0xbd, 0xff, 0xc3, 0xe7, 0xff, 0x7e, /* ^B */
+@@ -259,14 +262,14 @@
+ /* FD */  0x38, 0x04, 0x18, 0x20, 0x3c, 0x00, 0x00, 0x00,
+ /* FE */  0x00, 0x00, 0x3c, 0x3c, 0x3c, 0x3c, 0x00, 0x00,
+ /* FF */  0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00
+-};
++} };
+ 
+ const struct font_desc font_acorn_8x8 = {
+ 	.idx	= ACORN8x8_IDX,
+ 	.name	= "Acorn8x8",
+ 	.width	= 8,
+ 	.height	= 8,
+-	.data	= acorndata_8x8,
++	.data	= acorndata_8x8.data,
+ #ifdef CONFIG_ARCH_ACORN
+ 	.pref	= 20,
+ #else
+diff --git a/lib/fonts/font_mini_4x6.c b/lib/fonts/font_mini_4x6.c
+index 838caa1..1449876 100644
+--- a/lib/fonts/font_mini_4x6.c
++++ b/lib/fonts/font_mini_4x6.c
+@@ -43,8 +43,8 @@
+ 
+ #define FONTDATAMAX 1536
+ 
+-static const unsigned char fontdata_mini_4x6[FONTDATAMAX] = {
+-
++static struct font_data fontdata_mini_4x6 = {
++	{ 0, 0, FONTDATAMAX, 0 }, {
+ 	/*{*/
+ 	  	/*   Char 0: ' '  */
+ 	0xee,	/*=  [*** ]       */
+@@ -2145,14 +2145,14 @@
+ 	0xee,	/*=   [*** ]        */
+ 	0x00,	/*=   [    ]        */
+ 	/*}*/
+-};
++} };
+ 
+ const struct font_desc font_mini_4x6 = {
+ 	.idx	= MINI4x6_IDX,
+ 	.name	= "MINI4x6",
+ 	.width	= 4,
+ 	.height	= 6,
+-	.data	= fontdata_mini_4x6,
++	.data	= fontdata_mini_4x6.data,
+ 	.pref	= 3,
+ };
+ 
+diff --git a/lib/fonts/font_pearl_8x8.c b/lib/fonts/font_pearl_8x8.c
+index dc6ad53..4649314 100644
+--- a/lib/fonts/font_pearl_8x8.c
++++ b/lib/fonts/font_pearl_8x8.c
+@@ -13,8 +13,8 @@
+ 
+ #define FONTDATAMAX 2048
+ 
+-static const unsigned char fontdata_pearl8x8[FONTDATAMAX] = {
+-
++static struct font_data fontdata_pearl8x8 = {
++   { 0, 0, FONTDATAMAX, 0 }, {
+    /* 0 0x00 '^@' */
+    0x00, /* 00000000 */
+    0x00, /* 00000000 */
+@@ -2574,14 +2574,13 @@
+    0x00, /* 00000000 */
+    0x00, /* 00000000 */
+    0x00, /* 00000000 */
+-
+-};
++} };
+ 
+ const struct font_desc font_pearl_8x8 = {
+ 	.idx	= PEARL8x8_IDX,
+ 	.name	= "PEARL8x8",
+ 	.width	= 8,
+ 	.height	= 8,
+-	.data	= fontdata_pearl8x8,
++	.data	= fontdata_pearl8x8.data,
+ 	.pref	= 2,
+ };
+diff --git a/lib/fonts/font_sun12x22.c b/lib/fonts/font_sun12x22.c
+index d364385..c6967cd 100644
+--- a/lib/fonts/font_sun12x22.c
++++ b/lib/fonts/font_sun12x22.c
+@@ -2,8 +2,8 @@
+ 
+ #define FONTDATAMAX 11264
+ 
+-static const unsigned char fontdata_sun12x22[FONTDATAMAX] = {
+-
++static struct font_data fontdata_sun12x22 = {
++	{ 0, 0, FONTDATAMAX, 0 }, {
+ 	/* 0 0x00 '^@' */
+ 	0x00, 0x00, /* 000000000000 */
+ 	0x00, 0x00, /* 000000000000 */
+@@ -6147,8 +6147,7 @@
+ 	0x00, 0x00, /* 000000000000 */
+ 	0x00, 0x00, /* 000000000000 */
+ 	0x00, 0x00, /* 000000000000 */
+-
+-};
++} };
+ 
+ 
+ const struct font_desc font_sun_12x22 = {
+@@ -6156,7 +6155,7 @@
+ 	.name	= "SUN12x22",
+ 	.width	= 12,
+ 	.height	= 22,
+-	.data	= fontdata_sun12x22,
++	.data	= fontdata_sun12x22.data,
+ #ifdef __sparc__
+ 	.pref	= 5,
+ #else
+diff --git a/lib/fonts/font_sun8x16.c b/lib/fonts/font_sun8x16.c
+index 2681513..7d979e5 100644
+--- a/lib/fonts/font_sun8x16.c
++++ b/lib/fonts/font_sun8x16.c
+@@ -2,7 +2,8 @@
+ 
+ #define FONTDATAMAX 4096
+ 
+-static const unsigned char fontdata_sun8x16[FONTDATAMAX] = {
++static struct font_data fontdata_sun8x16 = {
++{ 0, 0, FONTDATAMAX, 0 }, {
+ /* */ 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+ /* */ 0x00,0x00,0x7e,0x81,0xa5,0x81,0x81,0xbd,0x99,0x81,0x81,0x7e,0x00,0x00,0x00,0x00,
+ /* */ 0x00,0x00,0x7e,0xff,0xdb,0xff,0xff,0xc3,0xe7,0xff,0xff,0x7e,0x00,0x00,0x00,0x00,
+@@ -259,14 +260,14 @@
+ /* */ 0x00,0x70,0xd8,0x30,0x60,0xc8,0xf8,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+ /* */ 0x00,0x00,0x00,0x00,0x7c,0x7c,0x7c,0x7c,0x7c,0x7c,0x7c,0x00,0x00,0x00,0x00,0x00,
+ /* */ 0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,0x00,
+-};
++} };
+ 
+ const struct font_desc font_sun_8x16 = {
+ 	.idx	= SUN8x16_IDX,
+ 	.name	= "SUN8x16",
+ 	.width	= 8,
+ 	.height	= 16,
+-	.data	= fontdata_sun8x16,
++	.data	= fontdata_sun8x16.data,
+ #ifdef __sparc__
+ 	.pref	= 10,
+ #else

@@ -1,0 +1,24 @@
+diff --git a/net/x25/af_x25.c b/net/x25/af_x25.c
+index deddeb4..3cbc53c 100644
+--- a/net/x25/af_x25.c
++++ b/net/x25/af_x25.c
+@@ -679,7 +679,8 @@
+ 	int len, i, rc = 0;
+ 
+ 	if (addr_len != sizeof(struct sockaddr_x25) ||
+-	    addr->sx25_family != AF_X25) {
++	    addr->sx25_family != AF_X25 ||
++	    strnlen(addr->sx25_addr.x25_addr, X25_ADDR_LEN) == X25_ADDR_LEN) {
+ 		rc = -EINVAL;
+ 		goto out;
+ 	}
+@@ -769,7 +770,8 @@
+ 
+ 	rc = -EINVAL;
+ 	if (addr_len != sizeof(struct sockaddr_x25) ||
+-	    addr->sx25_family != AF_X25)
++	    addr->sx25_family != AF_X25 ||
++	    strnlen(addr->sx25_addr.x25_addr, X25_ADDR_LEN) == X25_ADDR_LEN)
+ 		goto out;
+ 
+ 	rc = -ENETUNREACH;

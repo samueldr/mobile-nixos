@@ -1,0 +1,74 @@
+From 0a8fd1346254974c3a852338508e4a4cddbb35f1 Mon Sep 17 00:00:00 2001
+From: Alan Stern <stern@rowland.harvard.edu>
+Date: Mon, 19 Dec 2016 12:03:41 -0500
+Subject: [PATCH] USB: fix problems with duplicate endpoint addresses
+
+When checking a new device's descriptors, the USB core does not check
+for duplicate endpoint addresses.  This can cause a problem when the
+sysfs files for those endpoints are created; trying to create multiple
+files with the same name will provoke a WARNING:
+
+WARNING: CPU: 2 PID: 865 at fs/sysfs/dir.c:31 sysfs_warn_dup+0x8a/0xa0
+sysfs: cannot create duplicate filename
+'/devices/platform/dummy_hcd.0/usb2/2-1/2-1:64.0/ep_05'
+Kernel panic - not syncing: panic_on_warn set ...
+
+CPU: 2 PID: 865 Comm: kworker/2:1 Not tainted 4.9.0-rc7+ #34
+Hardware name: QEMU Standard PC (i440FX + PIIX, 1996), BIOS Bochs 01/01/2011
+Workqueue: usb_hub_wq hub_event
+ ffff88006bee64c8 ffffffff81f96b8a ffffffff00000001 1ffff1000d7dcc2c
+ ffffed000d7dcc24 0000000000000001 0000000041b58ab3 ffffffff8598b510
+ ffffffff81f968f8 ffffffff850fee20 ffffffff85cff020 dffffc0000000000
+Call Trace:
+ [<     inline     >] __dump_stack lib/dump_stack.c:15
+ [<ffffffff81f96b8a>] dump_stack+0x292/0x398 lib/dump_stack.c:51
+ [<ffffffff8168c88e>] panic+0x1cb/0x3a9 kernel/panic.c:179
+ [<ffffffff812b80b4>] __warn+0x1c4/0x1e0 kernel/panic.c:542
+ [<ffffffff812b8195>] warn_slowpath_fmt+0xc5/0x110 kernel/panic.c:565
+ [<ffffffff819e70ca>] sysfs_warn_dup+0x8a/0xa0 fs/sysfs/dir.c:30
+ [<ffffffff819e7308>] sysfs_create_dir_ns+0x178/0x1d0 fs/sysfs/dir.c:59
+ [<     inline     >] create_dir lib/kobject.c:71
+ [<ffffffff81fa1b07>] kobject_add_internal+0x227/0xa60 lib/kobject.c:229
+ [<     inline     >] kobject_add_varg lib/kobject.c:366
+ [<ffffffff81fa2479>] kobject_add+0x139/0x220 lib/kobject.c:411
+ [<ffffffff82737a63>] device_add+0x353/0x1660 drivers/base/core.c:1088
+ [<ffffffff82738d8d>] device_register+0x1d/0x20 drivers/base/core.c:1206
+ [<ffffffff82cb77d3>] usb_create_ep_devs+0x163/0x260 drivers/usb/core/endpoint.c:195
+ [<ffffffff82c9f27b>] create_intf_ep_devs+0x13b/0x200 drivers/usb/core/message.c:1030
+ [<ffffffff82ca39d3>] usb_set_configuration+0x1083/0x18d0 drivers/usb/core/message.c:1937
+ [<ffffffff82cc9e2e>] generic_probe+0x6e/0xe0 drivers/usb/core/generic.c:172
+ [<ffffffff82caa7fa>] usb_probe_device+0xaa/0xe0 drivers/usb/core/driver.c:263
+
+This patch prevents the problem by checking for duplicate endpoint
+addresses during enumeration and skipping any duplicates.
+
+Signed-off-by: Alan Stern <stern@rowland.harvard.edu>
+Reported-by: Andrey Konovalov <andreyknvl@google.com>
+Tested-by: Andrey Konovalov <andreyknvl@google.com>
+CC: <stable@vger.kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/usb/core/config.c | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+
+diff --git a/drivers/usb/core/config.c b/drivers/usb/core/config.c
+index 0aa9e7d697a5d..25dbd8c7aec73 100644
+--- a/drivers/usb/core/config.c
++++ b/drivers/usb/core/config.c
+@@ -239,6 +239,16 @@ static int usb_parse_endpoint(struct device *ddev, int cfgno, int inum,
+ 	if (ifp->desc.bNumEndpoints >= num_ep)
+ 		goto skip_to_next_endpoint_or_interface_descriptor;
+ 
++	/* Check for duplicate endpoint addresses */
++	for (i = 0; i < ifp->desc.bNumEndpoints; ++i) {
++		if (ifp->endpoint[i].desc.bEndpointAddress ==
++		    d->bEndpointAddress) {
++			dev_warn(ddev, "config %d interface %d altsetting %d has a duplicate endpoint with address 0x%X, skipping\n",
++			    cfgno, inum, asnum, d->bEndpointAddress);
++			goto skip_to_next_endpoint_or_interface_descriptor;
++		}
++	}
++
+ 	endpoint = &ifp->endpoint[ifp->desc.bNumEndpoints];
+ 	++ifp->desc.bNumEndpoints;
+ 

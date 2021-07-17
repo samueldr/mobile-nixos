@@ -1,0 +1,34 @@
+From eda98796aff0d9bf41094b06811f5def3b4c333c Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Salva=20Peir=C3=B3?= <speirofr@gmail.com>
+Date: Wed, 7 Oct 2015 07:09:26 -0300
+Subject: [media] media/vivid-osd: fix info leak in ioctl
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The vivid_fb_ioctl() code fails to initialize the 16 _reserved bytes of
+struct fb_vblank after the ->hcount member. Add an explicit
+memset(0) before filling the structure to avoid the info leak.
+
+Signed-off-by: Salva Peiró <speirofr@gmail.com>
+Signed-off-by: Hans Verkuil <hans.verkuil@cisco.com>
+Signed-off-by: Mauro Carvalho Chehab <mchehab@osg.samsung.com>
+---
+ drivers/media/platform/vivid/vivid-osd.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/media/platform/vivid/vivid-osd.c b/drivers/media/platform/vivid/vivid-osd.c
+index 084d346fb4c4..e15eef6a94e5 100644
+--- a/drivers/media/platform/vivid/vivid-osd.c
++++ b/drivers/media/platform/vivid/vivid-osd.c
+@@ -85,6 +85,7 @@ static int vivid_fb_ioctl(struct fb_info *info, unsigned cmd, unsigned long arg)
+ 	case FBIOGET_VBLANK: {
+ 		struct fb_vblank vblank;
+ 
++		memset(&vblank, 0, sizeof(vblank));
+ 		vblank.flags = FB_VBLANK_HAVE_COUNT | FB_VBLANK_HAVE_VCOUNT |
+ 			FB_VBLANK_HAVE_VSYNC;
+ 		vblank.count = 0;
+-- 
+cgit 1.2-0.3.lf.el7
+

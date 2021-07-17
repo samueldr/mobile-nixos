@@ -1,0 +1,14 @@
+diff --git a/drivers/gpu/drm/i915/i915_gem_userptr.c b/drivers/gpu/drm/i915/i915_gem_userptr.c
+index 1719078..3381726 100644
+--- a/drivers/gpu/drm/i915/i915_gem_userptr.c
++++ b/drivers/gpu/drm/i915/i915_gem_userptr.c
+@@ -795,6 +795,9 @@
+ 			    I915_USERPTR_UNSYNCHRONIZED))
+ 		return -EINVAL;
+ 
++	if (!args->user_size)
++		return -EINVAL;
++
+ 	if (offset_in_page(args->user_ptr | args->user_size))
+ 		return -EINVAL;
+ 

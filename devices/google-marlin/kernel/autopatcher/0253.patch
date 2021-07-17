@@ -1,0 +1,21 @@
+diff --git a/include/net/tcp.h b/include/net/tcp.h
+index d03c65e..d45caae 100644
+--- a/include/net/tcp.h
++++ b/include/net/tcp.h
+@@ -1375,6 +1375,8 @@
+ 	struct rcu_head		rcu;
+ };
+ 
++static inline void tcp_init_send_head(struct sock *sk);
++
+ /* write queue abstraction */
+ static inline void tcp_write_queue_purge(struct sock *sk)
+ {
+@@ -1382,6 +1384,7 @@
+ 
+ 	while ((skb = __skb_dequeue(&sk->sk_write_queue)) != NULL)
+ 		sk_wmem_free_skb(sk, skb);
++	tcp_init_send_head(sk);
+ 	sk_mem_reclaim(sk);
+ 	tcp_clear_all_retrans_hints(tcp_sk(sk));
+ 	inet_csk(sk)->icsk_backoff = 0;

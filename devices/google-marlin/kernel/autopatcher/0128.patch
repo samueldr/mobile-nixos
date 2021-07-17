@@ -1,0 +1,36 @@
+diff --git a/net/ipv6/ip6mr.c b/net/ipv6/ip6mr.c
+index beb454e..fde4ede 100644
+--- a/net/ipv6/ip6mr.c
++++ b/net/ipv6/ip6mr.c
+@@ -1665,6 +1665,10 @@
+ 	struct net *net = sock_net(sk);
+ 	struct mr6_table *mrt;
+ 
++	if (sk->sk_type != SOCK_RAW ||
++	    inet_sk(sk)->inet_num != IPPROTO_ICMPV6)
++		return -EOPNOTSUPP;
++
+ 	mrt = ip6mr_get_table(net, raw6_sk(sk)->ip6mr_table ? : RT6_TABLE_DFLT);
+ 	if (mrt == NULL)
+ 		return -ENOENT;
+@@ -1676,9 +1680,6 @@
+ 
+ 	switch (optname) {
+ 	case MRT6_INIT:
+-		if (sk->sk_type != SOCK_RAW ||
+-		    inet_sk(sk)->inet_num != IPPROTO_ICMPV6)
+-			return -EOPNOTSUPP;
+ 		if (optlen < sizeof(int))
+ 			return -EINVAL;
+ 
+@@ -1815,6 +1816,10 @@
+ 	struct net *net = sock_net(sk);
+ 	struct mr6_table *mrt;
+ 
++	if (sk->sk_type != SOCK_RAW ||
++	    inet_sk(sk)->inet_num != IPPROTO_ICMPV6)
++		return -EOPNOTSUPP;
++
+ 	mrt = ip6mr_get_table(net, raw6_sk(sk)->ip6mr_table ? : RT6_TABLE_DFLT);
+ 	if (mrt == NULL)
+ 		return -ENOENT;

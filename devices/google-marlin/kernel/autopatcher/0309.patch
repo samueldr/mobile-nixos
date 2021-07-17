@@ -1,0 +1,51 @@
+diff --git a/mm/hugetlb.c b/mm/hugetlb.c
+index 92e4f12..42cdd55 100644
+--- a/mm/hugetlb.c
++++ b/mm/hugetlb.c
+@@ -2304,6 +2304,22 @@
+ }
+ 
+ #ifdef CONFIG_SYSCTL
++static int proc_hugetlb_doulongvec_minmax(struct ctl_table *table, int write,
++					  void *buffer, size_t *length,
++					  loff_t *ppos, unsigned long *out)
++{
++	struct ctl_table dup_table;
++
++	/*
++	 * In order to avoid races with __do_proc_doulongvec_minmax(), we
++	 * can duplicate the @table and alter the duplicate of it.
++	 */
++	dup_table = *table;
++	dup_table.data = out;
++
++	return proc_doulongvec_minmax(&dup_table, write, buffer, length, ppos);
++}
++
+ static int hugetlb_sysctl_handler_common(bool obey_mempolicy,
+ 			 struct ctl_table *table, int write,
+ 			 void __user *buffer, size_t *length, loff_t *ppos)
+@@ -2315,9 +2331,8 @@
+ 	if (!hugepages_supported())
+ 		return -ENOTSUPP;
+ 
+-	table->data = &tmp;
+-	table->maxlen = sizeof(unsigned long);
+-	ret = proc_doulongvec_minmax(table, write, buffer, length, ppos);
++	ret = proc_hugetlb_doulongvec_minmax(table, write, buffer, length, ppos,
++					     &tmp);
+ 	if (ret)
+ 		goto out;
+ 
+@@ -2361,9 +2376,8 @@
+ 	if (write && hstate_is_gigantic(h))
+ 		return -EINVAL;
+ 
+-	table->data = &tmp;
+-	table->maxlen = sizeof(unsigned long);
+-	ret = proc_doulongvec_minmax(table, write, buffer, length, ppos);
++	ret = proc_hugetlb_doulongvec_minmax(table, write, buffer, length, ppos,
++					     &tmp);
+ 	if (ret)
+ 		goto out;
+ 

@@ -1,0 +1,22 @@
+From 24e686d8b4983f5d6d0b9d4448aecff5844c2dbf Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Thu, 30 Mar 2017 23:05:53 -0400
+Subject: [PATCH] real slab_equal_or_root check for !MEMCG_KMEM
+
+---
+ mm/slab.h | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/slab.h b/mm/slab.h
+index 949e14611c1..cb15a421989 100644
+--- a/mm/slab.h
++++ b/mm/slab.h
+@@ -255,7 +255,7 @@ static inline bool is_root_cache(struct kmem_cache *s)
+ static inline bool slab_equal_or_root(struct kmem_cache *s,
+ 				      struct kmem_cache *p)
+ {
+-	return true;
++	return p == s;
+ }
+ 
+ static inline const char *cache_name(struct kmem_cache *s)

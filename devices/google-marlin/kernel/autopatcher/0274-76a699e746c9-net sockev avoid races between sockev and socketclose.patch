@@ -1,0 +1,89 @@
+From 76a699e746c9b3a1494597a6756ff21fc84b48e4 Mon Sep 17 00:00:00 2001
+From: Sharath Chandra Vurukala <sharathv@codeaurora.org>
+Date: Wed, 24 Apr 2019 11:35:26 +0530
+Subject: net: sockev: avoid races between sockev and socket_close
+
+Use-after-free is seen when sending a sockev netlink message
+since socket is not held which can race with sk_free.
+
+KASAN: use-after-free in sockev_client_cb+0x41c/0x4b8
+	in net/core/sockev_nlmcast.c:104
+Read of size 2 at addr ffffffc08420c550
+Call trace:
+dump_backtrace+0x0/0x388 arch/arm64/kernel/time.c:55
+show_stack+0x24/0x30 arch/arm64/kernel/traps.c:152
+__dump_stack+0x24/0x2c lib/dump_stack.c:17
+dump_stack+0x8c/0xd0 lib/dump_stack.c:53
+print_address_description+0x74/0x234 mm/kasan/report.c:256
+kasan_report_error mm/kasan/report.c:354 [inline]
+kasan_report+0x240/0x264 mm/kasan/report.c:412
+__asan_report_load2_noabort+0x2c/0x38 mm/kasan/report.c:431
+sockev_client_cb+0x41c/0x4b8 net/core/sockev_nlmcast.c:104
+notifier_call_chain+0x104/0x158 kernel/notifier.c:93
+__blocking_notifier_call_chain+0x80/0xb0 kernel/notifier.c:317
+blocking_notifier_call_chain+0x3c/0x4c kernel/notifier.c:328
+sockev_notify+0x30/0x3c net/socket.c:181
+SYSC_bind net/socket.c:1509 [inline]
+SyS_bind+0x1ec/0x30c net/socket.c:1489
+el0_svc_naked+0x34/0x38
+Freed by task 19460:
+save_stack mm/kasan/kasan.c:447 [inline]
+set_track mm/kasan/kasan.c:459 [inline]
+__kasan_slab_free+0x134/0x20c mm/kasan/kasan.c:520
+kasan_slab_free+0x10/0x1c mm/kasan/kasan.c:527
+slab_free_hook mm/slub.c:1401 [inline]
+slab_free_freelist_hook mm/slub.c:1422 [inline]
+slab_free mm/slub.c:2979 [inline]
+kmem_cache_free+0x114/0x664 mm/slub.c:3001
+sk_prot_free net/core/sock.c:1504 [inline]
+__sk_destruct+0x324/0x3c0 net/core/sock.c:1585
+__sk_free+0x180/0x200 net/core/sock.c:1601
+sk_free+0x44/0x50 net/core/sock.c:1612
+sock_put include/net/sock.h:1643 [inline]
+sk_common_release+0x198/0x20c net/core/sock.c:3014
+raw_close+0x38/0x44 net/ipv4/raw.c:703
+inet_release+0x128/0x15c net/ipv4/af_inet.c:446
+__sock_release+0xb8/0x258 net/socket.c:614
+sock_close+0x24/0x34 net/socket.c:1150
+__fput+0x1f4/0x4e4 fs/file_table.c:345
+____fput+0x20/0x2c fs/file_table.c:380
+task_work_run+0x9c/0x174 kernel/task_work.c:113
+
+Change-Id: Idb4335889b6e4228f36d76ca5b6156cc5e5838da
+Signed-off-by: Sharath Chandra Vurukala <sharathv@codeaurora.org>
+---
+ net/core/sockev_nlmcast.c | 8 ++++++--
+ 1 file changed, 6 insertions(+), 2 deletions(-)
+
+diff --git a/net/core/sockev_nlmcast.c b/net/core/sockev_nlmcast.c
+index 230f8abd..5fd98ac 100644
+--- a/net/core/sockev_nlmcast.c
++++ b/net/core/sockev_nlmcast.c
+@@ -57,11 +57,13 @@ static int sockev_client_cb(struct notifier_block *nb,
+ 
+ 	sock = (struct socket *)data;
+ 	if (!socknlmsgsk || !sock)
+-		goto done;
++		goto sk_null;
+ 
+ 	sk = sock->sk;
+ 	if (!sk)
+-		goto done;
++		goto sk_null;
++
++	sock_hold(sk);
+ 
+ 	if (sk->sk_family != AF_INET && sk->sk_family != AF_INET6)
+ 		goto done;
+@@ -92,6 +94,8 @@ static int sockev_client_cb(struct notifier_block *nb,
+ 	smsg->skflags = sk->sk_flags;
+ 	nlmsg_notify(socknlmsgsk, skb, 0, SKNLGRP_SOCKEV, 0, GFP_KERNEL);
+ done:
++	sock_put(sk);
++sk_null:
+ 	return 0;
+ }
+ 
+-- 
+cgit v1.1
+

@@ -1,0 +1,54 @@
+From 4afa5f9617927453ac04b24b584f6c718dfb4f45 Mon Sep 17 00:00:00 2001
+From: Herbert Xu <herbert@gondor.apana.org.au>
+Date: Sun, 1 Nov 2015 17:11:19 +0800
+Subject: crypto: algif_hash - Only export and import on sockets with data
+
+The hash_accept call fails to work on sockets that have not received
+any data.  For some algorithm implementations it may cause crashes.
+
+This patch fixes this by ensuring that we only export and import on
+sockets that have received data.
+
+Cc: stable@vger.kernel.org
+Reported-by: Harsh Jain <harshjain.prof@gmail.com>
+Signed-off-by: Herbert Xu <herbert@gondor.apana.org.au>
+Tested-by: Stephan Mueller <smueller@chronox.de>
+---
+ crypto/algif_hash.c | 12 ++++++++++--
+ 1 file changed, 10 insertions(+), 2 deletions(-)
+
+diff --git a/crypto/algif_hash.c b/crypto/algif_hash.c
+index 1396ad0787fc..b4c24fe3dcfb 100644
+--- a/crypto/algif_hash.c
++++ b/crypto/algif_hash.c
+@@ -181,9 +181,14 @@ static int hash_accept(struct socket *sock, struct socket *newsock, int flags)
+ 	struct sock *sk2;
+ 	struct alg_sock *ask2;
+ 	struct hash_ctx *ctx2;
++	bool more;
+ 	int err;
+ 
+-	err = crypto_ahash_export(req, state);
++	lock_sock(sk);
++	more = ctx->more;
++	err = more ? crypto_ahash_export(req, state) : 0;
++	release_sock(sk);
++
+ 	if (err)
+ 		return err;
+ 
+@@ -194,7 +199,10 @@ static int hash_accept(struct socket *sock, struct socket *newsock, int flags)
+ 	sk2 = newsock->sk;
+ 	ask2 = alg_sk(sk2);
+ 	ctx2 = ask2->private;
+-	ctx2->more = 1;
++	ctx2->more = more;
++
++	if (!more)
++		return err;
+ 
+ 	err = crypto_ahash_import(&ctx2->req, state);
+ 	if (err) {
+-- 
+cgit 1.2.3-1.el7
+

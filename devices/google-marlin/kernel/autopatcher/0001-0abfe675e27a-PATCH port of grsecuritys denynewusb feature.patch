@@ -1,0 +1,73 @@
+From 0abfe675e27ac3e3a685db1e6eeca28c59bcad91 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Tue, 16 May 2017 17:51:48 -0400
+Subject: [PATCH] port of grsecurity's deny_new_usb feature
+
+Note: not for submission upstream and may be removed once CopperheadOS
+is migrated to another mechanism for this.
+
+Signed-off-by: Daniel Micay <danielmicay@gmail.com>
+---
+ drivers/usb/core/hub.c |  8 ++++++++
+ kernel/sysctl.c        | 15 +++++++++++++++
+ 2 files changed, 23 insertions(+)
+
+diff --git a/drivers/usb/core/hub.c b/drivers/usb/core/hub.c
+index 2fe78d5e4bb..05c97a72a73 100644
+--- a/drivers/usb/core/hub.c
++++ b/drivers/usb/core/hub.c
+@@ -36,6 +36,8 @@
+ #define USB_VENDOR_GENESYS_LOGIC		0x05e3
+ #define HUB_QUIRK_CHECK_PORT_AUTOSUSPEND	0x01
+ 
++extern int deny_new_usb;
++
+ /* Protect struct usb_device->state and ->children members
+  * Note: Both are also protected by ->dev.sem, except that ->state can
+  * change to USB_STATE_NOTATTACHED even when the semaphore isn't held. */
+@@ -4669,6 +4671,12 @@ static void hub_port_connect(struct usb_hub *hub, int port1, u16 portstatus,
+ 			goto done;
+ 		return;
+ 	}
++
++	if (deny_new_usb) {
++		dev_err(&port_dev->dev, "denied insert of USB device on port %d\n", port1);
++		goto done;
++	}
++
+ 	if (hub_is_superspeed(hub->hdev))
+ 		unit_load = 150;
+ 	else
+diff --git a/kernel/sysctl.c b/kernel/sysctl.c
+index f6b93c50c87..2c6a3f18bff 100644
+--- a/kernel/sysctl.c
++++ b/kernel/sysctl.c
+@@ -96,6 +96,10 @@
+ #if defined(CONFIG_SYSCTL)
+ 
+ /* External variables not in a header file. */
++#if IS_ENABLED(CONFIG_USB)
++int deny_new_usb __read_mostly = 0;
++EXPORT_SYMBOL(deny_new_usb);
++#endif
+ extern int max_threads;
+ extern int suid_dumpable;
+ #ifdef CONFIG_COREDUMP
+@@ -894,6 +898,17 @@ static struct ctl_table kern_table[] = {
+ 		.extra1		= &zero,
+ 		.extra2		= &four,
+ 	},
++#endif
++#if IS_ENABLED(CONFIG_USB)
++	{
++		.procname	= "deny_new_usb",
++		.data		= &deny_new_usb,
++		.maxlen		= sizeof(int),
++		.mode		= 0644,
++		.proc_handler	= proc_dointvec_minmax_sysadmin,
++		.extra1		= &zero,
++		.extra2		= &one,
++	},
+ #endif
+ 	{
+ 		.procname	= "ngroups_max",

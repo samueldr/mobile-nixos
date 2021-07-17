@@ -1,0 +1,33 @@
+From 4b6184336ebb5c8dc1eae7f7ab46ee608a748b05 Mon Sep 17 00:00:00 2001
+From: =?UTF-8?q?Salva=20Peir=C3=B3?= <speirofr@gmail.com>
+Date: Wed, 14 Oct 2015 17:48:02 +0200
+Subject: staging/dgnc: fix info leak in ioctl
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+The dgnc_mgmt_ioctl() code fails to initialize the 16 _reserved bytes of
+struct digi_dinfo after the ->dinfo_nboards member. Add an explicit
+memset(0) before filling the structure to avoid the info leak.
+
+Signed-off-by: Salva Peiró <speirofr@gmail.com>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+---
+ drivers/staging/dgnc/dgnc_mgmt.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/drivers/staging/dgnc/dgnc_mgmt.c b/drivers/staging/dgnc/dgnc_mgmt.c
+index 9ec3efe0a287..518fbd5e2d0e 100644
+--- a/drivers/staging/dgnc/dgnc_mgmt.c
++++ b/drivers/staging/dgnc/dgnc_mgmt.c
+@@ -110,6 +110,7 @@ long dgnc_mgmt_ioctl(struct file *file, unsigned int cmd, unsigned long arg)
+ 
+ 		spin_lock_irqsave(&dgnc_global_lock, flags);
+ 
++		memset(&ddi, 0, sizeof(ddi));
+ 		ddi.dinfo_nboards = dgnc_NumBoards;
+ 		sprintf(ddi.dinfo_version, "%s", DG_PART);
+ 
+-- 
+cgit 1.2-0.3.lf.el7
+

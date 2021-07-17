@@ -1,0 +1,32 @@
+From 2c5816b4beccc8ba709144539f6fdd764f8fa49c Mon Sep 17 00:00:00 2001
+From: Miklos Szeredi <miklos@szeredi.hu>
+Date: Tue, 10 Nov 2015 10:32:36 +0100
+Subject: cuse: fix memory leak
+
+The problem is that fuse_dev_alloc() acquires an extra reference to cc.fc,
+and the original ref count is never dropped.
+
+Reported-by: Colin Ian King <colin.king@canonical.com>
+Signed-off-by: Miklos Szeredi <miklos@szeredi.hu>
+Fixes: cc080e9e9be1 ("fuse: introduce per-instance fuse_dev structure")
+Cc: <stable@vger.kernel.org> # v4.2+
+---
+ fs/fuse/cuse.c | 2 ++
+ 1 file changed, 2 insertions(+)
+
+diff --git a/fs/fuse/cuse.c b/fs/fuse/cuse.c
+index eae2c11268bc..8e3ee1936c7e 100644
+--- a/fs/fuse/cuse.c
++++ b/fs/fuse/cuse.c
+@@ -549,6 +549,8 @@ static int cuse_channel_release(struct inode *inode, struct file *file)
+ 		unregister_chrdev_region(cc->cdev->dev, 1);
+ 		cdev_del(cc->cdev);
+ 	}
++	/* Base reference is now owned by "fud" */
++	fuse_conn_put(&cc->fc);
+ 
+ 	rc = fuse_dev_release(inode, file);	/* puts the base reference */
+ 
+-- 
+cgit 1.2-0.3.lf.el7
+

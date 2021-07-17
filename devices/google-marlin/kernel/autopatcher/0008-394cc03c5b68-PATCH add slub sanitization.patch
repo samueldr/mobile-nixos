@@ -1,0 +1,27 @@
+From 394cc03c5b68a96f621e3eab5c81d95d1e15dd3d Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Mon, 23 Jan 2017 22:40:10 -0500
+Subject: [PATCH] add slub sanitization
+
+---
+ mm/slub.c | 7 +++++++
+ 1 file changed, 7 insertions(+)
+
+diff --git a/mm/slub.c b/mm/slub.c
+index ab162d68b94..aa74c17f818 100644
+--- a/mm/slub.c
++++ b/mm/slub.c
+@@ -2737,6 +2737,13 @@ static __always_inline void slab_free(struct kmem_cache *s,
+ 
+ 	slab_free_hook(s, x);
+ 
++	if (!(s->flags & (SLAB_DESTROY_BY_RCU | SLAB_POISON))) {
++		size_t offset = s->offset ? 0 : sizeof(void *);
++		memset(x + offset, 0, s->object_size - offset);
++		if (s->ctor)
++			s->ctor(x);
++	}
++
+ redo:
+ 	/*
+ 	 * Determine the currently cpus per cpu slab.

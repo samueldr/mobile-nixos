@@ -1,0 +1,43 @@
+diff --git a/drivers/block/xen-blkback/blkback.c b/drivers/block/xen-blkback/blkback.c
+index 4f807f3..710b1e9 100644
+--- a/drivers/block/xen-blkback/blkback.c
++++ b/drivers/block/xen-blkback/blkback.c
+@@ -736,8 +736,11 @@
+ 			pages[i]->page = persistent_gnt->page;
+ 			pages[i]->persistent_gnt = persistent_gnt;
+ 		} else {
+-			if (get_free_page(blkif, &pages[i]->page))
+-				goto out_of_memory;
++			if (get_free_page(blkif, &pages[i]->page)) {
++				put_free_pages(blkif, pages_to_gnt, segs_to_map);
++				ret = -ENOMEM;
++				goto out;
++			}
+ 			addr = vaddr(pages[i]->page);
+ 			pages_to_gnt[segs_to_map] = pages[i]->page;
+ 			pages[i]->persistent_gnt = NULL;
+@@ -821,15 +824,18 @@
+ 	}
+ 	segs_to_map = 0;
+ 	last_map = map_until;
+-	if (map_until != num)
++	if (!ret && map_until != num)
+ 		goto again;
+ 
+-	return ret;
++out:
++	for (i = last_map; i < num; i++) {
++		/* Don't zap current batch's valid persistent grants. */
++		if(i >= last_map + segs_to_map)
++			pages[i]->persistent_gnt = NULL;
++		pages[i]->handle = BLKBACK_INVALID_HANDLE;
++	}
+ 
+-out_of_memory:
+-	pr_alert(DRV_PFX "%s: out of memory\n", __func__);
+-	put_free_pages(blkif, pages_to_gnt, segs_to_map);
+-	return -ENOMEM;
++	return ret;
+ }
+ 
+ static int xen_blkbk_map_seg(struct pending_req *pending_req)

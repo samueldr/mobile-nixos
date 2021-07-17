@@ -1,0 +1,12 @@
+diff --git a/sound/usb/mixer.c b/sound/usb/mixer.c
+index 673872e..b033dc1 100644
+--- a/sound/usb/mixer.c
++++ b/sound/usb/mixer.c
+@@ -1622,6 +1622,7 @@
+ 	int pin, ich, err;
+ 
+ 	if (desc->bLength < 11 || !(input_pins = desc->bNrInPins) ||
++	    desc->bLength < sizeof(*desc) + desc->bNrInPins ||
+ 	    !(num_outs = uac_mixer_unit_bNrChannels(desc))) {
+ 		usb_audio_err(state->chip,
+ 			      "invalid MIXER UNIT descriptor %d\n",

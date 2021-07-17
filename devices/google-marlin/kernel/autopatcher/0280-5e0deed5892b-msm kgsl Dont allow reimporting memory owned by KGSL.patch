@@ -1,0 +1,115 @@
+From 5e0deed5892ba5301624b74fb584d53b6916bdae Mon Sep 17 00:00:00 2001
+From: Jordan Crouse <jcrouse@codeaurora.org>
+Date: Thu, 24 Sep 2020 09:05:53 -0600
+Subject: msm: kgsl: Don't allow re-importing memory owned by KGSL
+
+Don't allow IOCTL_KGSL_MAP_USER_MEM to import user memory that was
+already allocated and mapped by KGSL in the first place.  Remapping
+memory never makes sense and it messes up reference counting in the
+pools.
+
+Change-Id: Ic0dedbade96ac6b30dcbbb794bf57a597f1bb351
+Signed-off-by: Jordan Crouse <jcrouse@codeaurora.org>
+Signed-off-by: Archana Sriram <apsrir@codeaurora.org>
+---
+ drivers/gpu/msm/kgsl.c | 56 +++++++++++++++++++++++---------------------------
+ 1 file changed, 26 insertions(+), 30 deletions(-)
+
+diff --git a/drivers/gpu/msm/kgsl.c b/drivers/gpu/msm/kgsl.c
+index 224ec28..6cf0ea2c 100644
+--- a/drivers/gpu/msm/kgsl.c
++++ b/drivers/gpu/msm/kgsl.c
+@@ -2015,13 +2015,6 @@ long kgsl_ioctl_cmdstream_freememontimestamp_ctxtid(
+ 	return ret;
+ }
+ 
+-static inline int _check_region(unsigned long start, unsigned long size,
+-				uint64_t len)
+-{
+-	uint64_t end = ((uint64_t) start) + size;
+-	return (end > len);
+-}
+-
+ static int check_vma_flags(struct vm_area_struct *vma,
+ 		unsigned int flags)
+ {
+@@ -2036,23 +2029,27 @@ static int check_vma_flags(struct vm_area_struct *vma,
+ 	return -EFAULT;
+ }
+ 
+-static int check_vma(struct vm_area_struct *vma, struct file *vmfile,
+-		struct kgsl_memdesc *memdesc)
++static int check_vma(unsigned long hostptr, u64 size)
+ {
+-	if (vma == NULL || vma->vm_file != vmfile)
+-		return -EINVAL;
++	struct vm_area_struct *vma;
++	unsigned long cur = hostptr;
+ 
+-	/* userspace may not know the size, in which case use the whole vma */
+-	if (memdesc->size == 0)
+-		memdesc->size = vma->vm_end - vma->vm_start;
+-	/* range checking */
+-	if (vma->vm_start != memdesc->useraddr ||
+-		(memdesc->useraddr + memdesc->size) != vma->vm_end)
+-		return -EINVAL;
+-	return check_vma_flags(vma, memdesc->flags);
++	while (cur < (hostptr + size)) {
++		vma = find_vma(current->mm, cur);
++		if (!vma)
++			return false;
++
++		/* Don't remap memory that we already own */
++		if (vma->vm_file && vma->vm_file->f_op == &kgsl_fops)
++			return false;
++
++		cur = vma->vm_end;
++	}
++
++	return true;
+ }
+ 
+-static int memdesc_sg_virt(struct kgsl_memdesc *memdesc, struct file *vmfile)
++static int memdesc_sg_virt(struct kgsl_memdesc *memdesc)
+ {
+ 	int ret = 0;
+ 	long npages = 0, i;
+@@ -2074,18 +2071,17 @@ static int memdesc_sg_virt(struct kgsl_memdesc *memdesc, struct file *vmfile)
+ 	}
+ 
+ 	down_read(&current->mm->mmap_sem);
+-	/* If we have vmfile, make sure we map the correct vma and map it all */
+-	if (vmfile != NULL)
+-		ret = check_vma(find_vma(current->mm, memdesc->useraddr),
+-				vmfile, memdesc);
+-
+-	if (ret == 0) {
+-		npages = get_user_pages(current, current->mm, memdesc->useraddr,
+-					sglen, write, 0, pages, NULL);
+-		ret = (npages < 0) ? (int)npages : 0;
++	if (!check_vma(memdesc->useraddr, memdesc->size)) {
++		up_read(&current->mm->mmap_sem);
++		ret = -EFAULT;
++		goto out;
+ 	}
++
++	npages = get_user_pages(current, current->mm, memdesc->useraddr,
++				sglen, write, 0, pages, NULL);
+ 	up_read(&current->mm->mmap_sem);
+ 
++	ret = (npages < 0) ? (int)npages : 0;
+ 	if (ret)
+ 		goto out;
+ 
+@@ -2136,7 +2132,7 @@ static int kgsl_setup_anon_useraddr(struct kgsl_pagetable *pagetable,
+ 		entry->memdesc.gpuaddr = (uint64_t)  entry->memdesc.useraddr;
+ 	}
+ 
+-	return memdesc_sg_virt(&entry->memdesc, NULL);
++	return memdesc_sg_virt(&entry->memdesc);
+ }
+ 
+ static int match_file(const void *p, struct file *file, unsigned int fd)
+-- 
+cgit v1.1
+

@@ -1,0 +1,84 @@
+diff --git a/drivers/video/console/fbcon.h b/drivers/video/console/fbcon.h
+index b4fdee2..38d7e0f 100644
+--- a/drivers/video/console/fbcon.h
++++ b/drivers/video/console/fbcon.h
+@@ -150,13 +150,6 @@
+ #define attr_bgcol_ec(bgshift, vc, info) attr_col_ec(bgshift, vc, info, 0)
+ #define attr_fgcol_ec(fgshift, vc, info) attr_col_ec(fgshift, vc, info, 1)
+ 
+-/* Font */
+-#define REFCOUNT(fd)	(((int *)(fd))[-1])
+-#define FNTSIZE(fd)	(((int *)(fd))[-2])
+-#define FNTCHARCNT(fd)	(((int *)(fd))[-3])
+-#define FNTSUM(fd)	(((int *)(fd))[-4])
+-#define FONT_EXTRA_WORDS 4
+-
+     /*
+      *  Scroll Method
+      */
+diff --git a/drivers/video/console/fbcon_rotate.c b/drivers/video/console/fbcon_rotate.c
+index db6528f..0e332108 100644
+--- a/drivers/video/console/fbcon_rotate.c
++++ b/drivers/video/console/fbcon_rotate.c
+@@ -14,6 +14,7 @@
+ #include <linux/fb.h>
+ #include <linux/vt_kern.h>
+ #include <linux/console.h>
++#include <linux/font.h>
+ #include <asm/types.h>
+ #include "fbcon.h"
+ #include "fbcon_rotate.h"
+diff --git a/drivers/video/console/newport_con.c b/drivers/video/console/newport_con.c
+index ec613fa..febd373 100644
+--- a/drivers/video/console/newport_con.c
++++ b/drivers/video/console/newport_con.c
+@@ -35,12 +35,6 @@
+ 
+ #define FONT_DATA ((unsigned char *)font_vga_8x16.data)
+ 
+-/* borrowed from fbcon.c */
+-#define REFCOUNT(fd)	(((int *)(fd))[-1])
+-#define FNTSIZE(fd)	(((int *)(fd))[-2])
+-#define FNTCHARCNT(fd)	(((int *)(fd))[-3])
+-#define FONT_EXTRA_WORDS 3
+-
+ static unsigned char *font_data[MAX_NR_CONSOLES];
+ 
+ static struct newport_regs *npregs;
+@@ -522,6 +516,7 @@
+ 	FNTSIZE(new_data) = size;
+ 	FNTCHARCNT(new_data) = op->charcount;
+ 	REFCOUNT(new_data) = 0;	/* usage counter */
++	FNTSUM(new_data) = 0;
+ 
+ 	p = new_data;
+ 	for (i = 0; i < op->charcount; i++) {
+diff --git a/drivers/video/console/tileblit.c b/drivers/video/console/tileblit.c
+index 3c0b242..6917172 100644
+--- a/drivers/video/console/tileblit.c
++++ b/drivers/video/console/tileblit.c
+@@ -13,6 +13,7 @@
+ #include <linux/fb.h>
+ #include <linux/vt_kern.h>
+ #include <linux/console.h>
++#include <linux/font.h>
+ #include <asm/types.h>
+ #include "fbcon.h"
+ 
+diff --git a/include/linux/font.h b/include/linux/font.h
+index d682176..0a3639a 100644
+--- a/include/linux/font.h
++++ b/include/linux/font.h
+@@ -57,4 +57,12 @@
+ /* Max. length for the name of a predefined font */
+ #define MAX_FONT_NAME	32
+ 
++/* Extra word getters */
++#define REFCOUNT(fd)	(((int *)(fd))[-1])
++#define FNTSIZE(fd)	(((int *)(fd))[-2])
++#define FNTCHARCNT(fd)	(((int *)(fd))[-3])
++#define FNTSUM(fd)	(((int *)(fd))[-4])
++
++#define FONT_EXTRA_WORDS 4
++
+ #endif /* _VIDEO_FONT_H */

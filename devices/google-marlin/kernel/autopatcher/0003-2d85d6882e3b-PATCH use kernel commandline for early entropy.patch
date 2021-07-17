@@ -1,0 +1,22 @@
+From 2d85d6882e3bb07ed6ac6a1c230570e972a86ea7 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Wed, 16 Aug 2017 14:14:00 -0400
+Subject: [PATCH] use kernel command-line for early entropy
+
+Change-Id: I2a8a1c7862deaddc6126b3bf256ccf8c1821cd33
+---
+ init/main.c | 1 +
+ 1 file changed, 1 insertion(+)
+
+diff --git a/init/main.c b/init/main.c
+index ab277cdeece..93bd6d36404 100644
+--- a/init/main.c
++++ b/init/main.c
+@@ -523,6 +523,7 @@ asmlinkage __visible void __init start_kernel(void)
+ 	page_address_init();
+ 	pr_notice("%s", linux_banner);
+ 	setup_arch(&command_line);
++	add_device_randomness(command_line, strlen(command_line));
+ 	/*
+ 	 * Set up the the initial canary ASAP:
+ 	 */

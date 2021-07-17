@@ -1,0 +1,83 @@
+diff --git a/include/net/xfrm.h b/include/net/xfrm.h
+index a08d8bc..2a99cbb 100644
+--- a/include/net/xfrm.h
++++ b/include/net/xfrm.h
+@@ -1301,6 +1301,23 @@
+ 	return atomic_read(&x->tunnel_users);
+ }
+ 
++static inline bool xfrm_id_proto_valid(u8 proto)
++{
++	switch (proto) {
++	case IPPROTO_AH:
++	case IPPROTO_ESP:
++	case IPPROTO_COMP:
++#if IS_ENABLED(CONFIG_IPV6)
++	case IPPROTO_ROUTING:
++	case IPPROTO_DSTOPTS:
++#endif
++		return true;
++	default:
++		return false;
++	}
++}
++
++/* IPSEC_PROTO_ANY only matches 3 IPsec protocols, 0 could match all. */
+ static inline int xfrm_id_proto_match(u8 proto, u8 userproto)
+ {
+ 	return (!userproto || proto == userproto ||
+diff --git a/net/key/af_key.c b/net/key/af_key.c
+index fbd25f5..fe58af6 100644
+--- a/net/key/af_key.c
++++ b/net/key/af_key.c
+@@ -1967,8 +1967,10 @@
+ 
+ 	if (rq->sadb_x_ipsecrequest_mode == 0)
+ 		return -EINVAL;
++	if (!xfrm_id_proto_valid(rq->sadb_x_ipsecrequest_proto))
++		return -EINVAL;
+ 
+-	t->id.proto = rq->sadb_x_ipsecrequest_proto; /* XXX check proto */
++	t->id.proto = rq->sadb_x_ipsecrequest_proto;
+ 	if ((mode = pfkey_mode_to_xfrm(rq->sadb_x_ipsecrequest_mode)) < 0)
+ 		return -EINVAL;
+ 	t->mode = mode;
+diff --git a/net/xfrm/xfrm_state.c b/net/xfrm/xfrm_state.c
+index 7e8593a..86d12fa 100644
+--- a/net/xfrm/xfrm_state.c
++++ b/net/xfrm/xfrm_state.c
+@@ -2136,7 +2136,7 @@
+ 	unsigned int sz;
+ 
+ 	flush_work(&net->xfrm.state_hash_work);
+-	xfrm_state_flush(net, IPSEC_PROTO_ANY, false);
++	xfrm_state_flush(net, 0, false);
+ 	flush_work(&net->xfrm.state_gc_work);
+ 
+ 	WARN_ON(!list_empty(&net->xfrm.state_all));
+diff --git a/net/xfrm/xfrm_user.c b/net/xfrm/xfrm_user.c
+index 129e452..46c8a7e 100644
+--- a/net/xfrm/xfrm_user.c
++++ b/net/xfrm/xfrm_user.c
+@@ -1410,20 +1410,8 @@
+ 			return -EINVAL;
+ 		}
+ 
+-		switch (ut[i].id.proto) {
+-		case IPPROTO_AH:
+-		case IPPROTO_ESP:
+-		case IPPROTO_COMP:
+-#if IS_ENABLED(CONFIG_IPV6)
+-		case IPPROTO_ROUTING:
+-		case IPPROTO_DSTOPTS:
+-#endif
+-		case IPSEC_PROTO_ANY:
+-			break;
+-		default:
++		if (!xfrm_id_proto_valid(ut[i].id.proto))
+ 			return -EINVAL;
+-		}
+-
+ 	}
+ 
+ 	return 0;

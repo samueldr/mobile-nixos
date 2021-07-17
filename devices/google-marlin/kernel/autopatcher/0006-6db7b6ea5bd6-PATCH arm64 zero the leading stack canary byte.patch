@@ -1,0 +1,23 @@
+From 6db7b6ea5bd64c6ae377f5469adc8bdf31f43d10 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Thu, 23 Mar 2017 13:36:42 -0400
+Subject: [PATCH] arm64: zero the leading stack canary byte
+
+---
+ arch/arm64/include/asm/stackprotector.h | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/arch/arm64/include/asm/stackprotector.h b/arch/arm64/include/asm/stackprotector.h
+index fe5e287dc56..818d1ad9440 100644
+--- a/arch/arm64/include/asm/stackprotector.h
++++ b/arch/arm64/include/asm/stackprotector.h
+@@ -31,6 +31,9 @@ static __always_inline void boot_init_stack_canary(void)
+ 	get_random_bytes(&canary, sizeof(canary));
+ 	canary ^= LINUX_VERSION_CODE;
+ 
++	/* Sacrifice 8 bits of entropy to mitigate non-terminated C string overflows */
++	canary &= ~(unsigned long)0xff;
++
+ 	current->stack_canary = canary;
+ 	__stack_chk_guard = current->stack_canary;
+ }

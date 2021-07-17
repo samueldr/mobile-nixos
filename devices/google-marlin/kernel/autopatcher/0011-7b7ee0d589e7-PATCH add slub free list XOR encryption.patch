@@ -1,0 +1,86 @@
+From 7b7ee0d589e7911e39c253c1d8d56cea614d0b03 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Mon, 23 Jan 2017 17:33:53 -0500
+Subject: [PATCH] add slub free list XOR encryption
+
+Based on the grsecurity feature, but with a per-cache random value.
+---
+ include/linux/slub_def.h |  2 ++
+ mm/slub.c                | 19 +++++++++++++++----
+ 2 files changed, 17 insertions(+), 4 deletions(-)
+
+diff --git a/include/linux/slub_def.h b/include/linux/slub_def.h
+index 68c4ec76a58..f6fe77b676e 100644
+--- a/include/linux/slub_def.h
++++ b/include/linux/slub_def.h
+@@ -93,6 +93,8 @@ struct kmem_cache {
+ #endif
+ #endif
+ 
++	unsigned long random;
++
+ #ifdef CONFIG_NUMA
+ 	/*
+ 	 * Defragmentation by allocating from a remote node.
+diff --git a/mm/slub.c b/mm/slub.c
+index 385f544c559..9f1a41851d4 100644
+--- a/mm/slub.c
++++ b/mm/slub.c
+@@ -34,6 +34,7 @@
+ #include <linux/stacktrace.h>
+ #include <linux/prefetch.h>
+ #include <linux/memcontrol.h>
++#include <linux/random.h>
+ 
+ #include <trace/events/kmem.h>
+ 
+@@ -234,20 +235,28 @@ static inline void stat(const struct kmem_cache *s, enum stat_item si)
+ 
+ static inline void *get_freepointer(struct kmem_cache *s, void *object)
+ {
+-	return *(void **)(object + s->offset);
++	unsigned long freepointer_addr = (unsigned long)object + s->offset;
++	return (void *)(*(unsigned long *)freepointer_addr ^ s->random ^ freepointer_addr);
+ }
+ 
+ static void prefetch_freepointer(const struct kmem_cache *s, void *object)
+ {
+-	prefetch(object + s->offset);
++	unsigned long freepointer_addr = (unsigned long)object + s->offset;
++	if (object) {
++		void **freepointer_ptr = (void **)(*(unsigned long *)freepointer_addr ^ s->random ^ freepointer_addr);
++		prefetch(freepointer_ptr);
++	}
+ }
+ 
+ static inline void *get_freepointer_safe(struct kmem_cache *s, void *object)
+ {
++	unsigned long __maybe_unused freepointer_addr;
+ 	void *p;
+ 
+ #ifdef CONFIG_DEBUG_PAGEALLOC
+-	probe_kernel_read(&p, (void **)(object + s->offset), sizeof(p));
++	freepointer_addr = (unsigned long)object + s->offset;
++	probe_kernel_read(&p, (void **)freepointer_addr, sizeof(p));
++	return (void *)((unsigned long)p ^ s->random ^ freepointer_addr);
+ #else
+ 	p = get_freepointer(s, object);
+ #endif
+@@ -256,7 +265,8 @@ static inline void *get_freepointer_safe(struct kmem_cache *s, void *object)
+ 
+ static inline void set_freepointer(struct kmem_cache *s, void *object, void *fp)
+ {
+-	*(void **)(object + s->offset) = fp;
++	unsigned long freepointer_addr = (unsigned long)object + s->offset;
++	*(void **)freepointer_addr = (void *)((unsigned long)fp ^ s->random ^ freepointer_addr);
+ }
+ 
+ /* Loop over all objects in a slab */
+@@ -3163,6 +3173,7 @@ static int calculate_sizes(struct kmem_cache *s, int forced_order)
+ static int kmem_cache_open(struct kmem_cache *s, unsigned long flags)
+ {
+ 	s->flags = kmem_cache_flags(s->size, flags, s->name, s->ctor);
++	s->random = get_random_long();
+ 	s->reserved = 0;
+ 
+ 	if (need_reserve_slab_rcu && (s->flags & SLAB_DESTROY_BY_RCU))

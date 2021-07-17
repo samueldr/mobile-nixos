@@ -1,0 +1,35 @@
+From 28d23d4d7999f683b27b6e0c489635265b67a4c9 Mon Sep 17 00:00:00 2001
+From: Amir Samuelov <amirs@codeaurora.org>
+Date: Sat, 26 Nov 2016 18:44:06 +0200
+Subject: spcom: check size before calling copy_to_user()
+
+Calling copy_to_user(to, from, size) with negative value
+might cause heap overflow since size is unsigned parameter
+and negative value is cast to big unsigned value.
+
+CRs-Fixed: 1092683
+Change-Id: I9b4a0710aa33942de2976f7ee158a8025dd6a20e
+Signed-off-by: Amir Samuelov <amirs@codeaurora.org>
+---
+ drivers/soc/qcom/spcom.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/soc/qcom/spcom.c b/drivers/soc/qcom/spcom.c
+index fcdcf0b..7cb538b 100644
+--- a/drivers/soc/qcom/spcom.c
++++ b/drivers/soc/qcom/spcom.c
+@@ -2125,6 +2125,11 @@ static ssize_t spcom_device_read(struct file *filp, char __user *user_buff,
+ 		return -ENOMEM;
+ 
+ 	actual_size = spcom_handle_read(ch, buf, size);
++	if ((actual_size <= 0) || (actual_size > size)) {
++		pr_err("invalid actual_size [%d].\n", actual_size);
++		kfree(buf);
++		return -EFAULT;
++	}
+ 
+ 	ret = copy_to_user(user_buff, buf, actual_size);
+ 
+-- 
+cgit v1.1
+

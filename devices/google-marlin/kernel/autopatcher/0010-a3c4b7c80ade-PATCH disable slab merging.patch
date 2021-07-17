@@ -1,0 +1,22 @@
+From a3c4b7c80ade5071e59f23c1d0b9742ea2601c1b Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Tue, 10 Jan 2017 20:46:29 -0500
+Subject: [PATCH] disable slab merging
+
+---
+ mm/slab_common.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/mm/slab_common.c b/mm/slab_common.c
+index 9a18f19360d..a7efb397611 100644
+--- a/mm/slab_common.c
++++ b/mm/slab_common.c
+@@ -44,7 +44,7 @@ struct kmem_cache *kmem_cache;
+  * Merge control. If this is set then no merging of slab caches will occur.
+  * (Could be removed. This was introduced to pacify the merge skeptics.)
+  */
+-static int slab_nomerge;
++static int slab_nomerge = 1;
+ 
+ static int __init setup_slab_nomerge(char *str)
+ {

@@ -1,0 +1,13 @@
+diff --git a/drivers/scsi/libsas/sas_expander.c b/drivers/scsi/libsas/sas_expander.c
+index 773f867..debc143 100644
+--- a/drivers/scsi/libsas/sas_expander.c
++++ b/drivers/scsi/libsas/sas_expander.c
+@@ -978,6 +978,8 @@
+ 		list_del(&child->dev_list_node);
+ 		spin_unlock_irq(&parent->port->dev_list_lock);
+ 		sas_put_device(child);
++		sas_port_delete(phy->port);
++		phy->port = NULL;
+ 		return NULL;
+ 	}
+ 	list_add_tail(&child->siblings, &parent->ex_dev.children);

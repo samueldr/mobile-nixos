@@ -1,0 +1,94 @@
+From 79219ac0b7ccafce3fbb3cafea9b7bbbc96e5e1c Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Fri, 20 Jan 2017 16:51:25 -0500
+Subject: [PATCH] add page sanitization / verification
+
+---
+ include/linux/highmem.h | 22 ++++++++++++++++++++++
+ mm/page_alloc.c         | 12 ++++++++++--
+ 2 files changed, 32 insertions(+), 2 deletions(-)
+
+diff --git a/include/linux/highmem.h b/include/linux/highmem.h
+index bc4af51ce3e..81de6701136 100644
+--- a/include/linux/highmem.h
++++ b/include/linux/highmem.h
+@@ -7,6 +7,7 @@
+ #include <linux/mm.h>
+ #include <linux/uaccess.h>
+ #include <linux/hardirq.h>
++#include <linux/string.h>
+ 
+ #include <asm/cacheflush.h>
+ 
+@@ -211,6 +212,27 @@ static inline void clear_highpage(struct page *page)
+ 	kunmap_atomic(kaddr);
+ }
+ 
++static inline void sanitize_highpage(struct page *page)
++{
++	void *kaddr;
++	unsigned long flags;
++
++	local_irq_save(flags);
++	kaddr = kmap_atomic(page);
++	clear_page(kaddr);
++	kunmap_atomic(kaddr);
++	local_irq_restore(flags);
++}
++
++static inline void sanitize_highpage_verify(struct page *page)
++{
++	void *kaddr;
++
++	kaddr = kmap_atomic(page);
++	BUG_ON(memchr_inv(kaddr, 0, PAGE_SIZE));
++	kunmap_atomic(kaddr);
++}
++
+ static inline void zero_user_segments(struct page *page,
+ 	unsigned start1, unsigned end1,
+ 	unsigned start2, unsigned end2)
+diff --git a/mm/page_alloc.c b/mm/page_alloc.c
+index ae5a95e16ef..badbe89a640 100644
+--- a/mm/page_alloc.c
++++ b/mm/page_alloc.c
+@@ -788,6 +788,8 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
+ 	int i;
+ 	int bad = 0;
+ 
++	unsigned long index = 1UL << order;
++
+ 	trace_mm_page_free(page, order);
+ 	kmemcheck_free_shadow(page, order);
+ 	kasan_free_pages(page, order);
+@@ -805,6 +807,10 @@ static bool free_pages_prepare(struct page *page, unsigned int order)
+ 		debug_check_no_obj_freed(page_address(page),
+ 					   PAGE_SIZE << order);
+ 	}
++
++	for (; index; --index)
++		sanitize_highpage(page + index - 1);
++
+ 	arch_free_page(page, order);
+ 	kernel_map_pages(page, 1 << order, 0);
+ 	kasan_free_pages(page, order);
+@@ -978,6 +984,8 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags)
+ {
+ 	int i;
+ 
++	unsigned long index = 1UL << order;
++
+ 	for (i = 0; i < (1 << order); i++) {
+ 		struct page *p = page + i;
+ 		if (unlikely(check_new_page(p)))
+@@ -992,8 +1000,8 @@ static int prep_new_page(struct page *page, unsigned int order, gfp_t gfp_flags)
+ 	kernel_map_pages(page, 1 << order, 1);
+ 	kasan_alloc_pages(page, order);
+ 
+-	if (gfp_flags & __GFP_ZERO)
+-		prep_zero_page(page, order, gfp_flags);
++	for (; index; --index)
++		sanitize_highpage_verify(page + index - 1);
+ 
+ 	if (order && (gfp_flags & __GFP_COMP))
+ 		prep_compound_page(page, order);

@@ -1,0 +1,34 @@
+From 284614cd03940353fca75a607e621974a0590093 Mon Sep 17 00:00:00 2001
+From: Daniel Micay <danielmicay@gmail.com>
+Date: Thu, 11 May 2017 16:02:49 -0400
+Subject: [PATCH] randomize lower bits of the argument block
+
+This was extracted from the PaX RANDUSTACK feature in grsecurity, where
+all of the lower bits are randomized. PaX keeps 16-byte alignment.
+
+Signed-off-by: Daniel Micay <danielmicay@gmail.com>
+---
+ fs/exec.c | 3 +++
+ 1 file changed, 3 insertions(+)
+
+diff --git a/fs/exec.c b/fs/exec.c
+index a552a192d0e..09cedfaea69 100644
+--- a/fs/exec.c
++++ b/fs/exec.c
+@@ -56,6 +56,7 @@
+ #include <linux/pipe_fs_i.h>
+ #include <linux/oom.h>
+ #include <linux/compat.h>
++#include <linux/random.h>
+ 
+ #include <asm/uaccess.h>
+ #include <asm/mmu_context.h>
+@@ -300,6 +301,8 @@ static int __bprm_mm_init(struct linux_binprm *bprm)
+ 	mm->stack_vm = mm->total_vm = 1;
+ 	up_write(&mm->mmap_sem);
+ 	bprm->p = vma->vm_end - sizeof(void *);
++	if (randomize_va_space)
++		bprm->p ^= get_random_long() & ~PAGE_MASK;
+ 	return 0;
+ err:
+ 	up_write(&mm->mmap_sem);

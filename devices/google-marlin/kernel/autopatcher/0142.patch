@@ -1,0 +1,38 @@
+diff --git a/drivers/staging/android/binder.c b/drivers/staging/android/binder.c
+index e2fa339..3906b98 100644
+--- a/drivers/staging/android/binder.c
++++ b/drivers/staging/android/binder.c
+@@ -2117,8 +2117,18 @@
+ 
+ static void binder_free_transaction(struct binder_transaction *t)
+ {
+-	if (t->buffer)
+-		t->buffer->transaction = NULL;
++	struct binder_proc *target_proc = t->to_proc;
++
++	if (target_proc) {
++		binder_inner_proc_lock(target_proc);
++		if (t->buffer)
++			t->buffer->transaction = NULL;
++		binder_inner_proc_unlock(target_proc);
++	}
++	/*
++	 * If the transaction has no target_proc, then
++	 * t->buffer->transaction has already been cleared.
++	 */
+ 	kfree(t);
+ 	binder_stats_deleted(BINDER_STAT_TRANSACTION);
+ }
+@@ -3694,10 +3704,12 @@
+ 				     buffer->debug_id,
+ 				     buffer->transaction ? "active" : "finished");
+ 
++			binder_inner_proc_lock(proc);
+ 			if (buffer->transaction) {
+ 				buffer->transaction->buffer = NULL;
+ 				buffer->transaction = NULL;
+ 			}
++			binder_inner_proc_unlock(proc);
+ 			if (buffer->async_transaction && buffer->target_node) {
+ 				struct binder_node *buf_node;
+ 				struct binder_work *w;

@@ -1,0 +1,13 @@
+diff --git a/arch/x86/kvm/emulate.c b/arch/x86/kvm/emulate.c
+index c89ed86..ffa1c05 100644
+--- a/arch/x86/kvm/emulate.c
++++ b/arch/x86/kvm/emulate.c
+@@ -4641,7 +4641,7 @@
+ 	/* Decode and fetch the destination operand: register or memory. */
+ 	rc = decode_operand(ctxt, &ctxt->dst, (ctxt->d >> DstShift) & OpMask);
+ 
+-	if (ctxt->rip_relative)
++	if (ctxt->rip_relative && likely(ctxt->memopp))
+ 		ctxt->memopp->addr.mem.ea += ctxt->_eip;
+ 
+ done:

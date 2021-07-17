@@ -1,0 +1,17 @@
+diff --git a/drivers/iio/imu/adis16400_buffer.c b/drivers/iio/imu/adis16400_buffer.c
+index 6e727ff..ffbb2da 100644
+--- a/drivers/iio/imu/adis16400_buffer.c
++++ b/drivers/iio/imu/adis16400_buffer.c
+@@ -32,8 +32,11 @@
+ 
+ 	adis->buffer = kzalloc(indio_dev->scan_bytes + sizeof(u16),
+ 		GFP_KERNEL);
+-	if (!adis->buffer)
++	if (!adis->buffer) {
++		kfree(adis->xfer);
++		adis->xfer = NULL;
+ 		return -ENOMEM;
++	}
+ 
+ 	tx = adis->buffer + indio_dev->scan_bytes;
+ 

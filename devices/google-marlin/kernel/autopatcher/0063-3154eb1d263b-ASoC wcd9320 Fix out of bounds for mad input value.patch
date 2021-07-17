@@ -1,0 +1,38 @@
+From 3154eb1d263b9c3eab2c9fa8ebe498390bf5d711 Mon Sep 17 00:00:00 2001
+From: Karthikeyan Mani <kmani@codeaurora.org>
+Date: Wed, 7 Dec 2016 18:19:31 -0800
+Subject: ASoC: wcd9320: Fix out of bounds for mad input value
+
+Add check in taiko_mad_input_put function to
+return error on out of bounds access using
+mad input value
+
+CRs-fixed: 1096799
+Change-Id: I75ce9e881cf05a50e874a555b2f8bd3286cdaed4
+Signed-off-by: Karthikeyan Mani <kmani@codeaurora.org>
+---
+ sound/soc/codecs/wcd9320.c | 8 ++++++++
+ 1 file changed, 8 insertions(+)
+
+diff --git a/sound/soc/codecs/wcd9320.c b/sound/soc/codecs/wcd9320.c
+index cb91030..ff199c14e 100644
+--- a/sound/soc/codecs/wcd9320.c
++++ b/sound/soc/codecs/wcd9320.c
+@@ -1208,6 +1208,14 @@ static int taiko_mad_input_put(struct snd_kcontrol *kcontrol,
+ 
+ 	taiko_mad_input = ucontrol->value.integer.value[0];
+ 
++	if (taiko_mad_input >= ARRAY_SIZE(taiko_conn_mad_text)) {
++		dev_err(codec->dev,
++			"%s: taiko_mad_input = %d out of bounds\n",
++			__func__, taiko_mad_input);
++		return -EINVAL;
++	}
++
++
+ 	micb_4_int_reg = taiko->resmgr.reg_addr->micb_4_int_rbias;
+ 	pr_debug("%s: taiko_mad_input = %s\n", __func__,
+ 			taiko_conn_mad_text[taiko_mad_input]);
+-- 
+cgit v1.1
+

@@ -1,0 +1,27 @@
+diff --git a/drivers/scsi/scsi_transport_iscsi.c b/drivers/scsi/scsi_transport_iscsi.c
+index 76c2600..80e37635 100644
+--- a/drivers/scsi/scsi_transport_iscsi.c
++++ b/drivers/scsi/scsi_transport_iscsi.c
+@@ -3525,6 +3525,7 @@
+ {
+ 	int err = 0;
+ 	u32 portid;
++	u32 pdu_len;
+ 	struct iscsi_uevent *ev = nlmsg_data(nlh);
+ 	struct iscsi_transport *transport = NULL;
+ 	struct iscsi_internal *priv;
+@@ -3642,6 +3643,14 @@
+ 			err = -EINVAL;
+ 		break;
+ 	case ISCSI_UEVENT_SEND_PDU:
++		pdu_len = nlh->nlmsg_len - sizeof(*nlh) - sizeof(*ev);
++
++		if ((ev->u.send_pdu.hdr_size > pdu_len) ||
++		    (ev->u.send_pdu.data_size > (pdu_len - ev->u.send_pdu.hdr_size))) {
++			err = -EINVAL;
++			break;
++		}
++
+ 		conn = iscsi_conn_lookup(ev->u.send_pdu.sid, ev->u.send_pdu.cid);
+ 		if (conn)
+ 			ev->r.retcode =	transport->send_pdu(conn,

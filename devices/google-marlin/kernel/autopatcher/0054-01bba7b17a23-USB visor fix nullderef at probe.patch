@@ -1,0 +1,41 @@
+From 01bba7b17a230e9c35239ded7ac942081e6f6b7c Mon Sep 17 00:00:00 2001
+From: Johan Hovold <johan@kernel.org>
+Date: Tue, 12 Jan 2016 12:05:20 +0100
+Subject: USB: visor: fix null-deref at probe
+
+[ Upstream commit cac9b50b0d75a1d50d6c056ff65c005f3224c8e0 ]
+
+Fix null-pointer dereference at probe should a (malicious) Treo device
+lack the expected endpoints.
+
+Specifically, the Treo port-setup hack was dereferencing the bulk-in and
+interrupt-in urbs without first making sure they had been allocated by
+core.
+
+Fixes: 1da177e4c3f4 ("Linux-2.6.12-rc2")
+Cc: stable <stable@vger.kernel.org>
+Signed-off-by: Johan Hovold <johan@kernel.org>
+Signed-off-by: Sasha Levin <sasha.levin@oracle.com>
+---
+ drivers/usb/serial/visor.c | 5 +++++
+ 1 file changed, 5 insertions(+)
+
+diff --git a/drivers/usb/serial/visor.c b/drivers/usb/serial/visor.c
+index 60afb39eb73c..c53fbb3e0b8c 100644
+--- a/drivers/usb/serial/visor.c
++++ b/drivers/usb/serial/visor.c
+@@ -544,6 +544,11 @@ static int treo_attach(struct usb_serial *serial)
+ 		(serial->num_interrupt_in == 0))
+ 		return 0;
+ 
++	if (serial->num_bulk_in < 2 || serial->num_interrupt_in < 2) {
++		dev_err(&serial->interface->dev, "missing endpoints\n");
++		return -ENODEV;
++	}
++
+ 	/*
+ 	* It appears that Treos and Kyoceras want to use the
+ 	* 1st bulk in endpoint to communicate with the 2nd bulk out endpoint,
+-- 
+cgit 1.2.3-1.el7
+

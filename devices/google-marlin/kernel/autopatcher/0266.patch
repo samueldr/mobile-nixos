@@ -1,0 +1,66 @@
+diff --git a/drivers/tty/vt/selection.c b/drivers/tty/vt/selection.c
+index cb0f79c..fec68ff 100644
+--- a/drivers/tty/vt/selection.c
++++ b/drivers/tty/vt/selection.c
+@@ -205,7 +205,6 @@
+ 		pe = tmp;
+ 	}
+ 
+-	mutex_lock(&sel_lock);
+ 	if (sel_cons != vc_cons[fg_console].d) {
+ 		clear_selection();
+ 		sel_cons = vc_cons[fg_console].d;
+@@ -251,10 +250,9 @@
+ 			break;
+ 		case TIOCL_SELPOINTER:
+ 			highlight_pointer(pe);
+-			goto unlock;
++			return 0;
+ 		default:
+-			ret = -EINVAL;
+-			goto unlock;
++			return -EINVAL;
+ 	}
+ 
+ 	/* remove the pointer */
+@@ -276,7 +274,7 @@
+ 	else if (new_sel_start == sel_start)
+ 	{
+ 		if (new_sel_end == sel_end)	/* no action required */
+-			goto unlock;
++			return 0;
+ 		else if (new_sel_end > sel_end)	/* extend to right */
+ 			highlight(sel_end + 2, new_sel_end);
+ 		else				/* contract from right */
+@@ -303,8 +301,7 @@
+ 	if (!bp) {
+ 		printk(KERN_WARNING "selection: kmalloc() failed\n");
+ 		clear_selection();
+-		ret = -ENOMEM;
+-		goto unlock;
++		return -ENOMEM;
+ 	}
+ 	kfree(sel_buffer);
+ 	sel_buffer = bp;
+@@ -329,8 +326,7 @@
+ 		}
+ 	}
+ 	sel_buffer_lth = bp - sel_buffer;
+-unlock:
+-	mutex_unlock(&sel_lock);
++
+ 	return ret;
+ }
+ 
+@@ -338,9 +334,11 @@
+ {
+ 	int ret;
+ 
++	mutex_lock(&sel_lock);
+ 	console_lock();
+ 	ret = __set_selection(v, tty);
+ 	console_unlock();
++	mutex_unlock(&sel_lock);
+ 
+ 	return ret;
+ }

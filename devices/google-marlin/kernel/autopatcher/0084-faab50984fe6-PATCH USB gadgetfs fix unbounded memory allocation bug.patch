@@ -1,0 +1,64 @@
+From faab50984fe6636e616c7cc3d30308ba391d36fd Mon Sep 17 00:00:00 2001
+From: Alan Stern <stern@rowland.harvard.edu>
+Date: Fri, 9 Dec 2016 15:17:46 -0500
+Subject: [PATCH] USB: gadgetfs: fix unbounded memory allocation bug
+
+Andrey Konovalov reports that fuzz testing with syzkaller causes a
+KASAN warning in gadgetfs:
+
+BUG: KASAN: slab-out-of-bounds in dev_config+0x86f/0x1190 at addr ffff88003c47e160
+Write of size 65537 by task syz-executor0/6356
+CPU: 3 PID: 6356 Comm: syz-executor0 Not tainted 4.9.0-rc7+ #19
+Hardware name: QEMU Standard PC (i440FX + PIIX, 1996), BIOS Bochs 01/01/2011
+ ffff88003c107ad8 ffffffff81f96aba ffffffff3dc11ef0 1ffff10007820eee
+ ffffed0007820ee6 ffff88003dc11f00 0000000041b58ab3 ffffffff8598b4c8
+ ffffffff81f96828 ffffffff813fb4a0 ffff88003b6eadc0 ffff88003c107738
+Call Trace:
+ [<     inline     >] __dump_stack lib/dump_stack.c:15
+ [<ffffffff81f96aba>] dump_stack+0x292/0x398 lib/dump_stack.c:51
+ [<ffffffff817e4dec>] kasan_object_err+0x1c/0x70 mm/kasan/report.c:159
+ [<     inline     >] print_address_description mm/kasan/report.c:197
+ [<ffffffff817e5080>] kasan_report_error+0x1f0/0x4e0 mm/kasan/report.c:286
+ [<ffffffff817e5705>] kasan_report+0x35/0x40 mm/kasan/report.c:306
+ [<     inline     >] check_memory_region_inline mm/kasan/kasan.c:308
+ [<ffffffff817e3fb9>] check_memory_region+0x139/0x190 mm/kasan/kasan.c:315
+ [<ffffffff817e4044>] kasan_check_write+0x14/0x20 mm/kasan/kasan.c:326
+ [<     inline     >] copy_from_user arch/x86/include/asm/uaccess.h:689
+ [<     inline     >] ep0_write drivers/usb/gadget/legacy/inode.c:1135
+ [<ffffffff83228caf>] dev_config+0x86f/0x1190 drivers/usb/gadget/legacy/inode.c:1759
+ [<ffffffff817fdd55>] __vfs_write+0x5d5/0x760 fs/read_write.c:510
+ [<ffffffff817ff650>] vfs_write+0x170/0x4e0 fs/read_write.c:560
+ [<     inline     >] SYSC_write fs/read_write.c:607
+ [<ffffffff81803a5b>] SyS_write+0xfb/0x230 fs/read_write.c:599
+ [<ffffffff84f47ec1>] entry_SYSCALL_64_fastpath+0x1f/0xc2
+
+Indeed, there is a comment saying that the value of len is restricted
+to a 16-bit integer, but the code doesn't actually do this.
+
+This patch fixes the warning.  It replaces the comment with a
+computation that forces the amount of data copied from the user in
+ep0_write() to be no larger than the wLength size for the control
+transfer, which is a 16-bit quantity.
+
+Signed-off-by: Alan Stern <stern@rowland.harvard.edu>
+Reported-by: Andrey Konovalov <andreyknvl@google.com>
+Tested-by: Andrey Konovalov <andreyknvl@google.com>
+CC: <stable@vger.kernel.org>
+Signed-off-by: Felipe Balbi <felipe.balbi@linux.intel.com>
+---
+ drivers/usb/gadget/legacy/inode.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/usb/gadget/legacy/inode.c b/drivers/usb/gadget/legacy/inode.c
+index 48f1409b438ad..01ed3bc0c3c8e 100644
+--- a/drivers/usb/gadget/legacy/inode.c
++++ b/drivers/usb/gadget/legacy/inode.c
+@@ -1126,7 +1126,7 @@ ep0_write (struct file *fd, const char __user *buf, size_t len, loff_t *ptr)
+ 	/* data and/or status stage for control request */
+ 	} else if (dev->state == STATE_DEV_SETUP) {
+ 
+-		/* IN DATA+STATUS caller makes len <= wLength */
++		len = min_t(size_t, len, dev->setup_wLength);
+ 		if (dev->setup_in) {
+ 			retval = setup_req (dev->gadget->ep0, dev->req, len);
+ 			if (retval == 0) {

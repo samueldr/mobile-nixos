@@ -1,0 +1,34 @@
+From 1fd3d3d27671c9945522d31225724eb924495c24 Mon Sep 17 00:00:00 2001
+From: Krishna Manikandan <mkrishn@codeaurora.org>
+Date: Fri, 18 Nov 2016 16:09:19 +0530
+Subject: msm: mdss: Add check to fix null pointer dereference
+
+In mdss_mdp_overlay_kickoff, the mixer_left can be accessed
+without checking whether it is allocated or not which can
+result in null pointer dereference. This is fixed
+by adding a check to decide if mixer_left is NULL or not.
+
+CRs-Fixed: 1070611
+
+Change-Id: I4b5c71de1a568ba9a39a4e84bde4bf03a044ed7c
+Signed-off-by: Krishna Manikandan <mkrishn@codeaurora.org>
+---
+ drivers/video/msm/mdss/mdss_mdp_overlay.c | 2 +-
+ 1 file changed, 1 insertion(+), 1 deletion(-)
+
+diff --git a/drivers/video/msm/mdss/mdss_mdp_overlay.c b/drivers/video/msm/mdss/mdss_mdp_overlay.c
+index 6a66d81..2481c78 100644
+--- a/drivers/video/msm/mdss/mdss_mdp_overlay.c
++++ b/drivers/video/msm/mdss/mdss_mdp_overlay.c
+@@ -1899,7 +1899,7 @@ int mdss_mdp_overlay_kickoff(struct msm_fb_data_type *mfd,
+ 	int sd_in_pipe = 0;
+ 	struct mdss_mdp_commit_cb commit_cb;
+ 
+-	if (!ctl)
++	if (!ctl || !ctl->mixer_left)
+ 		return -ENODEV;
+ 
+ 	ATRACE_BEGIN(__func__);
+-- 
+cgit v1.1
+

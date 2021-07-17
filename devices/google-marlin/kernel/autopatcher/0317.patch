@@ -1,0 +1,14 @@
+diff --git a/net/xfrm/xfrm_policy.c b/net/xfrm/xfrm_policy.c
+index c16f68b..f6cda3d 100644
+--- a/net/xfrm/xfrm_policy.c
++++ b/net/xfrm/xfrm_policy.c
+@@ -328,7 +328,9 @@
+ 
+ static void xfrm_policy_kill(struct xfrm_policy *policy)
+ {
++	write_lock_bh(&policy->lock);
+ 	policy->walk.dead = 1;
++	write_unlock_bh(&policy->lock);
+ 
+ 	atomic_inc(&policy->genid);
+ 
