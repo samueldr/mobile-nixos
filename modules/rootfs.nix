@@ -77,10 +77,11 @@ in
   '';
 
   fileSystems = {
-    "/" = lib.mkDefault {
-      device = "/dev/disk/by-label/${rootfsLabel}";
-      fsType = "ext4";
-      autoResize = true;
+    "/" = {
+      device = lib.mkDefault "/dev/disk/by-label/${rootfsLabel}";
+      fsType = lib.mkDefault "ext4";
+      autoResize = lib.mkDefault true;
+      options = lib.mkDefault [ "noatime" ];
     };
   };
 
